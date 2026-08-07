@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+savegame.json
+saves/
+.pytest_cache/
+.venv/
+.uv-cache/
+.ruff_cache/
+# PyInstaller build output
+build/
+dist/
+Builds/

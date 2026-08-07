@@ -1,0 +1,26 @@
+[project]
+name = "apex-horizon"
+version = "0.0.1"
+description = "Apex Horizon — official single-player business and investment simulation game."
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Trjo Development Studio" }]
+requires-python = ">=3.11"
+# Runtime dependencies are added once Design Bible 2.0 settles the technical
+# stack. Dev tooling lives in the dependency group below.
+dependencies = []
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+# Put the repo root on sys.path so `pytest` (not just `python -m pytest`)
+# can import the game package, in CI and locally.
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]

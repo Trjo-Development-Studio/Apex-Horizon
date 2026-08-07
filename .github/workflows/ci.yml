@@ -1,0 +1,38 @@
+name: CI
+
+# Lint + test the official Apex Horizon codebase.
+#
+# The repository is currently a scaffold with no Python code, so the lint and
+# test steps are guarded: they skip while there is nothing to check and start
+# running automatically as soon as source files and a tests/ suite land. That
+# keeps main green from day one without needing a workflow edit later.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up uv + Python
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: uv sync --group dev
+      - name: Lint
+        if: hashFiles('**/*.py') != ''
+        run: uv run ruff check .
+      - name: Test
+        if: hashFiles('tests/**/test_*.py') != ''
+        env:
+          SDL_VIDEODRIVER: dummy
+          SDL_AUDIODRIVER: dummy
+        run: uv run pytest -q
