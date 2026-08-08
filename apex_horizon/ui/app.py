@@ -325,6 +325,7 @@ class GameApp:
             company, message = player.found_company(name, self.context.engine.date.day)
             self.notifications.push(message, pygame.time.get_ticks(), emphasis=company is not None)
             if company is not None:
+                company.attach_market(self.context.market, self.context.allocator)
                 company.register(self.context.engine)
                 # Founding is a major decision, so the moment before it is kept
                 # (V16.6) and the game is marked as having unsaved changes.

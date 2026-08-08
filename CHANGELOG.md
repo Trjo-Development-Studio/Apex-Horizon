@@ -9,6 +9,43 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Milestone 10: Investment System (V8)
+
+The company now earns. Code lives in `apex_horizon/engine/investments/` and is
+documented in [`docs/investments.md`](docs/investments.md).
+
+- **The full workflow** (V8.3): research discovers, management approves or
+  rejects, an investor executes, the position is held, and the investor
+  eventually sells. Each stage is independently timed, so a partly-completed
+  workflow is a valid inspectable state (V8.24). It runs in the Employees phase
+  so its demand reaches the market the same day (V29.10, V4.8).
+- **Research is where skill pays** (V8.4, V9.5): a researcher compares several
+  candidates and favours the one whose underlying business is performing. With
+  skilled staff the companies chosen averaged +0.26 performance against a market
+  average of −0.11, giving +6.4% per closed position at a 60% win rate — an
+  edge, never a guarantee (V8.12).
+- **Correct accounting**: buying is not an expense but an exchange of cash for
+  an asset, so it never touches profit; selling books returned capital as
+  financing and only the difference as profit or loss (V17.26, V9.12).
+- **Limits and constraints** (V8.8, V8.22): per-investor limits, a position
+  ceiling, and approved opportunities that wait rather than forcing a negative
+  balance. Position size and sell targets come from hidden characteristics
+  (V8.13).
+- **Investments page**: open positions with unrealised gain, and the pipeline of
+  what is awaiting review or execution.
+- **25 further tests** (421 total).
+
+### Fixed
+
+- Salaries and running costs were wildly out of scale for a company founded with
+  $25,000 — three employees cost more per year than the company would ever hold.
+  Both are recalibrated so a first hire is affordable and payroll becomes a
+  serious cost only as the organisation grows.
+- Research had no predictive power, which meant buying with a target and a stop
+  in a randomly moving market had no expected value: the company could never
+  become profitable no matter how well it was run. Research now genuinely
+  selects better-performing companies, in proportion to the researcher's skill.
+
 ### Added — Milestone 9: Employees & Company Management (V5, V18)
 
 The company now has people. Code lives in `apex_horizon/engine/employees/` and

@@ -151,6 +151,8 @@ class SaveService:
         banking.register(engine)
         market.register(engine)
         if player.company is not None and not player.company.bankrupt:
+            player.company.attach_market(market, allocator)
+            player.company.restore(state.get("player", {}).get("company", {}))
             player.company.register(engine)
         self.register(engine)
 

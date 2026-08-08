@@ -89,6 +89,54 @@ class CompanyFinances:
         self.cash = self.cash - amount
         self.ledger.record_financing_out(day, category, amount, description)
 
+    # -- investing (V8.7, V8.11) -------------------------------------------
+    def invest(self, day: int, amount: Money, description: str = "") -> None:
+        """Commit cash to an investment.
+
+        Buying is not a cost: it exchanges cash for an asset of the same value,
+        so it moves cash and appears in cash flow but never reduces profit. Only
+        the eventual gain or loss does — which is the same reasoning that keeps
+        borrowing out of revenue (V17.6, V17.26).
+        """
+        if amount.is_negative:
+            raise ValueError("Investment amounts must be positive")
+        self.cash = self.cash - amount
+        self.ledger.record_financing_out(
+            day, ExpenseCategory.INVESTMENTS, amount, description
+        )
+
+    def realise_investment(
+        self, day: int, proceeds: Money, cost_basis: Money, description: str = ""
+    ) -> Money:
+        """Close an investment, booking the profit or loss (V8.11).
+
+        The capital that comes back is financing; only the difference between
+        proceeds and what was paid is profit or loss. Cash moves once, and the
+        ledger records the two halves separately so the player can see where
+        company profit actually came from (V9.12).
+        """
+        if proceeds.is_negative or cost_basis.is_negative:
+            raise ValueError("Proceeds and cost basis must be positive")
+
+        self.cash = self.cash + proceeds
+        returned = proceeds if proceeds < cost_basis else cost_basis
+        if returned.is_positive:
+            self.ledger.record_financing_in(
+                day, RevenueCategory.ASSET_SALE, returned, description
+            )
+        gain = proceeds - cost_basis
+        if gain.is_positive:
+            self.ledger.record_revenue(
+                day, RevenueCategory.INVESTMENT_PROFIT, gain, description
+            )
+        elif gain.is_negative:
+            # Recorded straight onto the ledger: the cash movement has already
+            # happened, and this is the loss, not a second payment.
+            self.ledger.record_expense(
+                day, ExpenseCategory.INVESTMENTS, -gain, description
+            )
+        return gain
+
     def cash_flow(self) -> dict[str, Money]:
         """Total cash in and out, including financing (V17.5)."""
         return {

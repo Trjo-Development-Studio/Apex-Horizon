@@ -14,12 +14,92 @@ from ..widgets import Button, Card, draw_text, panel, truncate
 from .base import EmptyStatePage, Page
 
 
-class InvestmentsPage(EmptyStatePage):
+class InvestmentsPage(Page):
+    """What the company holds, and what its people are working on (V9.12)."""
+
     key = "investments"
     title = "Investments"
-    subtitle = "What your company holds"
-    message = "The Investment System is not built yet."
-    detail = "Research, approval and execution arrive in a later milestone."
+    subtitle = "What your company holds, and what it is considering"
+
+    @property
+    def investments(self):
+        company = self.context.company
+        return getattr(company, "investments", None) if company else None
+
+    def cards(self):
+        system = self.investments
+        if system is None:
+            return []
+        stats = system.statistics()
+        return [
+            Card("Holdings", stats["Holdings value"].format(decimals=0),
+                 f"{stats['Open positions']} open positions"),
+            Card("Unrealised", stats["Unrealised"].format(decimals=0, signed=True),
+                 "On positions still held",
+                 accent=theme.value_colour(not stats["Unrealised"].is_negative)),
+            Card("Realised", stats["Realised"].format(decimals=0, signed=True),
+                 f"{stats['Closed']} closed · {stats['Win rate']} profitable",
+                 accent=theme.value_colour(not stats["Realised"].is_negative)),
+            Card("In the pipeline", str(stats["Awaiting review"] + stats["Awaiting execution"]),
+                 "Awaiting review or execution"),
+        ]
+
+    def draw_content(self, surface, rect, fonts, mouse) -> None:
+        system = self.investments
+        if system is None:
+            panel(surface, pygame.Rect(rect.left, rect.top, rect.width, 160))
+            draw_text(surface, fonts.body,
+                      "Found a company and hire someone to begin investing.",
+                      (rect.left + 24, rect.top + 60), theme.TEXT_MUTED)
+            return
+
+        column = (rect.width - theme.GAP) // 2
+        held = pygame.Rect(rect.left, rect.top, column, 300)
+        panel(surface, held)
+        draw_text(surface, fonts.subheading, "Open positions", (held.left + 20, held.top + 16))
+        y = held.top + 54
+        positions = system.open_positions()
+        if not positions:
+            draw_text(surface, fonts.small, "Nothing held right now.",
+                      (held.left + 20, y), theme.TEXT_FAINT)
+        for position in positions[:8]:
+            listing = self.context.market.listing_for(position.company_id)
+            company_record = self.context.world.company_by_id(position.company_id)
+            if listing is None or company_record is None:
+                continue
+            gain = position.unrealised_return(listing.price)
+            draw_text(surface, fonts.small,
+                      truncate(fonts.small, company_record.name, column - 200),
+                      (held.left + 20, y), theme.TEXT)
+            draw_text(surface, fonts.mono_small, position.value_at(listing.price).format(decimals=0),
+                      (held.right - 100, y), theme.TEXT, align="right")
+            draw_text(surface, fonts.mono_small, gain.format(signed=True),
+                      (held.right - 20, y), theme.value_colour(not gain.is_negative),
+                      align="right")
+            y += 24
+
+        pipeline = pygame.Rect(held.right + theme.GAP, rect.top, column, 300)
+        panel(surface, pipeline)
+        draw_text(surface, fonts.subheading, "The pipeline",
+                  (pipeline.left + 20, pipeline.top + 16))
+        draw_text(surface, fonts.small,
+                  "Research finds it, management approves it, an investor acts.",
+                  (pipeline.left + 20, pipeline.top + 42), theme.TEXT_MUTED)
+        y = pipeline.top + 76
+        recent = (system.awaiting_execution() + system.pending_review())[:8]
+        if not recent:
+            draw_text(surface, fonts.small, "Nothing under consideration.",
+                      (pipeline.left + 20, y), theme.TEXT_FAINT)
+        for opportunity in recent:
+            company_record = self.context.world.company_by_id(opportunity.company_id)
+            if company_record is None:
+                continue
+            draw_text(surface, fonts.small,
+                      truncate(fonts.small, company_record.name, column - 220),
+                      (pipeline.left + 20, y), theme.TEXT)
+            draw_text(surface, fonts.small, str(opportunity.stage),
+                      (pipeline.right - 20, y), theme.TEXT_MUTED, align="right")
+            y += 24
 
 
 class NewsPage(EmptyStatePage):

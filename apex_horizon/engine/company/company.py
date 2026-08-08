@@ -65,6 +65,9 @@ class PlayerCompany:
             lambda company: company.employees.release_all(company.bankrupt_on_day or 0)
         )
 
+        #: Created when the company is connected to a market (V8.7).
+        self.investments = None
+
         self.finances.register_liability_provider("loans", self.loans.total_outstanding)
         self._last_daily_day: int | None = None
 
@@ -124,11 +127,22 @@ class PlayerCompany:
                     terms.bank_name)
         return loan
 
+    def attach_market(self, market, allocator=None) -> None:
+        """Give the company an investment operation on a market (V8.7)."""
+        from ..investments import InvestmentSystem
+
+        self.investments = InvestmentSystem(
+            self, market, allocator=allocator, config=self.config
+        )
+        return self.investments
+
     # -- simulation --------------------------------------------------------
     def register(self, engine: SimulationEngine) -> None:
         """Attach to the simulation (V29.6, V29.11, V13.9-V13.11)."""
         engine.register(SimulationPhase.COMPANIES, self.update_daily)
         self.employees.register(engine)
+        if self.investments is not None:
+            self.investments.register(engine)
         engine.register_boundary(PeriodBoundary.WEEK, self.close_week)
         engine.register_boundary(PeriodBoundary.MONTH, self.close_month)
         engine.register_boundary(PeriodBoundary.YEAR, self.close_year)
@@ -242,6 +256,7 @@ class PlayerCompany:
             "finances": self.finances.state(),
             "loans": self.loans.state(),
             "employees": self.employees.state(),
+            "investments": self.investments.state() if self.investments else {},
         }
 
     def restore(self, data: dict) -> None:
@@ -256,3 +271,5 @@ class PlayerCompany:
         self.finances.restore(data.get("finances", {}))
         self.loans.restore(data.get("loans", {}))
         self.employees.restore(data.get("employees", {}))
+        if self.investments is not None:
+            self.investments.restore(data.get("investments", {}))

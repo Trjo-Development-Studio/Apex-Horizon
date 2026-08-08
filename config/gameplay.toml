@@ -39,8 +39,10 @@ starting_reputation = 0.25
 reputation_drift = 0.004
 # Weekly running cost of simply existing, before salaries (V17.7 operational
 # costs). Scales gently with company level as the organisation grows.
-weekly_operational_cost = 250
-operational_cost_per_level = 400
+# Running costs must be small against a company founded with $25,000, and grow
+# into a serious overhead only as the organisation does.
+weekly_operational_cost = 25
+operational_cost_per_level = 120
 # Company value (V17.12) is net worth plus a goodwill multiple of recent yearly
 # profit, so a profitable company is worth more than the sum of its assets.
 value_profit_multiple = 3.0
@@ -118,9 +120,16 @@ secondary_effectiveness = 0.6
 third_effectiveness = 0.3
 
 # Salary (V5.11). Higher-quality employees cost more, so a strong hire is a
-# commitment rather than a free upgrade.
-salary_base = 1_800
-salary_per_skill_point = 320
+# commitment rather than a free upgrade — but the scale has to suit a company
+# founded with $25,000, so a first hire is affordable and a team of specialists
+# is a real financial decision.
+# A first hire has to be affordable to a company founded with $25,000, since
+# V2.18 makes employees the only way to run the investment loop at all. Payroll
+# therefore stays small against invested capital, the way it does in a real
+# investment firm, and only becomes a serious cost once the company employs
+# many highly skilled people.
+salary_base = 60
+salary_per_skill_point = 4
 
 # Happiness (V5.10) runs 0 to 1 and follows pay, workload and company success.
 starting_happiness = 0.6
@@ -144,6 +153,38 @@ training_default_days = 10
 applicant_pool_size = 5
 reputation_quality_weight = 0.5
 
+[investments]
+# The workflow of V8.3: research discovers, management approves, an investor
+# executes, the position is held, and the investor eventually sells. Each stage
+# is independently timed, so a partly-completed workflow is a valid state
+# rather than a transient detail (V8.24).
+
+# Chance per day that a unit of research effectiveness turns up an opportunity.
+discovery_chance_per_point = 0.55
+# Opportunities go stale if nobody acts on them.
+opportunity_lifetime_days = 21
+# Chance per day that a unit of management effectiveness reviews a pending
+# opportunity, and the minimum expected return a manager will approve.
+review_chance_per_point = 0.9
+minimum_expected_return = 0.02
+# Cash the company always keeps back, so an approval can never leave it unable
+# to pay salaries.
+cash_reserve = 2_500
+
+# Position sizing. An investor commits a share of their own limit, shaped by
+# their hidden preferred investment size (V8.13).
+minimum_investment = 500
+max_positions_per_investor = 6
+
+# Selling (V8.10). Targets and stops widen with risk tolerance, so a cautious
+# investor takes profits early and an aggressive one rides further.
+target_return_cautious = 0.10
+target_return_aggressive = 0.35
+stop_loss_cautious = 0.06
+stop_loss_aggressive = 0.22
+# Even without hitting either, a position is eventually closed.
+maximum_hold_days = 900
+
 [market]
 # Share price behaviour (V4.4). Every movement is the sum of traceable
 # contributions, never a single opaque random number: company performance,
@@ -159,12 +200,12 @@ shares_outstanding_max = 250_000_000
 # Daily influence weights. Each is the maximum contribution that source can make
 # to a single day's price change, expressed as a fraction of price.
 #
-# These are deliberately small because they compound every single day: a 0.04%
-# daily drift is already about +14% a year, and roughly a fourfold gain across a
-# decade, which is the pace a genuinely strong company should manage (V4.11).
-# Larger values produce absurd growth over the hundreds of in-game years a save
-# may span (V16.20), destroying the believability V4.21 depends on.
-performance_weight = 0.0004
+# These are deliberately small because they compound every single day. The
+# performance weight is the one that matters most: it sets how far a genuinely
+# strong company pulls ahead of a weak one, and therefore how much good research
+# is actually worth (V4.11, V9.5). Too low and skill cannot pay for itself; too
+# high and companies grow absurdly across the centuries a save may span.
+performance_weight = 0.0006
 industry_weight = 0.0005
 sentiment_weight = 0.0004
 supply_demand_weight = 0.05
