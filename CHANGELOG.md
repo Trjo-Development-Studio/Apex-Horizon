@@ -66,6 +66,12 @@ so the two stay in proportion whenever either is retuned.
 
 ### Fixed
 
+- Saving used a fixed temporary filename, so the atomic write was only atomic
+  within one process: two games sharing a save directory would write the same
+  temporary path, and the first to finish moved the file out from under the
+  second, which then failed with the old save already replaced. The temporary
+  now carries the writing process's id, and a failed write cleans up after
+  itself instead of leaving a stray file behind (V16.19).
 - `change_over` reported 0.00% when a listing had not traded long enough to
   know, which is indistinguishable from a price that genuinely had not moved —
   a company listed last month read as flat over the past year. It now reports

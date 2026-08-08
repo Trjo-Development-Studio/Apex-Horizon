@@ -103,16 +103,29 @@ class SaveStore:
 
     # -- writing -----------------------------------------------------------
     def write(self, slot: str | int, document: SaveDocument) -> Path:
-        """Write a save atomically, so an interruption cannot destroy the old one."""
+        """Write a save atomically, so an interruption cannot destroy the old one.
+
+        The temporary file carries the writing process's id. A fixed name looks
+        atomic but is not: two games sharing a save directory would write the
+        same temporary path, and the first to finish would move the file out
+        from under the second, which then fails with the old save already gone.
+        A per-process name keeps each write independent, so the replace either
+        happens completely or not at all.
+        """
         self.directory.mkdir(parents=True, exist_ok=True)
         path = self.path_for(slot)
-        temporary = path.with_suffix(path.suffix + ".tmp")
+        temporary = path.with_suffix(f"{path.suffix}.{os.getpid()}.tmp")
         payload = encode(document)
-        with open(temporary, "wb") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
+        try:
+            with open(temporary, "wb") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, path)
+        except OSError:
+            # Never leave a stray temporary behind for a save that failed.
+            temporary.unlink(missing_ok=True)
+            raise
         logger.info("Saved %s (%d bytes).", path.name, len(payload))
         return path
 

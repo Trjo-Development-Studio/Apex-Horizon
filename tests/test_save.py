@@ -540,3 +540,51 @@ def test_a_reloaded_player_can_still_trade(game):
     )
     assert ok, message
     assert game.context.portfolio.shares_of(listing.company_id) == 0
+
+
+def test_a_temporary_file_is_not_shared_between_processes(store, monkeypatch):
+    """Two games sharing a save directory must not collide mid-write.
+
+    A fixed temporary name looks atomic but is not: the first process to finish
+    moves the file out from under the second, which then fails with the old
+    save already replaced.
+    """
+    import os as os_module
+
+    seen = []
+    real_replace = os_module.replace
+
+    def record(source, destination):
+        seen.append(str(source))
+        return real_replace(source, destination)
+
+    monkeypatch.setattr("apex_horizon.engine.save.slots.os.replace", record)
+    store.write(1, sample_document())
+
+    assert seen and str(os_module.getpid()) in seen[0]
+
+
+def test_a_failed_write_leaves_no_stray_temporary(store, monkeypatch):
+    def explode(source, destination):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("apex_horizon.engine.save.slots.os.replace", explode)
+    with pytest.raises(OSError):
+        store.write(1, sample_document())
+
+    assert not list(store.directory.glob("*.tmp"))
+
+
+def test_an_interrupted_write_leaves_the_previous_save_intact(store, monkeypatch):
+    """V16.19: an interruption must never destroy the save already there."""
+    store.write(1, sample_document())
+    original = store.read(1)
+
+    def explode(source, destination):
+        raise OSError("interrupted")
+
+    monkeypatch.setattr("apex_horizon.engine.save.slots.os.replace", explode)
+    with pytest.raises(OSError):
+        store.write(1, sample_document())
+
+    assert store.read(1) == original
