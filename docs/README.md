@@ -19,6 +19,7 @@ two disagree, the Design Bible wins (V19.3).
 |---|---|
 | [architecture.md](architecture.md) | Layer structure, engine foundations, and the planned simulation architecture |
 | [data-standards.md](data-standards.md) | The shared `Money`, `Percentage`, `SimulationDate`, and identifier types (V30) |
+| [time-and-simulation.md](time-and-simulation.md) | The clock, the simulation engine, and the ten daily phases (V13, V29) |
 
 ## Planned documents
 

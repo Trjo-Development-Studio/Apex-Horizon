@@ -15,6 +15,13 @@ from .errors import (
     subscribe_error_notifier,
 )
 from .logging_setup import configure_logging, get_logger
+from .simulation import (
+    PeriodBoundary,
+    SimulationClock,
+    SimulationContext,
+    SimulationEngine,
+    SimulationPhase,
+)
 from .values import (
     Calendar,
     EntityKind,
@@ -36,7 +43,12 @@ __all__ = [
     "Money",
     "OperationResult",
     "Percentage",
+    "PeriodBoundary",
+    "SimulationClock",
+    "SimulationContext",
     "SimulationDate",
+    "SimulationEngine",
+    "SimulationPhase",
     "configure_logging",
     "get_calendar",
     "get_config",

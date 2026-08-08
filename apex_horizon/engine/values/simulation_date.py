@@ -167,6 +167,21 @@ class SimulationDate:
     def starts_new_year(self, calendar: Calendar | None = None) -> bool:
         return self.day > 1 and self.is_first_day_of_year(calendar)
 
+    def is_last_day_of_week(self, calendar: Calendar | None = None) -> bool:
+        """True on the day a week completes (V13.9 fires on completed weeks)."""
+        cal = calendar or get_calendar()
+        return self.day_of_week(cal) == cal.days_per_week
+
+    def is_last_day_of_month(self, calendar: Calendar | None = None) -> bool:
+        """True on the day a month completes (V13.10)."""
+        cal = calendar or get_calendar()
+        return self.day_of_month(cal) == cal.days_per_month
+
+    def is_last_day_of_year(self, calendar: Calendar | None = None) -> bool:
+        """True on the day a year completes (V13.11)."""
+        cal = calendar or get_calendar()
+        return self.day_of_year(cal) == cal.days_per_year
+
     # -- presentation ----------------------------------------------------
     def label(self, calendar: Calendar | None = None) -> str:
         """The V13.6 display format, e.g. "Year 3, Month 8, Week 2, Day 4"."""

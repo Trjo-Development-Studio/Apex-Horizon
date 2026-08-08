@@ -32,6 +32,14 @@ speed_options = [1, 2, 3]
 default_speed = 1
 # V13.19 — a general background update occurs roughly every five ticks.
 background_update_every_ticks = 5
+# Upper bound on in-game days simulated in a single update call. V13.27 requires
+# long unattended sessions to remain stable and deterministic, so surplus days
+# are carried forward and caught up over following frames rather than dropped —
+# this cap only keeps any one frame from blocking the interface (V13.29).
+max_days_per_update = 30
+# Fixed seed used when a world does not supply one. Real saves store their own
+# seed so a reloaded world replays identically (V15.11).
+default_random_seed = 20260808
 
 [calendar]
 # V13.6 — the calendar hierarchy is Year -> Month -> Week -> Day, displayed as

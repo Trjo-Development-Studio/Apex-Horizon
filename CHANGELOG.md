@@ -9,6 +9,45 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Milestone 2: Time & Simulation Engine (V13, V29)
+
+The simulation now runs. Code lives in `apex_horizon/engine/simulation/` and is
+documented in [`docs/time-and-simulation.md`](docs/time-and-simulation.md).
+
+- **`SimulationClock`** (V13.4, V13.5, V13.29): converts real elapsed time into
+  whole in-game days at one second per day, scaled by ×1/×2/×3. Simulation pace
+  is fully decoupled from frame rate — polling once a frame and once a second
+  give identical results. Pausing banks no time, so unpausing never
+  fast-forwards through a popup (V13.20); changing speed never disturbs banked
+  time, so rapid switching cannot skip or duplicate ticks (V13.27); and days
+  beyond the per-update cap are carried forward rather than dropped, keeping
+  long unattended sessions deterministic.
+- **`SimulationEngine`** (V15.4): owns in-game time, the seeded generator, and
+  the system registry. Systems register phase handlers instead of calling one
+  another, staying modular (V15.6, V15.7).
+- **Ten ordered daily phases** (V29.2): News, Economy, Banks, Companies,
+  Employees, Research, Investment Funds, Market, Financial Calculations, User
+  Interface — each completing fully before the next, so no system ever reads
+  partially-computed data (V29.13, V29.15). Registration order cannot affect
+  execution order.
+- **Scheduled progression** (V13.9–V13.11): weekly, monthly, and yearly handlers
+  fire on the last day of each completed period, shortest first when several end
+  together. Adds `is_last_day_of_week/month/year` to `SimulationDate`.
+- **Background updates** (V13.19) roughly every five ticks, and **random event
+  rolls** at the configured daily/weekly/monthly/yearly probabilities (V13.18).
+  The engine decides only whether an event fires; content arrives with the
+  Events database (V33.14).
+- **Determinism** (V15.11): a single seeded generator drives every system, and
+  saved state includes the generator's internal state so a reloaded world
+  continues the same sequence rather than restarting it.
+- **Error resilience** (V15.13, V15.26): every handler runs under the retry
+  policy, so a failing system cannot end the game — later phases still run and
+  time still advances. Handlers must therefore be retry-safe.
+- **Shell integration**: the window now advances the simulation each frame and
+  displays the live date, with 1/2/3 changing speed (V13.5, V27.9).
+- **34 further tests** (119 total), including verification that a 3.5-second run
+  advances exactly three in-game days.
+
 ### Added — Milestone 1: Data Standards (V30)
 
 Shared value types in `apex_horizon/engine/values/`, enforced through types

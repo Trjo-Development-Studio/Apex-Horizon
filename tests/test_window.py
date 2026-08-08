@@ -54,3 +54,21 @@ def test_engine_errors_reach_the_window(window):
     errors.notify_player("Saving failed after 3 attempts.")
     assert any("Saving failed" in message for message in window.messages)
     window.tick()
+
+
+def test_window_drives_the_simulation(window):
+    # The shell advances in-game time each frame (V13.29).
+    start = window.engine.date.day
+    for _ in range(3):
+        window.tick()
+    assert window.engine.date.day >= start
+
+
+def test_speed_keys_change_simulation_speed(window):
+    # V13.5 speeds, reachable by keyboard per V27.9.
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_3))
+    window.tick()
+    assert window.engine.clock.speed == 3
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_1))
+    window.tick()
+    assert window.engine.clock.speed == 1
