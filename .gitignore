@@ -10,3 +10,7 @@ saves/
 build/
 dist/
 Builds/
+# Runtime logs (Design Bible V15.12)
+logs/
+# The Design Bible is kept in docs/ locally but is deliberately not committed.
+docs/*.pdf

@@ -1,0 +1,54 @@
+# Apex Horizon — gameplay configuration.
+#
+# Design Bible V15.10 requires that gameplay values live in dedicated
+# configuration files rather than being scattered through source code, so that
+# balance changes never require touching simulation logic (see also V1.22).
+#
+# Every value below cites the Design Bible section it comes from. Values marked
+# "PM decision" were supplied by the project manager where the Design Bible
+# deliberately left the figure undefined.
+
+[player]
+# V1.2 / V2.3 — the player begins with $10,000 personal capital.
+starting_personal_cash = 10_000
+# V1.13 — the playthrough ends when personal finances reach this balance.
+personal_bankruptcy_threshold = -250_000
+
+[company]
+# PM decision (2026-08-08) — founding a company costs $25,000 of personal cash.
+# The same figure gates re-founding after a bankruptcy (V3.3 left this open).
+founding_cost = 25_000
+# PM decision (2026-08-08) — company bankruptcy occurs at this company cash
+# balance. V3.20 / V17.25 explicitly left this threshold undefined.
+bankruptcy_cash_threshold = -1_000_000
+# V3.7 — companies progress through Levels 1-5.
+max_level = 5
+
+[simulation]
+# V13.4 — default simulation speed is one real-life second per in-game day.
+seconds_per_day = 1.0
+# V13.5 / V14.18 — the player may run the simulation at these speeds.
+speed_options = [1, 2, 3]
+default_speed = 1
+# V13.19 — a general background update occurs roughly every five ticks.
+background_update_every_ticks = 5
+
+[random_events]
+# V13.18 — approximate probability that a random event fires at each scale.
+daily_chance = 0.05
+weekly_chance = 0.25
+monthly_chance = 0.35
+yearly_chance = 0.35
+
+[save]
+# V16.8 — five manual save slots, each an independent world.
+manual_slots = 5
+# V16.5 / V13.10 — autosave every in-game month by default; player-adjustable.
+autosave_interval_months = 1
+# V16.7 — a single rolling autosave; each new autosave replaces the previous.
+rolling_autosave_slots = 1
+
+[support]
+# V15.13 — players are asked to report unrecoverable errors here.
+# TODO: replace with the real invite once the project manager provides it.
+discord_invite_url = ""
