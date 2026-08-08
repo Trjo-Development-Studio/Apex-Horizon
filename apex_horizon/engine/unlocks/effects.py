@@ -90,6 +90,9 @@ class UnlockEffects:
         company.finance_tier = self.tree.highest(
             c.BETTER_FINANCE_1, c.BETTER_FINANCE_2, c.BETTER_FINANCE_3
         )
+        # The final unlock opens institutional capital (V11.3, V6.8).
+        if company.funds is not None:
+            company.funds.unlocked = self.tree.has(c.INVESTMENT_FUNDS)
 
     # -- Employee, Training and Recruitment branches (V6.7.2, .4, .5) -----
     def _apply_employees(self, roster) -> None:

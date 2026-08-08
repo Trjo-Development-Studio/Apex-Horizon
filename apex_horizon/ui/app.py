@@ -41,10 +41,14 @@ from .pages import (
     EmployeeDetailPage,
     EmployeesPage,
     FinancePage,
+    FundDetailPage,
+    FundsPage,
     InvestmentsPage,
     MarketPage,
     NewsPage,
     SettingsPage,
+    SubsidiariesPage,
+    SubsidiaryDetailPage,
     UnlockTreePage,
 )
 from .popups import Popup, PopupAction, PopupManager, PromptPopup
@@ -86,11 +90,17 @@ class GameApp:
 
         market_page = MarketPage(self.context)
         employees_page = EmployeesPage(self.context)
+        subsidiaries_page = SubsidiariesPage(self.context)
+        funds_page = FundsPage(self.context)
         self.pages = {
             "dashboard": DashboardPage(self.context),
             "company": CompanyPage(self.context),
             "company:employees": employees_page,
             "company:employee": EmployeeDetailPage(self.context, employees_page),
+            "company:subsidiaries": subsidiaries_page,
+            "company:subsidiary": SubsidiaryDetailPage(self.context, subsidiaries_page),
+            "company:funds": funds_page,
+            "company:fund": FundDetailPage(self.context, funds_page),
             "investments": InvestmentsPage(self.context),
             "market": market_page,
             "market:company": CompanyDetailPage(self.context, market_page),
@@ -265,6 +275,8 @@ class GameApp:
                 self._prompt_found_company()
             if page.take_employees_request():
                 self.navigate("company:employees")
+            if page.take_subsidiaries_request():
+                self.navigate("company:subsidiaries")
         if isinstance(page, EmployeesPage):
             self._handle_employees_page(page)
         if isinstance(page, EmployeeDetailPage):
@@ -273,10 +285,15 @@ class GameApp:
             trade = page.take_trade_request()
             if trade:
                 self._prompt_trade(*trade)
+            target = page.take_acquire_request()
+            if target:
+                self._prompt_acquire(target)
         if isinstance(page, UnlockTreePage):
             key = page.take_unlock_request()
             if key:
                 self._prompt_unlock(key)
+        if isinstance(page, FundsPage) and page.take_create_request():
+            self._prompt_open_fund()
         if isinstance(page, SettingsPage):
             speed = page.take_speed_request()
             if speed:
@@ -444,6 +461,85 @@ class GameApp:
                           else portfolio.sell(company_id, shares, day))
             self.notifications.push(result, pygame.time.get_ticks(), emphasis=not ok)
             if ok:
+                self.saves.mark_changed()
+
+        self.popups.open(popup, on_choice)
+
+    def _prompt_acquire(self, company_id: str) -> None:
+        """Buy a company outright, in company cash (V12.4, V12.22).
+
+        Acquiring is permanent and paid for in full, so it is exactly the kind
+        of irreversible decision V16.6 wants the moment before kept for.
+        """
+        company = self.context.company
+        book = getattr(company, "subsidiaries", None)
+        record = self.context.world.company_by_id(company_id)
+        if book is None or record is None:
+            return
+        allowed, reason = book.can_acquire(company_id)
+        if not allowed:
+            self.notifications.push(reason, pygame.time.get_ticks(), emphasis=True)
+            return
+
+        price = book.price_of(company_id)
+        popup = Popup(
+            title=f"Acquire {record.name}",
+            message=(
+                f"{record.name} would cost {price.format(decimals=0)}, paid in full "
+                f"from company cash. It becomes a subsidiary, keeps operating in "
+                f"{record.industry.value}, and stops trading on the market.\n\n"
+                "This cannot be undone."
+            ),
+            actions=[
+                PopupAction("cancel", "Cancel"),
+                PopupAction("acquire", "Acquire", primary=True),
+            ],
+        )
+
+        def on_choice(choice: str) -> None:
+            if choice != "acquire":
+                return
+            self.saves.autosave_before(f"acquiring {record.name}")
+            subsidiary, message = book.acquire(company_id, self.context.engine.date.day)
+            self.notifications.push(message, pygame.time.get_ticks(),
+                                    emphasis=subsidiary is not None)
+            if subsidiary is not None:
+                self.saves.mark_changed()
+                self.navigate("company:subsidiaries")
+
+        self.popups.open(popup, on_choice)
+
+    def _prompt_open_fund(self) -> None:
+        """Name and open an investment fund (V11.6)."""
+        company = self.context.company
+        book = getattr(company, "funds", None)
+        if book is None:
+            return
+        allowed, reason = book.can_create()
+        if not allowed:
+            self.notifications.push(reason, pygame.time.get_ticks(), emphasis=True)
+            return
+
+        popup = PromptPopup(
+            title="Open an investment fund",
+            message=(
+                "A fund invests money entrusted by outside investors. That money "
+                "is theirs, not yours — your company earns a fee for managing it "
+                "well. Choose a name."
+            ),
+            placeholder="Fund name",
+            actions=[PopupAction("cancel", "Cancel"),
+                     PopupAction("open", "Open", primary=True)],
+        )
+
+        def on_choice(choice: str) -> None:
+            if choice != "open":
+                return
+            fund, message = book.create(popup.text.strip(), self.context.engine.date.day)
+            self.notifications.push(message, pygame.time.get_ticks(),
+                                    emphasis=fund is not None)
+            if fund is not None:
+                fund.register(self.context.engine)
                 self.saves.mark_changed()
 
         self.popups.open(popup, on_choice)

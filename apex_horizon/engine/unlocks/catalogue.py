@@ -260,10 +260,5 @@ UNLOCKS: tuple[Unlock, ...] = (
             BETTER_TRAINING_3, EMPLOYEE_PERFORMANCE, BREAKING_NEWS,
         ),
         cost_tier=6,
-        # The Investment Funds System is Volume 11, which is not built yet. The
-        # node is shown because V6.14 wants the remaining tree visible as
-        # long-term ambition, but it cannot be bought: V6.3 forbids selling an
-        # unlock that changes nothing.
-        implemented=False,
     ),
 )

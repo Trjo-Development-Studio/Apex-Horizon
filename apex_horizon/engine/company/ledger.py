@@ -64,6 +64,7 @@ class ExpenseCategory(Enum):
     INVESTMENTS = "Investments"
     OPERATIONAL = "Operational costs"
     ACQUISITIONS = "Acquisitions"
+    FUND_MANAGEMENT = "Fund management fees"
     TAX = "Tax"
     OTHER = "Other costs"
 

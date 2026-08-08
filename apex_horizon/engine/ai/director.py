@@ -62,6 +62,47 @@ class AIDirector:
             return
         self._consider_growth()
         self._consider_hiring(context, names, allocator)
+        self._consider_acquisition(context)
+
+    def _consider_acquisition(self, context: SimulationContext) -> None:
+        """Buy another company outright when the organisation is big enough.
+
+        V12.14 has AI organisations expanding by acquisition too, so the player
+        is not the only one building a group. They use the identical rules —
+        same price, same cash-only requirement, same company-level gate — so an
+        AI company can no more overreach than the player can (V12.22).
+        """
+        book = getattr(self.company, "subsidiaries", None)
+        if book is None:
+            return
+        interval = self.config.get_int("ai.acquisition_review_days")
+        if interval <= 0 or context.day_number % interval:
+            return
+
+        share = Decimal(str(self.config.get_float("ai.acquisition_cash_share")))
+        budget = Money(self.company.finances.cash.amount * share)
+        affordable = [
+            (company_id, price)
+            for company_id, price in self._targets()
+            if price <= budget
+        ]
+        if not affordable:
+            return
+        # The largest business it can comfortably afford: an acquisition should
+        # feel significant rather than incidental (V12.3).
+        company_id, _ = max(affordable, key=lambda item: item[1].amount)
+        book.acquire(company_id, context.day_number)
+
+    def _targets(self):
+        """Listed companies nobody owns yet, with what each would cost."""
+        book = self.company.subsidiaries
+        for listing in book.market.active_listings():
+            record = book.world.company_by_id(listing.company_id)
+            if record is None or record.is_subsidiary:
+                continue
+            price = book.price_of(listing.company_id)
+            if price is not None:
+                yield listing.company_id, price
 
     def _consider_growth(self) -> None:
         """Grow the organisation as it becomes worth more (V26.5, V18.17).

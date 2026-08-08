@@ -10,9 +10,11 @@ from .base import EmptyStatePage, Page
 from .company import CompanyPage, FinancePage
 from .dashboard import DashboardPage
 from .employees import EmployeeDetailPage, EmployeesPage
+from .funds import FundDetailPage, FundsPage
 from .market import CompanyDetailPage, MarketPage
 from .news import NewsPage
 from .simple import InvestmentsPage, SettingsPage
+from .subsidiaries import SubsidiariesPage, SubsidiaryDetailPage
 from .unlocks import UnlockTreePage
 
 __all__ = [
@@ -24,10 +26,14 @@ __all__ = [
     "EmployeesPage",
     "EmptyStatePage",
     "FinancePage",
+    "FundDetailPage",
+    "FundsPage",
     "InvestmentsPage",
     "MarketPage",
     "NewsPage",
     "Page",
     "SettingsPage",
+    "SubsidiariesPage",
+    "SubsidiaryDetailPage",
     "UnlockTreePage",
 ]

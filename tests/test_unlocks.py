@@ -245,18 +245,31 @@ def test_investment_funds_needs_every_branch():
 
 
 def test_an_unbuilt_system_cannot_be_bought():
-    """V6.3: never sell an unlock that changes nothing."""
-    from apex_horizon.engine.unlocks import INVESTMENT_FUNDS
+    """V6.3: never sell an unlock that changes nothing.
+
+    Every unlock in the shipped tree is now built, so the guard is exercised
+    against a node marked unbuilt rather than against whichever one happens to
+    be waiting for its system.
+    """
+    from apex_horizon.engine.unlocks import Unlock
 
     tree = UnlockTree()
-    for unlock in tree.all:
-        tree.unlocked.add(unlock.key)
-    tree.unlocked.discard(INVESTMENT_FUNDS)
+    pending = Unlock(key="not_built_yet", name="Not Built Yet",
+                     description="A system that does not exist.",
+                     requires=(BASIC_INVESTING,), cost_tier=0, implemented=False)
+    tree.all = (*tree.all, pending)
+    tree.by_key[pending.key] = pending
 
-    allowed, reason = tree.can_purchase(INVESTMENT_FUNDS, Money(100_000_000))
+    allowed, reason = tree.can_purchase(pending.key, Money(100_000_000))
     assert not allowed
     assert "later version" in reason
-    assert INVESTMENT_FUNDS not in {u.key for u in tree.available()}
+    assert pending.key not in {unlock.key for unlock in tree.available()}
+
+
+def test_every_unlock_in_the_tree_is_now_built():
+    """The tree no longer advertises anything it cannot deliver (V6.3)."""
+    tree = UnlockTree()
+    assert [unlock.name for unlock in tree.all if not unlock.implemented] == []
 
 
 def test_every_branch_is_a_straight_sequence():
@@ -285,12 +298,18 @@ class FakeRoster:
         self.performance_visible = False
 
 
+class FakeFunds:
+    def __init__(self):
+        self.unlocked = False
+
+
 class FakeCompany:
     def __init__(self):
         self.level = 1
         self.borrowing_allowed = False
         self.finance_tier = 0
         self.employees = FakeRoster()
+        self.funds = FakeFunds()
         self.max_level = 5
 
     def set_level(self, level):
@@ -323,6 +342,7 @@ class FakeContext:
             vars(self.news).copy(),
             vars(self.analytics).copy(),
             company.level, company.borrowing_allowed, company.finance_tier,
+            company.funds.unlocked,
             vars(company.employees).copy(),
         )
 

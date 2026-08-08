@@ -27,6 +27,8 @@ class CompanyPage(Page):
         self.found_button = Button("Found company", primary=True)
         self.found_requested = False
         self.employees_button = Button("Employee Management", primary=True)
+        self.subsidiaries_button = Button("Subsidiaries")
+        self.subsidiaries_requested = False
         self.employees_requested = False
 
     def cards(self):
@@ -66,7 +68,16 @@ class CompanyPage(Page):
                 and self.employees_button.take_click()):
             self.employees_requested = True
             return True
+        if (self.context.company is not None
+                and self.subsidiaries_button.handle_event(event)
+                and self.subsidiaries_button.take_click()):
+            self.subsidiaries_requested = True
+            return True
         return False
+
+    def take_subsidiaries_request(self) -> bool:
+        requested, self.subsidiaries_requested = self.subsidiaries_requested, False
+        return requested
 
     def take_employees_request(self) -> bool:
         requested, self.employees_requested = self.employees_requested, False
@@ -105,6 +116,8 @@ class CompanyPage(Page):
             draw_text(surface, fonts.mono_small, text, (right.right - 20, y),
                       theme.TEXT, align="right")
             y += 25
+        self.subsidiaries_button.draw(
+            surface, pygame.Rect(right.left + 232, right.bottom - 52, 150, 34), fonts, mouse)
         self.employees_button.draw(
             surface, pygame.Rect(right.left + 20, right.bottom - 52, 200, 34), fonts, mouse)
 

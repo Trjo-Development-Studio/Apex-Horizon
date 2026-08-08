@@ -9,6 +9,84 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Milestone 15: Investment Funds (V11)
+
+The last system in the Unlock Tree, and the one that changes what the company
+is. Code lives in `apex_horizon/engine/funds/` and is documented in
+[`docs/investment-funds.md`](docs/investment-funds.md).
+
+- **The money is not the company's** (V11.5). A fund holds its own finances,
+  entirely separate, and assets under management are deliberately *not*
+  registered as a company asset — managing money is not owning it. The company
+  owns only the fee it has earned, which is the one thing that crosses from a
+  fund to the company. Investor capital is recorded as financing rather than
+  revenue, since the fund was entrusted with it (V17.26).
+- **Composition, not duplication** (V11.23). The investment workflow only asks
+  its owner whether it is bankrupt, who its employees are, and for its finances,
+  so a fund supplies those three and runs the identical V8.3 process (V11.9).
+  There is no fund-specific investing code at all — the third system built this
+  way, after AI companies and subsidiaries.
+- **Confidence grows funding on its own** (V11.11, V11.20). Investors judge the
+  record, confidence moves slowly toward what the fund's return justifies, and
+  above a threshold they add money each month without the player doing anything.
+  Measured over five years: $250,000 grew to $916,000, confidence 50% to 89%,
+  $51,645 paid to the company in fees.
+- **Several funds at once** (V11.7), each independent, each with its own
+  management page showing performance, history, assets and active investments
+  (V11.13). An empty new fund is presented as a valid state, because V11.21 says
+  it is one.
+- **The final unlock now opens something** (V11.3, V6.8). Investment Funds was
+  drawn but unbuyable; it is now the real capstone the tree always described.
+
+### Known gap
+
+- V11.21 leaves undefined what should happen to a fund that becomes deeply
+  insolvent. Nothing is invented: confidence collapses and funding shrinks, and
+  a fund is never bankrupt in its own right.
+
+### Added — Milestone 14: Acquisitions & Subsidiaries (V12)
+
+The company can now buy other companies outright. Code lives in
+`apex_horizon/engine/acquisitions/` and is documented in
+[`docs/acquisitions.md`](docs/acquisitions.md).
+
+- **Ownership, not a second model** (V12.23). Acquiring a company sets the
+  ownership reference the world's company record already carried; the subsidiary
+  record holds only what ownership adds — what was paid, what it is worth, and
+  what it has paid up.
+- **Paid in full, in company cash** (V12.4, V12.22): never personal money, never
+  financed, and an attempt that cannot be afforded is refused with a reason
+  rather than driving the balance negative (V12.21). Buying a business is an
+  exchange of cash for an asset, so it never touches profit (V17.26).
+- **Subsidiaries keep operating** (V12.5) in their own industry, paying their
+  parent monthly. What they pay and what they are worth follow that industry's
+  fortunes, which is what makes a poor acquisition genuinely poor (V12.11).
+- **An acquired company is delisted** (PM ruling): owning it outright leaves
+  nothing to trade, so it leaves the market the same way any company does.
+- **A Subsidiaries page** (V12.9) with a searchable, sortable list opened by a
+  single click, and a page per subsidiary showing the business, what it cost,
+  what it is worth and what it has paid (V12.8).
+- **AI companies acquire too** (V12.14), using the identical rules, gated by
+  company size like the player's (PM ruling) so the early market stays open.
+
+### Fixed
+
+- **Market capitalisations were fifty times too large.** Listed companies were
+  worth tens of billions while a mature investment company is worth single-digit
+  millions, so an acquisition could not have happened at any point in any
+  playthrough. Shares in issue are rescaled so the cheapest companies cost
+  around $10M — reachable late, while the median stays beyond any one buyer.
+- **The investment system's cash reserve did not survive growth.** It kept back a
+  flat $2,500, which is meaningful to a company founded with $25,000 and nothing
+  to one worth millions: such a company stayed permanently fully invested and
+  could never accumulate the cash an acquisition must be paid with. The reserve
+  is now the larger of that floor and a share of the whole portfolio — measured
+  against the portfolio rather than cash, since measuring against cash makes the
+  reserve decay toward nothing as it is spent.
+- An AI company's acquisition review was nested inside its hiring review, so it
+  only ran on the rare day both cadences coincided — once every 630 days rather
+  than every 90.
+
 ### Added — Milestone 13: AI Companies (V26)
 
 The world now has other investment companies in it. Code lives in

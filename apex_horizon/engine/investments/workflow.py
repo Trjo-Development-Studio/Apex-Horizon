@@ -182,7 +182,7 @@ class InvestmentSystem:
             return
         chance = self.config.get_float("investments.review_chance_per_point")
         threshold = Percentage(str(self.config.get_float("investments.minimum_expected_return")))
-        reserve = Money(self.config.get_int("investments.cash_reserve"))
+        reserve = self._cash_reserve()
 
         for employee in self.company.employees:
             effectiveness = employee.effectiveness_in(Department.MANAGEMENT, self.config)
@@ -232,7 +232,7 @@ class InvestmentSystem:
         approved = self.awaiting_execution()
         if not approved:
             return
-        reserve = Money(self.config.get_int("investments.cash_reserve"))
+        reserve = self._cash_reserve()
         minimum = Money(self.config.get_int("investments.minimum_investment"))
         max_positions = self.config.get_int("investments.max_positions_per_investor")
 
@@ -283,6 +283,25 @@ class InvestmentSystem:
             employee.investments_made += 1
             employee.gain_experience(Department.INVESTMENT, 1.8, self.config)
             employee.record(context.day_number, "Opened an investment", "+")
+
+    def _cash_reserve(self) -> Money:
+        """What the company keeps back rather than investing (V8.7).
+
+        The larger of a floor and a share of everything the company has to
+        invest — cash plus what it already holds. Measuring the share against
+        cash alone would shrink it every time cash was spent, converging on
+        nothing and leaving the company fully invested anyway; measured against
+        the whole portfolio it is a stable target, the way a real firm keeps a
+        proportion of its book in cash.
+
+        This is what lets a company accumulate enough to buy another outright,
+        which V12.22 requires be paid in full from cash with no financing.
+        """
+        floor = Money(self.config.get_int("investments.cash_reserve"))
+        share = Decimal(str(self.config.get_float("investments.cash_reserve_share")))
+        investable = self.company.finances.cash + self.holdings_value()
+        proportional = Money(investable.amount * share)
+        return proportional if proportional > floor else floor
 
     def _position_size(self, employee: Employee, reserve: Money) -> Money:
         """How much this investor commits, within their limit (V8.8, V8.13)."""

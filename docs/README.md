@@ -26,6 +26,8 @@ two disagree, the Design Bible wins (V19.3).
 | [player-and-progression.md](player-and-progression.md) | The player as an individual investor, personal investing, and the Unlock Tree (V1, V3.3-3.4, V6) |
 | [company-and-finances.md](company-and-finances.md) | The player's company, the ledger, loans, and bankruptcy (V3, V17) |
 | [investments.md](investments.md) | The research → approval → execution → sale workflow (V8) |
+| [investment-funds.md](investment-funds.md) | Managing external capital, fees, and investor confidence (V11) |
+| [acquisitions.md](acquisitions.md) | Buying companies outright, subsidiaries, and group value (V12) |
 | [ai-companies.md](ai-companies.md) | The world's other investment companies and how they behave (V26) |
 | [news-and-analytics.md](news-and-analytics.md) | News generation, tiers, and the analytics reports and history (V10, V9) |
 | [employees.md](employees.md) | Skills, departments, recruitment, training, pay and morale (V5, V18) |
@@ -36,4 +38,4 @@ two disagree, the Design Bible wins (V19.3).
 ## Planned documents
 
 One document per major system, added as each is implemented (V15.14, V19.13):
-Financial Management, Acquisitions, and Investment Funds.
+Financial Management.

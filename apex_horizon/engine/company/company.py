@@ -81,6 +81,11 @@ class InvestmentCompany:
 
         #: Created when the company is connected to a market (V8.7).
         self.investments = None
+        #: Companies this one owns outright (V12.6). Created with the market,
+        #: since acquiring one means buying it off that market.
+        self.subsidiaries = None
+        #: Funds this company manages for outside investors (V11.14).
+        self.funds = None
 
         self.finances.register_liability_provider("loans", self.loans.total_outstanding)
         self._last_daily_day: int | None = None
@@ -152,6 +157,15 @@ class InvestmentCompany:
         self.investments = InvestmentSystem(
             self, market, allocator=allocator, config=self.config
         )
+        from ..acquisitions import SubsidiaryBook
+
+        self.subsidiaries = SubsidiaryBook(
+            self, market.world, market, config=self.config
+        )
+        from ..funds import FundBook
+
+        self.funds = FundBook(self, allocator=allocator, config=self.config)
+        self.funds.attach_market(market)
         return self.investments
 
     # -- simulation --------------------------------------------------------
@@ -161,6 +175,10 @@ class InvestmentCompany:
         self.employees.register(engine)
         if self.investments is not None:
             self.investments.register(engine)
+        if self.subsidiaries is not None:
+            self.subsidiaries.register(engine)
+        if self.funds is not None:
+            self.funds.register(engine)
         engine.register_boundary(PeriodBoundary.WEEK, self.close_week)
         engine.register_boundary(PeriodBoundary.MONTH, self.close_month)
         engine.register_boundary(PeriodBoundary.YEAR, self.close_year)
@@ -275,6 +293,8 @@ class InvestmentCompany:
             "loans": self.loans.state(),
             "employees": self.employees.state(),
             "investments": self.investments.state() if self.investments else {},
+            "subsidiaries": self.subsidiaries.state() if self.subsidiaries else {},
+            "funds": self.funds.state() if self.funds else {},
         }
 
     def restore(self, data: dict) -> None:
@@ -291,3 +311,7 @@ class InvestmentCompany:
         self.employees.restore(data.get("employees", {}))
         if self.investments is not None:
             self.investments.restore(data.get("investments", {}))
+        if self.subsidiaries is not None:
+            self.subsidiaries.restore(data.get("subsidiaries", {}))
+        if self.funds is not None:
+            self.funds.restore(data.get("funds", {}))

@@ -272,6 +272,25 @@ class MarketSystem:
         """Every company still trading."""
         return [listing for listing in self.listings.values() if not listing.delisted]
 
+    def delist(self, company_id: str, *, reason: str = "") -> bool:
+        """Take a company off the market permanently.
+
+        Used when a company is acquired outright: its shares stop trading
+        because there is nothing left to trade (project manager ruling, V12.5).
+        Delisting is already how a company leaves the market (V4.14), so this
+        reuses it rather than inventing a second way out.
+        """
+        listing = self.listings.get(company_id)
+        if listing is None or listing.delisted:
+            return False
+        listing.delisted = True
+        listing.delisted_on_day = self._last_priced_day
+        listing.pending_demand = 0
+        company = self.world.company_by_id(company_id)
+        logger.info("%s delisted%s.", company.name if company else company_id,
+                    f" ({reason})" if reason else "")
+        return True
+
     def record_demand(self, company_id: str, shares: int) -> None:
         """Register buying or selling pressure from any market participant (V4.8).
 

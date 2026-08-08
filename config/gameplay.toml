@@ -168,8 +168,15 @@ opportunity_lifetime_days = 21
 review_chance_per_point = 0.9
 minimum_expected_return = 0.02
 # Cash the company always keeps back, so an approval can never leave it unable
-# to pay salaries.
+# to pay salaries — and so a growing company can accumulate enough to buy
+# another outright, which V12.22 requires be paid in full from cash.
+#
+# A flat figure alone does not survive growth: $2,500 held back by a company
+# worth tens of millions is nothing, and such a company stays fully invested for
+# ever and can never acquire anything. The reserve is therefore the larger of a
+# floor and a share of what the company holds.
 cash_reserve = 2_500
+cash_reserve_share = 0.2
 
 # Position sizing. An investor commits a share of their own limit, shaped by
 # their hidden preferred investment size (V8.13).
@@ -184,6 +191,62 @@ stop_loss_cautious = 0.06
 stop_loss_aggressive = 0.22
 # Even without hitting either, a position is eventually closed.
 maximum_hold_days = 900
+
+[funds]
+# Investment funds (V11): capital the company manages for outside investors.
+# The money in a fund belongs to those investors, never to the player or the
+# company (V11.5) - the company earns only the fee for looking after it.
+
+# What investors seed a new fund with, and the most funds the company may run.
+initial_deposit = 250_000
+maximum_funds = 6
+
+# The company's fee for managing a fund, as a share of assets under management
+# each year. Charged on what is managed rather than on profit, which is what
+# makes funds expand the company's influence rather than just its winnings
+# (V11.4).
+annual_management_fee = 0.02
+
+# Investor confidence (V11.11) runs 0 to 1 and follows the fund's record. It
+# moves slowly, so trust is earned and lost over time rather than in a month.
+starting_confidence = 0.5
+confidence_speed = 0.08
+
+# New money arrives on its own once the record justifies it (V11.20): above this
+# confidence, investors add this share of what the fund already manages each
+# month, scaled by how much they trust it.
+deposit_confidence_threshold = 0.45
+monthly_deposit_rate = 0.02
+minimum_deposit = 5_000
+
+# Months of fund value kept for the performance history (V11.10).
+history_months = 240
+
+[acquisitions]
+# Acquisitions and subsidiaries (V12). Buying a company outright is permanent
+# ownership rather than a temporary position (V12.12), paid for in full from
+# company cash with no financing at all (V12.22).
+
+# What control costs above the market's own valuation of a company. The Design
+# Bible gives no formula, so the market price is the basis and this is the
+# premium nobody sells control without.
+control_premium = 0.25
+
+# V12.15 places acquisitions among the later stages of growth, so a company must
+# have grown before it can buy another. The player reaches levels through the
+# Unlock Tree (V6.7.3); AI companies reach them by being worth enough.
+minimum_company_level = 2
+
+# What a subsidiary pays its parent each month, as a share of what the business
+# is worth, and how strongly its own industry's fortunes move that (V12.5).
+# A declining industry pays less and is worth less, which is what makes a poor
+# acquisition genuinely poor (V12.11).
+monthly_income_yield = 0.006
+industry_income_sensitivity = 0.8
+
+# PM decision (2026-08-08): an acquired company is delisted, since owning it
+# outright leaves nothing to trade. New listings appear faster to compensate for
+# companies leaving the market this way (see market.new_listing_weekly_chance).
 
 [ai]
 # AI companies (V26). They are ordinary investment companies whose decisions are
@@ -219,6 +282,15 @@ hiring_review_days = 14
 # Months of payroll a company keeps in reserve before hiring again, which is
 # what makes some of them overreach and fail (V26.11, V17.18).
 salary_runway_months = 4.0
+
+# How often an AI company considers buying another outright (V12.14), in days,
+# and the share of its cash it will spend doing so. PM decision (2026-08-08):
+# AI acquisitions are gated by company size like the player's, so the early
+# market stays open while the player is still building up.
+acquisition_review_days = 90
+# An acquisition is meant to feel significant (V12.3), so a company will commit
+# most of its free cash to one rather than only a token share.
+acquisition_cash_share = 0.9
 
 # Company value needed to reach Levels 2 to 5. The player buys these as unlocks
 # (V6.7.3); an AI company has no Unlock Tree, so it grows on what it is worth,
@@ -304,8 +376,19 @@ starting_price_min = 5
 starting_price_max = 400
 # Shares in issue, used for market capitalisation and to scale the price impact
 # of a given order size (V4.8).
-shares_outstanding_min = 1_000_000
-shares_outstanding_max = 250_000_000
+#
+# These were fifty times larger, which put market capitalisations in the tens of
+# billions while a mature investment company is worth single-digit millions - so
+# buying a company outright (V12) could not have happened at any point in any
+# playthrough, at any scale of success. Acquisitions are meant to be a late
+# stage of growth (V12.15), not an unreachable one.
+#
+# At this scale the cheapest listed companies cost around $10M with the control
+# premium, which a long-running company can reach, while the median company
+# stays well beyond any single buyer. Retune here if acquisitions should become
+# common earlier.
+shares_outstanding_min = 50_000
+shares_outstanding_max = 5_000_000
 
 # Daily influence weights. Each is the maximum contribution that source can make
 # to a single day's price change, expressed as a fraction of price.
@@ -347,7 +430,7 @@ price_history_days = 730
 # market keeps producing fresh opportunities.
 delisting_price_floor = 0.5
 delisting_grace_days = 28
-new_listing_weekly_chance = 0.15
+new_listing_weekly_chance = 0.28
 max_listings = 90
 
 [economy]

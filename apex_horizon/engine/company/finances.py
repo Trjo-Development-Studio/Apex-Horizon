@@ -90,6 +90,45 @@ class CompanyFinances:
         self.ledger.record_financing_out(day, category, amount, description)
 
     # -- investing (V8.7, V8.11) -------------------------------------------
+    def receive_capital_injection(self, day: int, amount: Money,
+                                  description: str = "") -> None:
+        """Take capital entrusted by someone else (V11.5, V17.26).
+
+        Money an investor puts into a fund has not been earned, so it is
+        financing rather than revenue — the same treatment an owner's capital
+        gets in a company.
+        """
+        if not amount.is_positive:
+            return
+        self.receive_financing(day, RevenueCategory.CAPITAL_INJECTION, amount,
+                               description or "Capital injection")
+
+    def receive_fund_income(self, day: int, amount: Money, name: str = "") -> None:
+        """Take a management fee earned by running a fund (V11.5)."""
+        if not amount.is_positive:
+            return
+        self.receive(day, RevenueCategory.FUND_INCOME, amount,
+                     f"Managing {name}" if name else "Fund management income")
+
+    def spend_management_fee(self, day: int, amount: Money, name: str = "") -> None:
+        """A fund paying its manager: a real cost borne by the fund's investors."""
+        if not amount.is_positive:
+            return
+        self.spend(day, ExpenseCategory.FUND_MANAGEMENT, amount,
+                   f"Management fee for {name}" if name else "Management fee")
+
+    def receive_subsidiary_income(self, day: int, amount: Money,
+                                  name: str = "") -> None:
+        """Take a subsidiary's contribution as revenue (V12.5, V17.5).
+
+        Unlike a loan or an owner's capital, this is money the group genuinely
+        earned, so it belongs in revenue rather than financing (V17.26).
+        """
+        if not amount.is_positive:
+            return
+        self.receive(day, RevenueCategory.SUBSIDIARY_INCOME, amount,
+                     f"Income from {name}" if name else "Subsidiary income")
+
     def invest(self, day: int, amount: Money, description: str = "") -> None:
         """Commit cash to an investment.
 
