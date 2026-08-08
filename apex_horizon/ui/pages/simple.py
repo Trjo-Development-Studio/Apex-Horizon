@@ -67,13 +67,19 @@ class InvestmentsPage(Page):
     def draw_content(self, surface, rect, fonts, mouse) -> None:
         personal_height = min(240, max(140, rect.height // 2))
         personal = pygame.Rect(rect.left, rect.top, rect.width, personal_height)
-        self._draw_personal(surface, personal, fonts)
+        self.draw_personal(surface, personal, fonts)
 
         remaining = pygame.Rect(rect.left, personal.bottom + theme.GAP, rect.width,
                                 max(0, rect.bottom - personal.bottom - theme.GAP))
-        if remaining.height < 120:
-            return
+        if remaining.height >= 120:
+            self.draw_company(surface, remaining, fonts, mouse)
 
+    def draw_company(self, surface, remaining, fonts, mouse) -> None:
+        """The company's own investment operation, on its own (V8).
+
+        Drawn separately from the personal holdings above it so the Portfolio
+        page can show either alone, without the two ever sharing a figure.
+        """
         system = self.investments
         if system is None:
             panel(surface, remaining)
@@ -137,7 +143,7 @@ class InvestmentsPage(Page):
                       (pipeline.right - 20, y), theme.TEXT_MUTED, align="right")
             y += 24
 
-    def _draw_personal(self, surface, rect, fonts) -> None:
+    def draw_personal(self, surface, rect, fonts) -> None:
         """The player's own holdings, bought with their own money (V1.19)."""
         panel(surface, rect)
         draw_text(surface, fonts.subheading, "Your portfolio", (rect.left + 20, rect.top + 16))

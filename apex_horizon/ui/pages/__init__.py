@@ -13,6 +13,7 @@ from .employees import EmployeeDetailPage, EmployeesPage
 from .funds import FundDetailPage, FundsPage
 from .market import CompanyDetailPage, MarketPage
 from .news import NewsPage
+from .portfolio import PortfolioPage
 from .simple import InvestmentsPage, SettingsPage
 from .statistics import StatisticsPage
 from .subsidiaries import SubsidiariesPage, SubsidiaryDetailPage
@@ -33,6 +34,7 @@ __all__ = [
     "MarketPage",
     "NewsPage",
     "Page",
+    "PortfolioPage",
     "SettingsPage",
     "StatisticsPage",
     "SubsidiariesPage",

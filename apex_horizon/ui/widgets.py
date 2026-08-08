@@ -380,22 +380,139 @@ def _sort_value(value):
 
 @dataclass
 class Card:
-    """A summary figure. Cards are the primary way information is shown (V14.13)."""
+    """A summary figure. Cards are the primary way information is shown (V14.13).
+
+    V14.7 puts summary cards at the centre of the default view and keeps graphs
+    out of it, so a card has to carry more than a number: an accent bar for the
+    category it belongs to, a direction when the figure has one, and optionally
+    a meter when the value is really a proportion. None of those is a graph —
+    they are the status indicators V14.7 asks the default interface to lean on.
+    """
 
     label: str
     value: str
     detail: str = ""
     accent: tuple[int, int, int] | None = None
+    #: True for good, False for bad, None when the figure has no direction.
+    trend: bool | None = None
+    #: A 0-1 proportion drawn as a meter beneath the value, when one applies.
+    fraction: float | None = None
 
     def draw(self, surface, rect, fonts) -> None:
         panel(surface, rect, fill=theme.SURFACE)
+        colour = self.accent or theme.TEXT
+
+        # A short bar down the leading edge, tying the card to its meaning
+        # without colouring the whole surface (V27.2, V27.10).
+        marker = pygame.Rect(rect.left + 1, rect.top + 14, 3, rect.height - 28)
+        pygame.draw.rect(surface, self.accent or theme.BORDER_STRONG, marker,
+                         border_radius=2)
+
         draw_text(surface, fonts.tiny, self.label.upper(),
-                  (rect.left + 16, rect.top + 14), theme.TEXT_FAINT)
-        draw_text(surface, fonts.heading, self.value,
-                  (rect.left + 16, rect.top + 34), self.accent or theme.TEXT)
+                  (rect.left + 18, rect.top + 14), theme.TEXT_FAINT)
+        value_x = rect.left + 18
+        draw_text(surface, fonts.heading, self.value, (value_x, rect.top + 34), colour)
+
+        if self.trend is not None:
+            arrow = "\u25b2" if self.trend else "\u25bc"
+            width = fonts.heading.size(self.value)[0]
+            draw_text(surface, fonts.small, arrow, (value_x + width + 8, rect.top + 42),
+                      theme.value_colour(self.trend))
+
+        if self.fraction is not None:
+            from .charts import meter
+
+            # The meter takes the space the detail line would have used, so the
+            # detail moves above it rather than on top of the value.
+            if self.detail:
+                draw_text(surface, fonts.small, self.detail,
+                          (rect.left + 18, rect.bottom - 34), theme.TEXT_MUTED)
+            bar = pygame.Rect(rect.left + 18, rect.bottom - 16, rect.width - 36, 5)
+            meter(surface, bar, self.fraction, colour=self.accent or theme.ACCENT)
+            return
+
         if self.detail:
             draw_text(surface, fonts.small, self.detail,
-                      (rect.left + 16, rect.bottom - 24), theme.TEXT_MUTED)
+                      (rect.left + 18, rect.bottom - 24), theme.TEXT_MUTED)
+
+
+def chip(surface, fonts, text: str, position: tuple[int, int], *,
+         colour: tuple[int, int, int] | None = None,
+         align: str = "left") -> pygame.Rect:
+    """A small labelled pill for a state: an economy, a mood, a stage.
+
+    States were being printed as bare words in the same style as every other
+    value, which left nothing to distinguish "what this is" from "what it is
+    doing". A chip is a status indicator, which V14.7 explicitly wants the
+    default interface to use.
+    """
+    tint = colour or theme.TEXT_MUTED
+    width = fonts.tiny.size(text.upper())[0] + 18
+    left = position[0] - width if align == "right" else position[0]
+    rect = pygame.Rect(left, position[1], width, 20)
+    background = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+    pygame.draw.rect(background, (*tint, 34), background.get_rect(), border_radius=10)
+    surface.blit(background, rect.topleft)
+    pygame.draw.rect(surface, (*tint, 255), rect, 1, border_radius=10)
+    draw_text(surface, fonts.tiny, text.upper(), (rect.centerx, rect.centery), tint,
+              align="center", baseline="middle")
+    return rect
+
+
+class Tabs:
+    """A selector between views of one system.
+
+    V14.5 wants the sidebar to list *systems*, so closely related views belong
+    inside the system they describe rather than beside it in the navigation.
+    Tabs are how a page holds several views without becoming several
+    destinations, and they keep V14.20's page order intact: the tab strip sits
+    with the content, below the cards, not in place of the breadcrumb.
+    """
+
+    def __init__(self, labels: list[str], selected: str | None = None):
+        self.labels = labels
+        self.selected = selected or (labels[0] if labels else "")
+        self._rects: list[tuple[pygame.Rect, str]] = []
+
+    def set_labels(self, labels: list[str]) -> None:
+        """Update the available views, keeping the selection if it survives."""
+        self.labels = labels
+        if self.selected not in labels:
+            self.selected = labels[0] if labels else ""
+
+    def handle_event(self, event) -> bool:
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            for rect, label in self._rects:
+                if rect.collidepoint(event.pos):
+                    self.selected = label
+                    return True
+        return False
+
+    def height(self) -> int:
+        return 38
+
+    def draw(self, surface, rect, fonts, mouse) -> None:
+        self._rects.clear()
+        x = rect.left
+        for label in self.labels:
+            width = fonts.small.size(label)[0] + 32
+            tab = pygame.Rect(x, rect.top, width, 32)
+            self._rects.append((tab, label))
+            active = label == self.selected
+            hovered = tab.collidepoint(mouse)
+            if active:
+                pygame.draw.rect(surface, theme.SURFACE_RAISED, tab, border_radius=6)
+            elif hovered:
+                pygame.draw.rect(surface, theme.SURFACE, tab, border_radius=6)
+            draw_text(surface, fonts.small, label, (tab.centerx, tab.centery),
+                      theme.TEXT if active else (
+                          theme.TEXT_MUTED if hovered else theme.TEXT_FAINT),
+                      align="center", baseline="middle")
+            if active:
+                pygame.draw.rect(surface, theme.ACCENT,
+                                 pygame.Rect(tab.left + 10, tab.bottom - 2,
+                                             tab.width - 20, 2), border_radius=1)
+            x += width + 4
 
 
 def draw_tooltip(surface, fonts, text: str, anchor: tuple[int, int]) -> None:

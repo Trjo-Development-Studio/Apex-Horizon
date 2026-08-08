@@ -36,7 +36,6 @@ from . import theme
 from .chrome import NAV_ITEMS, Breadcrumb, NotificationCentre, SaveIndicator, Sidebar, TimeControls
 from .context import GameContext
 from .pages import (
-    AnalyticsPage,
     CompanyDetailPage,
     CompanyPage,
     DashboardPage,
@@ -45,11 +44,10 @@ from .pages import (
     FinancePage,
     FundDetailPage,
     FundsPage,
-    InvestmentsPage,
     MarketPage,
     NewsPage,
+    PortfolioPage,
     SettingsPage,
-    StatisticsPage,
     SubsidiariesPage,
     SubsidiaryDetailPage,
     UnlockTreePage,
@@ -104,13 +102,11 @@ class GameApp:
             "company:subsidiary": SubsidiaryDetailPage(self.context, subsidiaries_page),
             "company:funds": funds_page,
             "company:fund": FundDetailPage(self.context, funds_page),
-            "investments": InvestmentsPage(self.context),
+            "portfolio": PortfolioPage(self.context),
             "market": market_page,
             "market:company": CompanyDetailPage(self.context, market_page),
             "news": NewsPage(self.context),
-            "analytics": AnalyticsPage(self.context),
             "unlocks": UnlockTreePage(self.context),
-            "statistics": StatisticsPage(self.context),
             "finance": FinancePage(self.context),
             "settings": SettingsPage(self.context),
         }
@@ -293,6 +289,9 @@ class GameApp:
                 destination = self.sidebar.take_request()
                 if destination:
                     self.navigate(destination)
+                if self.sidebar.take_exit_request():
+                    # Leaving is an action, not a destination (V16.4).
+                    self._prompt_exit()
                 continue
             if self.breadcrumb.handle_event(event):
                 destination = self.breadcrumb.take_request()
@@ -321,6 +320,9 @@ class GameApp:
                 self.navigate("company:employees")
             if page.take_subsidiaries_request():
                 self.navigate("company:subsidiaries")
+            destination = page.take_destination_request()
+            if destination:
+                self.navigate(destination)
         if isinstance(page, EmployeesPage):
             self._handle_employees_page(page)
         if isinstance(page, EmployeeDetailPage):

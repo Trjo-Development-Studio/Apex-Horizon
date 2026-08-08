@@ -93,6 +93,49 @@ multiple from `unlocks.cost_multipliers`. Against a $25,000 founding cost that
 runs from $5,000 at the branch roots to $1,000,000 at Company Analytics and
 Investment Funds. Changing the founding cost rescales all 32 unlocks at once.
 
+## Navigation and visual presentation (PM, 2026-08-08)
+
+Two corrections, made after playing the build.
+
+**The interface had become too application-like.** The project manager asked for
+a presentation that reads as a management simulation rather than financial
+software. Checking that against the Design Bible found a direct conflict: V1.15
+calls for "the feeling of a professional desktop application", and V14.3 says
+the style should "resemble modern business and financial software **rather than
+a traditional video game**", naming professional financial platforms as a
+primary inspiration.
+
+> **Ruling: V1.15 and V14.3 stand.** The identity stays professional and
+> restrained. What was actually wrong is narrower and real — V14.3 also names
+> **business dashboards** as an inspiration, and the implementation had built
+> tables where dashboards were asked for.
+
+So the work is visualisation rather than restyling: charts, sparklines, meters,
+status chips, richer cards and better density, with the palette and tone
+unchanged. Note that V14.7 and V14.14 forbid graphs in default views and confine
+them to pages the player explicitly opens, so charts appear on detail pages and
+never on the Dashboard.
+
+**There were too many top-level tabs.** Ten sidebar entries listed screens
+rather than systems. The navigation is now one entry per major system:
+
+    Dashboard | Market | Portfolio | Company | Unlocks | News | Settings
+
+with **Save & Exit** as a separate action at the foot of the sidebar, since
+leaving the game is not a destination (V16.4).
+
+* **Portfolio** holds every holding the player has — Personal and Company behind
+  a selector, plus Analytics and Statistics. The company view appears only once
+  a company exists and never replaces the personal one, because the player
+  invests personally long before they are a CEO (V1.19, V1.20).
+* **Company** holds the business itself: overview, employees, financial
+  management, subsidiaries and investment funds.
+* **Dashboard stays** as its own entry, since V14.7 makes it the default view.
+
+V14.5 lists Investments and Financial Management as sidebar sections, so folding
+them into the systems they belong to departs from that list. Nothing became
+unreachable — a test asserts every system V14.5 names can still be opened.
+
 ## Content and assets
 
 | Decision | Detail |

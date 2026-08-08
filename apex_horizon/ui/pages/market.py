@@ -11,6 +11,7 @@ import pygame
 
 from ... import engine as _engine  # noqa: F401  (keeps import order stable)
 from .. import theme
+from ..charts import bars, line_chart
 from ..widgets import Button, Card, Column, SearchBox, Table, draw_text, panel
 from .base import Page
 
@@ -123,7 +124,7 @@ class MarketPage(Page):
 
 
 #: Tall enough for all seven causes V4.4 lists, so none is cut off.
-DETAIL_HEIGHT = 272
+DETAIL_HEIGHT = 262
 
 
 class CompanyDetailPage(Page):
@@ -248,27 +249,58 @@ class CompanyDetailPage(Page):
               pygame.Rect(right.left + 20, right.top + 52, right.width - 40, 60),
               theme.TEXT_MUTED)
 
+        # V4.21 wants a move to be explainable, and seven signed percentages to
+        # three decimal places is a readout rather than an explanation. Drawn as
+        # bars against each other, which pushed the price and which barely
+        # mattered is legible at a glance. This is a sub-page the player opened
+        # deliberately, which is where V14.7 places charts.
         change = listing.last_change
         contributions = [
-            ("Company performance", change.performance),
-            ("Industry conditions", change.industry),
-            ("Economic conditions", change.economy),
-            ("News", change.news),
-            ("Market sentiment", change.sentiment),
-            ("Supply and demand", change.supply_demand),
-            ("Ordinary variation", change.variation),
+            ("Performance", float(change.performance.fraction)),
+            ("Industry", float(change.industry.fraction)),
+            ("Economy", float(change.economy.fraction)),
+            ("News", float(change.news.fraction)),
+            ("Sentiment", float(change.sentiment.fraction)),
+            ("Supply and demand", float(change.supply_demand.fraction)),
+            ("Variation", float(change.variation.fraction)),
         ]
-        y = right.top + 118
-        for label, value in contributions:
-            draw_text(surface, fonts.small, label, (right.left + 20, y), theme.TEXT_MUTED)
-            draw_text(surface, fonts.mono_small, value.format(signed=True, decimals=3),
-                      (right.right - 20, y), _change_colour(value), align="right")
-            y += 21
+        bars(surface, pygame.Rect(right.left + 20, right.top + 112,
+                                  right.width - 40, right.height - 128),
+             fonts, contributions, label_width=146,
+             value_format=lambda value: f"{value:+.2%}")
 
-        trading = pygame.Rect(rect.left, left.bottom + theme.GAP, rect.width,
-                              max(0, min(150, rect.bottom - left.bottom - theme.GAP)))
+        remaining = rect.bottom - left.bottom - theme.GAP
+        history_height = min(190, max(0, remaining - 150 - theme.GAP))
+        if history_height >= 110:
+            self._draw_history(surface, pygame.Rect(
+                rect.left, left.bottom + theme.GAP, rect.width, history_height),
+                fonts, listing)
+            trading_top = left.bottom + theme.GAP + history_height + theme.GAP
+        else:
+            trading_top = left.bottom + theme.GAP
+
+        trading = pygame.Rect(rect.left, trading_top, rect.width,
+                              max(0, min(150, rect.bottom - trading_top)))
         if trading.height >= 90:
             self._draw_trading(surface, trading, fonts, mouse, listing)
+
+    def _draw_history(self, surface, rect, fonts, listing) -> None:
+        """What the share has actually done (V4.15, V14.7).
+
+        The market keeps two years of closes for every company and, until now,
+        showed the player one of them. A price is a shape, and the shape is the
+        thing a decision is made on.
+        """
+        panel(surface, rect)
+        draw_text(surface, fonts.subheading, "Price history",
+                  (rect.left + 20, rect.top + 16))
+        closes = [float(price.amount) for price in listing.history]
+        draw_text(surface, fonts.small,
+                  f"{len(closes):,} days of trading",
+                  (rect.right - 20, rect.top + 20), theme.TEXT_FAINT, align="right")
+        line_chart(surface, pygame.Rect(rect.left + 20, rect.top + 52,
+                                        rect.width - 40, rect.height - 72),
+                   fonts, closes)
 
     def _draw_trading(self, surface, rect, fonts, mouse, listing) -> None:
         """Buying and selling with the player's own money (V1.19, V3.4).

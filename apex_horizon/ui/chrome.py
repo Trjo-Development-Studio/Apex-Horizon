@@ -27,19 +27,30 @@ class NavItem:
     icon: str
 
 
-# The sections listed in V14.5, in that order.
+# The major systems, one entry each (V14.5).
+#
+# V14.5 lists eight sections and permits more, but a section per page is what
+# turns navigation into a software menu: at ten entries the sidebar was listing
+# views rather than systems. Investments and Financial Management were folded
+# into the systems they belong to - Portfolio holds every holding the player
+# has, personal and company alike, and Company holds the business itself - so
+# nothing became unreachable, it simply stopped being top-level.
+#
+# Project manager decision (2026-08-08): Dashboard stays as its own entry, since
+# V14.7 makes it the default view.
 NAV_ITEMS: tuple[NavItem, ...] = (
     NavItem("dashboard", "Dashboard", "dashboard"),
-    NavItem("company", "Company", "company"),
-    NavItem("investments", "Investments", "investments"),
     NavItem("market", "Market", "market"),
+    NavItem("portfolio", "Portfolio", "investments"),
+    NavItem("company", "Company", "company"),
+    NavItem("unlocks", "Unlocks", "unlocks"),
     NavItem("news", "News", "news"),
-    NavItem("analytics", "Analytics", "analytics"),
-    NavItem("statistics", "Statistics", "statistics"),
-    NavItem("unlocks", "Unlock Tree", "unlocks"),
-    NavItem("finance", "Financial Management", "finance"),
     NavItem("settings", "Settings", "settings"),
 )
+
+#: Leaving the game is an action rather than a destination, so it sits apart
+#: from the navigation entirely (V16.4).
+EXIT_ACTION = NavItem("exit", "Save & Exit", "exit")
 
 
 class Sidebar:
@@ -56,14 +67,23 @@ class Sidebar:
         self.hovered: NavItem | None = None
         self._rects: dict[str, pygame.Rect] = {}
         self.requested: str | None = None
+        #: Set when the player asks to leave, which is not a destination.
+        self.exit_requested = False
 
     def handle_event(self, event) -> bool:
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             for key, rect in self._rects.items():
                 if rect.collidepoint(event.pos):
-                    self.requested = key
+                    if key == EXIT_ACTION.key:
+                        self.exit_requested = True
+                    else:
+                        self.requested = key
                     return True
         return False
+
+    def take_exit_request(self) -> bool:
+        requested, self.exit_requested = self.exit_requested, False
+        return requested
 
     def take_request(self) -> str | None:
         request, self.requested = self.requested, None
@@ -98,6 +118,26 @@ class Sidebar:
                 theme.TEXT_MUTED if hovered else theme.TEXT_FAINT
             )
             icons.draw(surface, item.icon, colour, item_rect.center, 22)
+
+        self._draw_exit(surface, fonts, mouse, height)
+
+    def _draw_exit(self, surface, fonts, mouse, height: int) -> None:
+        """Save & Exit, kept away from the destinations above it (V16.4).
+
+        Navigation takes the player somewhere; this ends the session. Putting it
+        in the same list would make leaving look like another place to visit, so
+        it sits at the foot of the sidebar behind a divider.
+        """
+        rect = pygame.Rect(8, height - 56, theme.SIDEBAR_WIDTH - 16, 44)
+        self._rects[EXIT_ACTION.key] = rect
+        pygame.draw.line(surface, theme.BORDER,
+                         (12, rect.top - 12), (theme.SIDEBAR_WIDTH - 12, rect.top - 12))
+        hovered = rect.collidepoint(mouse)
+        if hovered:
+            self.hovered = EXIT_ACTION
+            pygame.draw.rect(surface, theme.SURFACE_RAISED, rect, border_radius=6)
+        icons.draw(surface, EXIT_ACTION.icon,
+                   theme.TEXT_MUTED if hovered else theme.TEXT_FAINT, rect.center, 22)
 
     def draw_tooltip(self, surface, fonts) -> None:
         """Drawn last so the label sits above the page beneath it."""

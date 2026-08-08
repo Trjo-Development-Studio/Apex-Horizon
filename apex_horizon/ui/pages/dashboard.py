@@ -4,6 +4,14 @@ Design Bible V14.7 defines the default view: summary cards, key statistics,
 recent activity and notifications — and explicitly no graphs, which appear only
 when the player opens them (V14.14). V2.15 describes the session it supports:
 the player scans, checks in, and makes a small number of deliberate decisions.
+
+Because graphs are ruled out here, the work of making state readable at a glance
+falls to what V14.7 does endorse: cards, statistics and status indicators. So
+figures that are really proportions — reputation, staffing against capacity —
+are drawn as meters, and states like the economy or the market's mood are drawn
+as chips rather than as sentences in the same grey as every other value. None of
+that is a graph; all of it saves the player from reading digits to learn
+something a shape could have told them.
 """
 
 from __future__ import annotations
@@ -11,7 +19,8 @@ from __future__ import annotations
 import pygame
 
 from .. import theme
-from ..widgets import Card, draw_text, panel, truncate
+from ..charts import meter
+from ..widgets import Card, chip, draw_text, panel, truncate
 from .base import Page
 
 
@@ -27,16 +36,31 @@ class DashboardPage(Page):
         cards = []
         if player is not None:
             cards.append(Card("Net worth", player.net_worth().format(decimals=0),
-                              "Personal cash and company"))
+                              "Personal cash, holdings and company",
+                              accent=theme.ACCENT))
             cards.append(Card("Personal cash", player.cash.format(decimals=0),
-                              "Outside the company"))
+                              "Yours to invest or spend"))
         if company is not None:
-            cards.append(Card("Company cash", company.finances.cash.format(decimals=0),
-                              f"Level {company.level}"))
+            profit = company.finances.profit_this_week
+            # A flat week has no direction, so it gets no arrow and no colour:
+            # green for "unchanged" would be a small lie (V27.2).
+            moved = None if profit.is_zero else not profit.is_negative
+            cards.append(Card(
+                "Company cash", company.finances.cash.format(decimals=0),
+                f"{profit.format(decimals=0, signed=True)} this week",
+                accent=None if moved is None else theme.value_colour(moved),
+                trend=moved,
+            ))
+            roster = company.employees
+            capacity = roster.capacity or 1
+            cards.append(Card(
+                "Staffing", f"{len(roster)} of {roster.capacity}",
+                f"Company Level {company.level}",
+                fraction=len(roster) / capacity,
+            ))
         elif market is not None:
             cards.append(Card("Market index", f"{market.market_index():,.0f}",
                               "Opening level 1,000"))
-        if market is not None and len(cards) < 4:
             cards.append(Card("Listed companies", str(len(market.active_listings())),
                               "Trading today"))
         return cards
@@ -73,27 +97,49 @@ class DashboardPage(Page):
         draw_text(surface, fonts.subheading, "The world",
                   (world.left + 20, world.top + 18))
         economy, market = self.context.economy, self.context.market
+
+        # States read as chips; quantities stay as figures. Separating the two
+        # is what stops "Stable Economy" and "1,504" looking like the same kind
+        # of thing (V14.7 status indicators).
+        y = world.top + 52
+        if economy is not None:
+            health = float(getattr(economy, "health", 0.0))
+            chip(surface, fonts, str(economy.state), (world.left + 20, y),
+                 colour=theme.value_colour(health >= 0) if health else theme.TEXT_MUTED)
+        if market is not None:
+            bull, bear = market.is_bull_market(), market.is_bear_market()
+            mood = "Bull market" if bull else "Bear market" if bear else "Steady"
+            chip(surface, fonts, mood, (world.left + 150, y),
+                 colour=theme.value_colour(bull) if (bull or bear) else theme.TEXT_MUTED)
+        y += 34
+
         lines = []
         if economy is not None:
-            lines.append(("Economy", str(economy.state)))
             lines.append(("Inflation", economy.inflation.format()))
         if market is not None:
             lines.append(("Market index", f"{market.market_index():,.0f}"))
-            mood = "Bull market" if market.is_bull_market() else (
-                "Bear market" if market.is_bear_market() else "Steady"
-            )
-            lines.append(("Sentiment", mood))
+            lines.append(("Companies listed", f"{len(market.active_listings()):,}"))
             gainers, _ = market.top_movers(1)
             if gainers and self.context.world:
-                company_record = self.context.world.company_by_id(gainers[0].company_id)
-                if company_record:
-                    lines.append(("Top gainer", company_record.name))
-        y = world.top + 56
+                record = self.context.world.company_by_id(gainers[0].company_id)
+                if record:
+                    lines.append(("Today's top gainer", record.name))
         for label, value in lines:
             draw_text(surface, fonts.small, label, (world.left + 20, y), theme.TEXT_MUTED)
-            draw_text(surface, fonts.small, truncate(fonts.small, value, column - 160),
+            draw_text(surface, fonts.small, truncate(fonts.small, value, column - 190),
                       (world.right - 20, y), theme.TEXT, align="right")
-            y += 25
+            y += 26
+
+        company = self.context.company
+        if company is not None:
+            # Reputation is a proportion, so it is drawn as one (V14.7 asks the
+            # default view to lean on indicators rather than graphs).
+            draw_text(surface, fonts.small, "Company reputation",
+                      (world.left + 20, y + 6), theme.TEXT_MUTED)
+            draw_text(surface, fonts.mono_small, f"{company.reputation:.0%}",
+                      (world.right - 20, y + 6), theme.TEXT, align="right")
+            meter(surface, pygame.Rect(world.left + 20, y + 28, world.width - 40, 6),
+                  company.reputation, colour=theme.ACCENT)
 
         rivals = pygame.Rect(rect.left, activity.bottom + theme.GAP, rect.width,
                              max(0, min(250, rect.bottom - activity.bottom - theme.GAP)))

@@ -29,6 +29,11 @@ class CompanyPage(Page):
         self.employees_button = Button("Employee Management", primary=True)
         self.subsidiaries_button = Button("Subsidiaries")
         self.subsidiaries_requested = False
+        # Financial Management and Investment Funds are systems of the company,
+        # so they are reached from here rather than from the sidebar (V14.5).
+        self.finance_button = Button("Financial Management")
+        self.funds_button = Button("Investment Funds")
+        self.requested_destination: str | None = None
         self.employees_requested = False
 
     def cards(self):
@@ -73,7 +78,19 @@ class CompanyPage(Page):
                 and self.subsidiaries_button.take_click()):
             self.subsidiaries_requested = True
             return True
+        for button, destination in (
+            (self.finance_button, "finance"),
+            (self.funds_button, "company:funds"),
+        ):
+            if (self.context.company is not None and button.handle_event(event)
+                    and button.take_click()):
+                self.requested_destination = destination
+                return True
         return False
+
+    def take_destination_request(self) -> str | None:
+        request, self.requested_destination = self.requested_destination, None
+        return request
 
     def take_subsidiaries_request(self) -> bool:
         requested, self.subsidiaries_requested = self.subsidiaries_requested, False
@@ -93,7 +110,7 @@ class CompanyPage(Page):
             self._draw_no_company(surface, rect, fonts, mouse)
             return
 
-        left = pygame.Rect(rect.left, rect.top, int(rect.width * 0.48), 268)
+        left = pygame.Rect(rect.left, rect.top, int(rect.width * 0.48), 292)
         panel(surface, left)
         draw_text(surface, fonts.subheading, company.name, (left.left + 20, left.top + 18))
         y = left.top + 56
@@ -105,7 +122,7 @@ class CompanyPage(Page):
             y += 25
 
         right = pygame.Rect(left.right + theme.GAP, rect.top,
-                            rect.width - left.width - theme.GAP, 268)
+                            rect.width - left.width - theme.GAP, 292)
         panel(surface, right)
         draw_text(surface, fonts.subheading, "Organisation", (right.left + 20, right.top + 18))
         roster = company.employees
@@ -118,6 +135,10 @@ class CompanyPage(Page):
             y += 25
         self.subsidiaries_button.draw(
             surface, pygame.Rect(right.left + 232, right.bottom - 52, 150, 34), fonts, mouse)
+        self.finance_button.draw(
+            surface, pygame.Rect(right.left + 20, right.bottom - 96, 190, 34), fonts, mouse)
+        self.funds_button.draw(
+            surface, pygame.Rect(right.left + 232, right.bottom - 96, 150, 34), fonts, mouse)
         self.employees_button.draw(
             surface, pygame.Rect(right.left + 20, right.bottom - 52, 200, 34), fonts, mouse)
 

@@ -9,6 +9,50 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — presentation and navigation (PM corrections)
+
+Two project-manager corrections made after playing the build. Both are
+presentation only: no gameplay system changed, and the reasoning is recorded in
+[`docs/design-decisions.md`](docs/design-decisions.md).
+
+**Visualisation.** V14.3 names business dashboards as an inspiration, and the
+interface had been building tables instead. Added a charts module — sparklines,
+meters, comparative bars, line charts — and put it to work:
+
+- A company's page now shows its **price history** as a chart. The market had
+  been keeping two years of closes for every listing and showing the player one
+  of them.
+- The seven causes of a price move are drawn as comparative bars rather than
+  seven signed percentages, so the explanation V4.21 requires is visible at a
+  glance rather than reconstructed from decimals.
+- Cards carry an accent, a trend direction and, where the figure is really a
+  proportion, a meter. States like the economy and market mood read as status
+  chips rather than as grey text identical to every other value.
+- Charts appear only on pages the player opens deliberately, never in default
+  views, as V14.7 and V14.14 require.
+
+**Navigation.** Ten sidebar entries listed screens rather than systems. The
+navigation is now Dashboard, Market, Portfolio, Company, Unlocks, News,
+Settings, with **Save & Exit** separated at the foot of the sidebar because
+leaving is an action rather than a destination (V16.4).
+
+- **Portfolio** gathers every holding: Personal and Company behind a selector,
+  plus Analytics and Statistics. The company view appears only once a company
+  exists and never replaces the personal one (V1.19, V1.20).
+- **Company** gathers the business: overview, employees, financial management,
+  subsidiaries and funds.
+- Nothing became unreachable; a test asserts every system V14.5 names can still
+  be opened.
+
+### Fixed
+
+- A summary card's value and detail line overlapped when the card carried a
+  meter.
+- A card showed a green upward arrow for a change of exactly zero.
+- Comparative bars dropped the final row when it would not fit, which was the
+  row that usually set the scale — leaving every visible bar measured against a
+  value that had been cut off, and drawn as a sliver.
+
 ### Added — Milestone 16: Statistics & developer tooling (V28, V15.18)
 
 Documented in

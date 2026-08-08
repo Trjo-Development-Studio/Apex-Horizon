@@ -76,20 +76,37 @@ def test_pages_render_before_a_company_exists(app):
 # -- navigation (V14.4, V14.5, V14.6, V27.4) ------------------------------
 
 
-def test_sidebar_lists_the_sections_the_design_bible_names():
-    """V14.5 names eight sections and allows more as the game expands.
+def test_the_sidebar_lists_systems_rather_than_screens():
+    """The navigation the project manager settled on (2026-08-08).
 
-    So the requirement is that every named section is present and in the stated
-    order — not that the list matches exactly, which would forbid the additions
-    V14.5 permits.
+    V14.5 lists eight sections and permits more, but a section per page turns
+    navigation into a software menu. Investments and Financial Management moved
+    inside the systems they belong to, so what remains is one entry per major
+    system.
     """
-    labels = [item.label for item in NAV_ITEMS]
-    named = [
-        "Dashboard", "Company", "Investments", "Market", "News",
-        "Unlock Tree", "Financial Management", "Settings",
+    assert [item.label for item in NAV_ITEMS] == [
+        "Dashboard", "Market", "Portfolio", "Company", "Unlocks", "News", "Settings",
     ]
-    assert set(named) <= set(labels)
-    assert [label for label in labels if label in named] == named
+
+
+def test_every_system_volume_14_5_names_is_still_reachable(app):
+    """Nothing became unreachable, it simply stopped being top-level.
+
+    V14.5's purpose is that the sidebar *provides access to* the major systems.
+    Access through the system a page belongs to still satisfies that, but only
+    if the page genuinely exists and can be opened.
+    """
+    for destination in ("dashboard", "company", "portfolio", "market", "news",
+                        "unlocks", "finance", "settings"):
+        assert destination in app.pages, destination
+        app.navigate(destination)
+        app.draw(0)
+
+
+def test_leaving_the_game_is_not_a_destination(app):
+    """V16.4: Save & Exit ends the session rather than going somewhere."""
+    assert "exit" not in {item.key for item in NAV_ITEMS}
+    assert "exit" not in app.pages
 
 
 def test_every_sidebar_destination_has_a_page(app):
@@ -475,13 +492,15 @@ def test_every_unlocked_report_is_drawn(app):
     app.context.analytics.tier = AnalyticsTier.ADVANCED
     app.context.engine.run_days(28 * 14)
 
-    app.navigate("analytics")
+    app.navigate("portfolio")
+    portfolio = app.pages["portfolio"]
+    portfolio.tabs.selected = "Analytics"
     app.draw(0)
 
     reports = app.context.analytics.reports()
     assert len(reports) == 5
 
-    page = app.pages["analytics"]
+    page = portfolio.analytics
     drawn = []
     page._draw_report = lambda surface, rect, fonts, report: drawn.append((rect, report))
     app.draw(0)
@@ -495,8 +514,46 @@ def test_every_unlocked_report_is_drawn(app):
 def test_analytics_before_a_company_shows_only_what_exists(app):
     """The market is there from the start; the company reports are not."""
     unlock_news(app, BASIC_ANALYTICS)
-    app.navigate("analytics")
+    app.navigate("portfolio")
+    app.pages["portfolio"].tabs.selected = "Analytics"
     app.draw(0)
 
     titles = [report.title for report in app.context.analytics.reports()]
     assert titles == ["Market"]
+
+
+# -- Portfolio holds both sets of holdings (PM decision, 2026-08-08) -------
+
+
+def test_portfolio_shows_the_company_only_once_one_exists(app):
+    """The player invests personally long before they are a CEO (V1.19, V1.20)."""
+    portfolio = app.pages["portfolio"]
+
+    assert "Company" not in portfolio.available()
+    assert "Personal" in portfolio.available()
+
+    app.context.player.cash = Money(60_000)
+    app.context.player.unlocks.unlock(CREATE_COMPANY)
+    company, _ = app.context.player.found_company("Test Capital", 1)
+    company.attach_market(app.context.market, app.context.allocator)
+
+    assert "Company" in portfolio.available()
+
+
+def test_the_company_view_never_replaces_the_personal_one(app):
+    """Both pools of money are shown; one does not stand in for the other."""
+    app.context.player.cash = Money(60_000)
+    app.context.player.unlocks.unlock(CREATE_COMPANY)
+    company, _ = app.context.player.found_company("Test Capital", 1)
+    company.attach_market(app.context.market, app.context.allocator)
+
+    available = app.pages["portfolio"].available()
+    assert available.index("Personal") < available.index("Company")
+
+
+def test_portfolio_draws_every_view(app):
+    portfolio = app.pages["portfolio"]
+    app.navigate("portfolio")
+    for label in portfolio.available():
+        portfolio.tabs.selected = label
+        app.draw(0)
