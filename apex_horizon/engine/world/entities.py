@@ -129,3 +129,67 @@ class World:
     @property
     def industries_represented(self) -> set[Industry]:
         return {company.industry for company in self.companies}
+
+    # -- persistence ------------------------------------------------------
+    def state(self) -> dict:
+        """Serialisable world state (V16.11).
+
+        The world is generated once from a seed (V34.6), but it keeps growing
+        during play as new companies list on the market, so the entities
+        themselves are saved rather than only the seed that started them.
+        """
+        return {
+            "seed": self.seed,
+            "cities": [{"id": c.id, "name": c.name} for c in self.cities],
+            "people": [{"id": p.id, "name": p.name} for p in self.people],
+            "companies": [
+                {
+                    "id": c.id,
+                    "name": c.name,
+                    "industry": c.industry.value,
+                    "headquarters_id": c.headquarters_id,
+                    "ceo_id": c.ceo_id,
+                    "owner_id": c.owner_id,
+                }
+                for c in self.companies
+            ],
+            "banks": [
+                {"id": b.id, "name": b.name, "headquarters_id": b.headquarters_id}
+                for b in self.banks
+            ],
+            "news_agencies": [
+                {"id": a.id, "name": a.name,
+                 "specialises_in_finance": a.specialises_in_finance}
+                for a in self.news_agencies
+            ],
+            "universities": [
+                {"id": u.id, "name": u.name, "city_id": u.city_id}
+                for u in self.universities
+            ],
+            "organisations": [{"id": o.id, "name": o.name} for o in self.organisations],
+        }
+
+    @classmethod
+    def from_state(cls, data: dict) -> World:
+        """Rebuild a world saved by :meth:`state`."""
+        industries = {industry.value: industry for industry in Industry}
+        return cls(
+            seed=int(data.get("seed", 0)),
+            cities=[City(**entry) for entry in data.get("cities", [])],
+            people=[Person(**entry) for entry in data.get("people", [])],
+            companies=[
+                Company(
+                    id=entry["id"],
+                    name=entry["name"],
+                    industry=industries[entry["industry"]],
+                    headquarters_id=entry.get("headquarters_id"),
+                    ceo_id=entry.get("ceo_id"),
+                    owner_id=entry.get("owner_id"),
+                )
+                for entry in data.get("companies", [])
+            ],
+            banks=[Bank(**entry) for entry in data.get("banks", [])],
+            news_agencies=[NewsAgency(**entry) for entry in data.get("news_agencies", [])],
+            universities=[University(**entry) for entry in data.get("universities", [])],
+            organisations=[Organisation(**entry) for entry in data.get("organisations", [])],
+        )

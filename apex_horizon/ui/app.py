@@ -22,6 +22,7 @@ from ..engine.economy import BankingSystem, EconomySystem
 from ..engine.errors import subscribe_error_notifier
 from ..engine.logging_setup import get_logger
 from ..engine.market import MarketSystem
+from ..engine.save import SaveService
 from ..engine.simulation import PeriodBoundary, SimulationEngine
 from ..engine.values import Money
 from ..engine.world import WorldGenerator, generate_world
@@ -39,7 +40,7 @@ from .pages import (
     SettingsPage,
     UnlockTreePage,
 )
-from .popups import PopupAction, PopupManager, PromptPopup
+from .popups import Popup, PopupAction, PopupManager, PromptPopup
 from .widgets import draw_text
 
 logger = get_logger(__name__)
@@ -90,7 +91,17 @@ class GameApp:
         }
         self.current_key = "dashboard"
 
+        self.saves = SaveService(self.context)
+        self.saves.register(self.context.engine)
+        self.saves.on_autosave.append(self._on_autosave)
+        self.context.saves = self.saves
+        self.current_slot: str = "1"
+
         subscribe_error_notifier(self._on_engine_error)
+
+    def _on_autosave(self, message: str) -> None:
+        """A brief, non-pausing confirmation that an autosave completed (V16.24)."""
+        self.notifications.push(message, pygame.time.get_ticks())
 
     # -- setup -------------------------------------------------------------
     def _build_world(self, seed: int | None) -> None:
@@ -119,6 +130,8 @@ class GameApp:
         self.context.market = market
         self.context.banking = banking
         self.context.player = player
+        self.context.allocator = allocator
+        self.context.names = names
 
         # Tell the player when the economy turns; news proper arrives later.
         engine.register_boundary(PeriodBoundary.MONTH, self._announce_economy)
@@ -203,6 +216,13 @@ class GameApp:
                 self.context.engine.clock.speed = speed
             if page.take_exit_request():
                 self._prompt_exit()
+            request = page.take_slot_request()
+            if request:
+                slot, action = request
+                if action == "save":
+                    self._save_slot(slot)
+                else:
+                    self._prompt_load(slot)
 
     def _prompt_found_company(self) -> None:
         """Ask the player to name their company (V3.3)."""
@@ -225,27 +245,118 @@ class GameApp:
             self.notifications.push(message, pygame.time.get_ticks(), emphasis=company is not None)
             if company is not None:
                 company.register(self.context.engine)
-                self.save_indicator.unsaved = True
+                # Founding is a major decision, so the moment before it is kept
+                # (V16.6) and the game is marked as having unsaved changes.
+                self.saves.mark_changed()
 
         self.popups.open(popup, on_choice)
 
-    def _prompt_exit(self) -> None:
-        popup_actions = [PopupAction("stay", "Keep playing"),
-                         PopupAction("exit", "Save & Exit", primary=True)]
-        from .popups import Popup
+    def _save_slot(self, slot: str) -> None:
+        """Write the game to a slot and report the outcome."""
+        result = self.saves.save_to_slot(
+            slot, name=self.context.company.name if self.context.company else "Apex Horizon"
+        )
+        self.current_slot = slot
+        self.notifications.push(result.message, pygame.time.get_ticks(),
+                                emphasis=not result.ok)
 
+    def _prompt_load(self, slot: str) -> None:
+        """Confirm before replacing the running game with a saved one."""
+        info = self.saves.store.info(slot)
         popup = Popup(
-            title="Save & Exit",
-            message=(
-                "The Save System arrives in a later milestone, so this will leave "
-                "without saving. Continue?"
-            ),
-            actions=popup_actions,
+            title=f"Load {info.label}?",
+            message=f"{info.describe()} This will replace your current game.",
+            actions=[PopupAction("cancel", "Cancel"),
+                     PopupAction("load", "Load", primary=True)],
         )
 
         def on_choice(choice: str) -> None:
-            if choice == "exit":
+            if choice != "load":
+                return
+            outcome = self.saves.load_from_slot(slot)
+            if outcome.ok:
+                self.current_slot = slot
+                self._rebind_after_load()
+                self.notifications.push(f"Loaded {info.label}.", pygame.time.get_ticks())
+            elif outcome.needs_confirmation:
+                # V16.14: repair did not succeed, so the player is asked whether
+                # to attempt the load anyway rather than simply refused.
+                self._prompt_damaged_load(slot, outcome.describe())
+            else:
+                self.notifications.push(
+                    f"Could not load: {outcome.describe()}",
+                    pygame.time.get_ticks(), emphasis=True,
+                )
+
+        self.popups.open(popup, on_choice)
+
+    def _prompt_damaged_load(self, slot: str, problem: str) -> None:
+        popup = Popup(
+            title="This save is damaged",
+            message=f"{problem} Would you like to try loading it anyway?",
+            actions=[PopupAction("cancel", "Cancel"),
+                     PopupAction("try", "Try anyway", primary=True)],
+        )
+
+        def on_choice(choice: str) -> None:
+            if choice != "try":
+                return
+            outcome = self.saves.load_from_slot(slot, allow_damaged=True)
+            if outcome.ok:
+                self._rebind_after_load()
+            self.notifications.push(
+                outcome.describe() if outcome.ok else f"Could not load: {outcome.describe()}",
+                pygame.time.get_ticks(), emphasis=not outcome.ok,
+            )
+
+        self.popups.open(popup, on_choice)
+
+    def _rebind_after_load(self) -> None:
+        """Point the interface at the systems the loaded game created."""
+        self.saves.on_autosave = [self._on_autosave]
+        self.context.saves = self.saves
+        self._last_reported_state = self.context.economy.state
+        self.context.engine.register_boundary(PeriodBoundary.MONTH, self._announce_economy)
+        for page in self.pages.values():
+            page.context = self.context
+        market_page = self.pages["market"]
+        market_page.selected_company_id = None
+        market_page.table.page = 0
+        self.navigate("dashboard")
+
+    def _prompt_exit(self) -> None:
+        """The Save & Exit workflow of V16.4.
+
+        Selecting it pauses the simulation, attempts the save, and only leaves
+        if that succeeds; a failed save returns the player to the running game
+        with an error so another attempt can be made, rather than losing the
+        session.
+        """
+        popup = Popup(
+            title="Save & Exit",
+            message=(
+                f"Your game will be saved to {self.saves.store.info(self.current_slot).label} "
+                "before leaving."
+            ),
+            actions=[PopupAction("stay", "Keep playing"),
+                     PopupAction("exit", "Save & Exit", primary=True)],
+        )
+
+        def on_choice(choice: str) -> None:
+            if choice != "exit":
+                return
+            result = self.saves.save_to_slot(
+                self.current_slot,
+                name=self.context.company.name if self.context.company else "Apex Horizon",
+            )
+            if result.ok:
                 self.running = False
+            else:
+                self.popups.open(Popup(
+                    title="Saving failed",
+                    message=f"{result.message} Your game has not been closed.",
+                    actions=[PopupAction("ok", "Continue playing", primary=True)],
+                ))
 
         self.popups.open(popup, on_choice)
 
@@ -263,6 +374,9 @@ class GameApp:
             clock.resume()
         self.context.engine.update(delta_ms / 1000.0)
 
+        if not self.popups.is_open:
+            self.saves.record_playtime(delta_ms / 1000.0)
+        self.save_indicator.unsaved = self.saves.unsaved_changes
         self.notifications.update(now)
         self.draw(now)
 

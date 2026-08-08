@@ -9,6 +9,42 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Milestone 8: Save System (V16)
+
+Progress is now safe. Code lives in `apex_horizon/engine/save/` and is
+documented in [`docs/save-system.md`](docs/save-system.md).
+
+- **File format** (V16.18–V16.20): structured JSON, compressed, with a light
+  obfuscation pass and a checksum. Small files that are not casually editable —
+  explicitly not security, and not presented as such.
+- **Atomic writes**: saves are written to a temporary file and moved into place,
+  so an interruption mid-write cannot destroy the save that already existed.
+- **Five manual slots plus one rolling autosave** (V16.7, V16.8), each an
+  independent world, each carrying its own summary so a slot can be listed
+  without loading it (V16.9). A slot that cannot be summarised is shown as
+  damaged rather than hidden.
+- **Validation, migration and repair** (V16.13–V16.15): an invalid save never
+  silently loads. A damaged file has its contents salvaged where possible and
+  the player is asked whether to try anyway; older formats migrate through a
+  registry; repair is conservative and reports what it did.
+- **Everything that affects gameplay is saved** (V16.11), including every
+  listing's full price history (V4.22) and the generation state, so companies
+  created after a reload never collide with earlier ones.
+- **Autosaving** (V16.5, V16.6, V16.24): monthly by default, adjustable and
+  switchable off, plus an autosave immediately before a major irreversible
+  decision, with a brief non-pausing notification.
+- **Save & Exit** (V16.3, V16.4): no standalone Save button; the workflow pauses,
+  saves, and leaves only if that succeeds — a failed save returns the player to
+  the running game rather than losing the session.
+- **Export and import** (V16.21, V16.22), with an import refused before it can
+  overwrite a slot if the file cannot be read.
+- **World serialisation**: the world is generated from a seed but keeps growing
+  during play, so its entities are saved rather than only the seed.
+- **Slot management in Settings**, keeping the navigation V14.5 specifies
+  unchanged.
+- **46 further tests** (362 total), including a save, replay and reload that
+  asserts every share price matches (V15.11, V16.28).
+
 ### Added — Milestone 7: User Interface framework (V14, V27)
 
 The game is now visible and clickable. Code lives in `apex_horizon/ui/` and is

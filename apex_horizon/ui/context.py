@@ -21,6 +21,11 @@ class GameContext:
     economy: Any = None
     banking: Any = None
     player: Any = None
+    # Generation state travels with the world so names and identifiers stay
+    # unique when the market keeps creating companies after a reload (V34.3).
+    allocator: Any = None
+    names: Any = None
+    saves: Any = None
 
     @property
     def company(self):

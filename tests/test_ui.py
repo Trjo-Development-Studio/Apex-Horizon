@@ -277,6 +277,10 @@ def test_founding_a_company_through_the_interface(app):
     app.popups.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN, unicode=""))
     assert app.context.company is not None
     assert app.context.company.name == "Meridian Capital"
+    # Founding marks the game as having unsaved changes; the indicator picks
+    # that up on the next frame (V14.19).
+    assert app.saves.unsaved_changes is True
+    app.tick()
     assert app.save_indicator.unsaved is True
     app.draw(1000)
 

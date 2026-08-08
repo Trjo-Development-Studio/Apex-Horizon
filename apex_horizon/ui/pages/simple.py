@@ -10,7 +10,7 @@ from __future__ import annotations
 import pygame
 
 from .. import theme
-from ..widgets import Button, Card, draw_text, panel
+from ..widgets import Button, Card, draw_text, panel, truncate
 from .base import EmptyStatePage, Page
 
 
@@ -51,6 +51,20 @@ class SettingsPage(Page):
         self.exit_button = Button("Save & Exit")
         self.requested_speed: int | None = None
         self.exit_requested = False
+        self._buttons_by_slot: dict[tuple[str, str], Button] = {}
+        self._slot_buttons: list[tuple[str, str, Button]] = []
+        #: Set to (slot, action) when the player asks to save or load a slot.
+        self.slot_request: tuple[str, str] | None = None
+
+    def _slot_button(self, slot: str, action: str, label: str) -> Button:
+        key = (slot, action)
+        if key not in self._buttons_by_slot:
+            self._buttons_by_slot[key] = Button(label)
+        return self._buttons_by_slot[key]
+
+    def take_slot_request(self) -> tuple[str, str] | None:
+        request, self.slot_request = self.slot_request, None
+        return request
 
     def cards(self):
         engine = self.context.engine
@@ -70,6 +84,10 @@ class SettingsPage(Page):
         if self.exit_button.handle_event(event) and self.exit_button.take_click():
             self.exit_requested = True
             return True
+        for slot, action, button in self._slot_buttons:
+            if button.handle_event(event) and button.take_click():
+                self.slot_request = (slot, action)
+                return True
         return False
 
     def take_speed_request(self) -> int | None:
@@ -81,6 +99,12 @@ class SettingsPage(Page):
         return request
 
     def draw_content(self, surface, rect, fonts, mouse) -> None:
+        self._draw_simulation(surface, rect, fonts, mouse)
+        saves_rect = pygame.Rect(rect.left + 540, rect.top,
+                                 max(320, rect.width - 540), 300)
+        self._draw_saves(surface, saves_rect, fonts, mouse)
+
+    def _draw_simulation(self, surface, rect, fonts, mouse) -> None:
         box = pygame.Rect(rect.left, rect.top, min(rect.width, 520), 210)
         panel(surface, box)
         draw_text(surface, fonts.subheading, "Simulation", (box.left + 20, box.top + 18))
@@ -99,3 +123,38 @@ class SettingsPage(Page):
         self.exit_button.draw(surface,
                               pygame.Rect(box.left + 20, box.bottom - 52, 140, 36),
                               fonts, mouse)
+
+    def _draw_saves(self, surface, rect, fonts, mouse) -> None:
+        """Manual save slots (V16.8) with the details V16.9 requires."""
+        panel(surface, rect)
+        draw_text(surface, fonts.subheading, "Saved games", (rect.left + 20, rect.top + 18))
+        saves = self.context.saves
+        if saves is None:
+            draw_text(surface, fonts.small, "The Save System is unavailable.",
+                      (rect.left + 20, rect.top + 56), theme.TEXT_FAINT)
+            return
+
+        draw_text(surface, fonts.small,
+                  f"Autosaves every {saves.autosave_interval_months} in-game month(s).",
+                  (rect.left + 20, rect.top + 52), theme.TEXT_MUTED)
+
+        self._slot_buttons.clear()
+        y = rect.top + 84
+        for info in saves.slots():
+            draw_text(surface, fonts.small, info.label, (rect.left + 20, y), theme.TEXT)
+            colour = theme.NEGATIVE if info.damaged else (
+                theme.TEXT_MUTED if info.exists else theme.TEXT_FAINT
+            )
+            draw_text(surface, fonts.small, truncate(fonts.small, info.describe(), 240),
+                      (rect.left + 110, y), colour)
+
+            if not info.is_autosave:
+                save_button = self._slot_button(info.slot, "save", "Save")
+                save_button.draw(surface, pygame.Rect(rect.right - 150, y - 6, 58, 24),
+                                 fonts, mouse)
+                self._slot_buttons.append((info.slot, "save", save_button))
+            load_button = self._slot_button(info.slot, "load", "Load")
+            load_button.enabled = info.exists
+            load_button.draw(surface, pygame.Rect(rect.right - 84, y - 6, 58, 24), fonts, mouse)
+            self._slot_buttons.append((info.slot, "load", load_button))
+            y += 34
