@@ -15,7 +15,7 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 import pygame
 
-from apex_horizon.engine.unlocks import CREATE_COMPANY
+from apex_horizon.engine.unlocks import BASIC_ANALYTICS, BASIC_NEWS, CREATE_COMPANY
 from apex_horizon.engine.values import Calendar, Money, set_calendar
 from apex_horizon.ui import theme
 from apex_horizon.ui.app import SPEED_KEYS, GameApp
@@ -396,9 +396,17 @@ def test_window_can_be_resized(app):
 # -- news and analytics pages (V10.15, V9.22) -----------------------------
 
 
+def unlock_news(app, *keys):
+    """Grant news unlocks and let the effects reconfigure the systems."""
+    for key in keys:
+        app.context.player.unlocks.unlock(key)
+    app.effects.apply(app.context)
+
+
 def test_the_news_page_lists_stories_and_shows_one_in_full(app):
     from apex_horizon.engine.news import NewsTier
 
+    unlock_news(app, BASIC_NEWS)
     app.context.news.tier = NewsTier.BREAKING
     app.context.engine.run_days(200)
     app.navigate("news")
@@ -417,6 +425,7 @@ def test_the_news_page_lists_stories_and_shows_one_in_full(app):
 def test_the_news_page_offers_only_unlocked_tiers(app):
     from apex_horizon.engine.news import NewsTier
 
+    unlock_news(app, BASIC_NEWS)
     assert app.pages["news"].filters() == ["All", "Company"]
 
     app.context.news.tier = NewsTier.BREAKING
@@ -428,6 +437,7 @@ def test_the_news_page_offers_only_unlocked_tiers(app):
 def test_filtering_the_news_narrows_the_archive(app):
     from apex_horizon.engine.news import NewsTier
 
+    unlock_news(app, BASIC_NEWS)
     app.context.news.tier = NewsTier.MARKET
     app.context.engine.run_days(200)
     page = app.pages["news"]
@@ -437,7 +447,16 @@ def test_filtering_the_news_narrows_the_archive(app):
     assert all(str(a.tier) == "Market" for a in page.articles())
 
 
+def test_the_news_page_says_it_is_locked_before_basic_news(app):
+    """V14.26: earned, not missing."""
+    app.navigate("news")
+    app.draw(0)
+    assert app.pages["news"].locked
+    assert app.pages["news"].cards() == []
+
+
 def test_an_empty_news_archive_states_so(app):
+    unlock_news(app, BASIC_NEWS)
     app.navigate("news")
     app.draw(0)  # day zero: nothing has happened yet
     assert app.pages["news"].articles() == []
@@ -452,6 +471,7 @@ def test_every_unlocked_report_is_drawn(app):
     company, _ = app.context.player.found_company("Test Capital", 1)
     company.attach_market(app.context.market, app.context.allocator)
     company.register(app.context.engine)
+    unlock_news(app, BASIC_ANALYTICS)
     app.context.analytics.tier = AnalyticsTier.ADVANCED
     app.context.engine.run_days(28 * 14)
 
@@ -474,6 +494,7 @@ def test_every_unlocked_report_is_drawn(app):
 
 def test_analytics_before_a_company_shows_only_what_exists(app):
     """The market is there from the start; the company reports are not."""
+    unlock_news(app, BASIC_ANALYTICS)
     app.navigate("analytics")
     app.draw(0)
 

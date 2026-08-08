@@ -84,10 +84,14 @@ detail (V15.9, V19.4).
 
 ## Unlock pricing (PM, 2026-08-08)
 
-Unlock prices must never be hard-coded. **Create Company is priced as a fraction
-of the founding cost** rather than as a figure of its own, so the two stay in
-proportion whenever either is retuned: `unlocks.create_company_cost_fraction`,
-currently 0.2, giving $5,000 against a $25,000 founding cost.
+Unlock prices must never be hard-coded. **Prices are derived from the company
+founding cost** rather than written individually, so everything stays in
+proportion whenever any of it is retuned.
+
+Each unlock declares how deep it sits in the tree and takes the matching
+multiple from `unlocks.cost_multipliers`. Against a $25,000 founding cost that
+runs from $5,000 at the branch roots to $1,000,000 at Company Analytics and
+Investment Funds. Changing the founding cost rescales all 32 unlocks at once.
 
 ## Content and assets
 

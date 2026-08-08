@@ -34,9 +34,15 @@ class AnalyticsPage(Page):
     def analytics(self):
         return getattr(self.context, "analytics", None)
 
+    @property
+    def locked(self) -> bool:
+        """True until Basic Analytics is unlocked (V6.6.1)."""
+        service = self.analytics
+        return service is not None and not getattr(service, "enabled", True)
+
     def cards(self) -> list[Card]:
         service = self.analytics
-        if service is None:
+        if service is None or self.locked:
             return []
         history = service.history
         months = len(history.snapshots) if history else 0
@@ -55,6 +61,17 @@ class AnalyticsPage(Page):
 
     def draw_content(self, surface, rect, fonts, mouse) -> None:
         service = self.analytics
+        if self.locked:
+            box = pygame.Rect(rect.left, rect.top, rect.width, min(220, rect.height))
+            panel(surface, box)
+            draw_text(surface, fonts.subheading, "Analytics are not open yet",
+                      (box.centerx, box.centery - 20), theme.TEXT_MUTED,
+                      align="center", baseline="middle")
+            draw_text(surface, fonts.body,
+                      "Basic Analytics, on the Unlock Tree, shows how your position stands.",
+                      (box.centerx, box.centery + 8), theme.TEXT_FAINT,
+                      align="center", baseline="middle")
+            return
         if service is None:
             panel(surface, pygame.Rect(rect.left, rect.top, rect.width, 160))
             draw_text(surface, fonts.body, "Analytics are unavailable.",

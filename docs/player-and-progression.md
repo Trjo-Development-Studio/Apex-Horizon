@@ -74,17 +74,51 @@ traversal.
 
 * **Basic Investing is owned from the start** (V6.4). It is what makes the
   opening playable.
-* **Create Company** requires it, and costs `unlocks.create_company_cost`.
-* Costs live in configuration, never in code, so the project manager can retune
-  prices without a code change.
+* **Create Company** requires it, and is the first purchase of the game.
+* Prices live in configuration, never in code. Each unlock declares how deep it
+  sits and takes the matching multiple of `company.founding_cost` from
+  `unlocks.cost_multipliers`, so retuning the founding cost rescales the whole
+  tree at once.
 
-### Why only two nodes so far
+### The whole tree
 
-V6.3 requires every unlock to provide a noticeable improvement or a new system.
-Listing the whole tree now would put unlocks on sale that change nothing, so the
-remaining branches — Analytics, News, Finance, Employees, Training, Recruitment,
-Company, and finally Investment Funds — arrive with the systems they gate. The
-page says so plainly rather than showing an empty roadmap.
+All 32 nodes of Volume 6 are present: the primary progression (V6.5), the
+Analytics and News branches off Basic Investing (V6.6), the five Company Level 2
+branches in the order V6.7 states, and Investment Funds where every branch
+converges (V6.8). The contents live in `catalogue.py`, kept apart from the
+machinery that reads them.
+
+**What each branch does**, wired in `effects.py`:
+
+| Branch | Effect |
+|---|---|
+| Analytics | Opens the Analytics page, then deepens it through four tiers (V9.6) |
+| News | Opens the financial press, then the market, economy and breaking tiers (V10.4) |
+| Finance | Opens borrowing, then improves the terms banks offer (V6.7.1) |
+| Employees | Raises applicant skill ceilings to 20, 30 and 40 (V6.7.2) |
+| Company | Company Levels 2–5, then Company Analytics (V6.7.3, V9.9) |
+| Training | Opens training, then makes it teach faster (V6.7.4) |
+| Recruitment | Reputation counts for more, a wider pool, then hidden strengths and performance become visible (V6.7.5) |
+
+`UnlockEffects` is a *pusher*, not a set of hooks: systems never ask the tree
+what the player owns, the tree configures them. That keeps every gameplay system
+ignorant of progression (V15.7) — the market does not know the Unlock Tree
+exists — and means the effects can be re-applied wholesale after loading, so a
+restored game behaves exactly as the saved one did.
+
+**Investment Funds is shown but cannot be bought.** V6.14 wants the remaining
+tree visible as long-term ambition, while V6.3 forbids selling an unlock that
+changes nothing; the node is drawn and marked "Coming later" until Volume 11
+exists. Any unlock can be held back this way with `implemented=False`.
+
+### Two roots with no effect of their own
+
+**Create Company** acts on the founding gate in `Player`, not on any system the
+effects layer configures. **Employees** is purely structural, opening the quality
+levels beneath it — a project-manager ruling, taken so that hiring stays
+available from founding as V1.19's example shows. A test asserts every *other*
+purchasable unlock measurably changes the game (V6.3), with these two named as
+the exceptions.
 
 ---
 

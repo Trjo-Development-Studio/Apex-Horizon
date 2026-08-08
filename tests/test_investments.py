@@ -32,6 +32,7 @@ def build(seed: int = 7, *, hires: int = 2, capital: int = 120_000, skill: int |
     player = Player("Owner", cash=Money(capital + 30_000), allocator=allocator)
     player.unlocks.unlock(CREATE_COMPANY)
     company, _ = player.found_company("Meridian Capital", 1)
+    company.employees.training_allowed = True
     player.transfer_to_company(Money(capital), 1)
     investments = company.attach_market(market, allocator)
     engine = SimulationEngine(

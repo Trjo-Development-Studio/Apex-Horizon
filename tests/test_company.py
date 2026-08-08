@@ -39,6 +39,9 @@ def founded_player(cash: int = 100_000) -> tuple[Player, PlayerCompany]:
     player = Player("Test Owner", cash=Money(cash))
     player.unlocks.unlock(CREATE_COMPANY)
     company, _ = player.found_company("Test Capital", day=1)
+    # Borrowing is opened by the Finance branch (V6.7.1); these tests are about
+    # what loans do, not about earning them.
+    company.borrowing_allowed = True
     return player, company
 
 

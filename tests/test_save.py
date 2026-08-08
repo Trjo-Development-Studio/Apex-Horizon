@@ -588,3 +588,22 @@ def test_an_interrupted_write_leaves_the_previous_save_intact(store, monkeypatch
         store.write(1, sample_document())
 
     assert store.read(1) == original
+
+
+def test_unlock_effects_are_reapplied_after_loading(game):
+    """V6.3, V16.28: a reloaded game must behave exactly as the saved one did."""
+    from apex_horizon.engine.unlocks import BASIC_NEWS, MARKET_NEWS
+
+    for key in (BASIC_NEWS, MARKET_NEWS):
+        game.context.player.unlocks.unlock(key)
+    game.effects.apply(game.context)
+    tier = game.context.news.tier
+
+    game.saves.save_to_slot(1)
+    game.saves.load_from_slot(1)
+
+    assert game.context.unlocks.has(MARKET_NEWS)
+    # The tier is not merely stored — it is re-derived from the tree, so the
+    # restored world is configured by what the player earned.
+    assert game.context.news.enabled
+    assert game.context.news.tier == tier

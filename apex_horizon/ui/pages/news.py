@@ -72,7 +72,7 @@ class NewsPage(Page):
     def on_show(self) -> None:
         self.selected = 0
 
-    def cards(self) -> list[Card]:
+    def _unlocked_cards(self) -> list[Card]:
         system = self.news
         if system is None:
             return []
@@ -89,6 +89,22 @@ class NewsPage(Page):
             Card("Coverage", str(system.tier),
                  "Raised through the Unlock Tree"),
         ]
+
+    def _draw_locked(self, surface, rect, fonts) -> None:
+        """V14.26: say plainly that this is earned, not missing."""
+        box = pygame.Rect(rect.left, rect.top, rect.width, min(220, rect.height))
+        panel(surface, box)
+        draw_text(surface, fonts.subheading, "You have no financial press yet",
+                  (box.centerx, box.centery - 26), theme.TEXT_MUTED,
+                  align="center", baseline="middle")
+        draw_text(surface, fonts.body,
+                  "Basic News, on the Unlock Tree, brings you the day's stories.",
+                  (box.centerx, box.centery + 2), theme.TEXT_FAINT,
+                  align="center", baseline="middle")
+        draw_text(surface, fonts.small,
+                  "Further levels add market reports, the economy, and breaking news.",
+                  (box.centerx, box.centery + 30), theme.TEXT_FAINT,
+                  align="center", baseline="middle")
 
     # -- interaction -------------------------------------------------------
     def _button(self, label: str) -> Button:
@@ -111,7 +127,21 @@ class NewsPage(Page):
         return False
 
     # -- drawing -----------------------------------------------------------
+    @property
+    def locked(self) -> bool:
+        """True until Basic News is unlocked (V6.6.2)."""
+        news = self.news
+        return news is not None and not getattr(news, "enabled", True)
+
+    def cards(self) -> list[Card]:
+        if self.locked:
+            return []
+        return self._unlocked_cards()
+
     def draw_content(self, surface, rect, fonts, mouse) -> None:
+        if self.locked:
+            self._draw_locked(surface, rect, fonts)
+            return
         if self.news is None:
             panel(surface, pygame.Rect(rect.left, rect.top, rect.width, 160))
             draw_text(surface, fonts.body, "The News System is unavailable.",

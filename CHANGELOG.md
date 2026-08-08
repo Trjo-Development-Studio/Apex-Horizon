@@ -9,6 +9,41 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Milestone 12: the Unlock Tree (V6)
+
+The whole tree of Volume 6, and the effects behind it. Code lives in
+`apex_horizon/engine/unlocks/` and is documented in
+[`docs/player-and-progression.md`](docs/player-and-progression.md).
+
+- **All 32 unlocks** (V6.5–V6.8): the primary progression, the Analytics and
+  News branches off Basic Investing, the five Company Level 2 branches in the
+  order V6.7 states, and Investment Funds where every branch converges. Contents
+  are kept in a catalogue separate from the machinery that reads them.
+- **Every unlock does something** (V6.3). Analytics and News open their pages and
+  deepen through their tiers; Finance opens borrowing and improves lending terms;
+  Employees raises applicant skill ceilings to 20/30/40 exactly as V6.7.2 states;
+  the Company branch drives Company Levels 2–5 and then Company Analytics (V9.9);
+  Training opens training and makes it teach faster; Recruitment widens the
+  applicant pool, makes reputation count for more, and reveals hidden strengths
+  and performance. A test asserts each purchasable unlock measurably changes the
+  game, naming the two deliberate exceptions.
+- **Effects are pushed, not pulled**: systems never ask the tree what the player
+  owns, so no gameplay system knows progression exists (V15.7) — and the whole
+  configuration is re-applied after loading, so a restored game behaves exactly
+  as the saved one did.
+- **Analytics gains a fourth tier** and a Company Analytics report of department
+  performance and operational efficiency (V9.9), so the branches that end in them
+  have something real to open.
+- **News and analytics are now earned**, not given: before Basic News there is no
+  financial press at all, and before Basic Analytics no Analytics page. Both say
+  so plainly rather than showing an empty screen (V14.26).
+- **The tree page** is a pannable roadmap (V6.10): straight horizontal
+  connections, elbows onto shared verticals so no two lines cross, branch names
+  in a fixed gutter, and every node showing its state and price.
+- **Prices scale from one number** — each unlock declares its depth and takes a
+  multiple of the company founding cost, so retuning the founding cost rescales
+  the whole tree ($5,000 at the roots to $1,000,000 at Company Analytics).
+
 ### Fixed — the player and their company are separate entities (V1.4, V3.4)
 
 A correction to a mistaken reading that ran through several systems. The game
@@ -60,9 +95,9 @@ valid playstyle). No personal income mechanic was added: the Design Bible
 describes none, and inventing one would be a new mechanic rather than an
 implementation detail (V15.9).
 
-The Create Company unlock is now priced as a **fraction of the founding cost**
-(`unlocks.create_company_cost_fraction`, 0.2) rather than a figure of its own,
-so the two stay in proportion whenever either is retuned.
+Unlock prices are derived from the founding cost rather than written
+individually, so the whole tree stays in proportion whenever any of it is
+retuned (`unlocks.cost_multipliers`).
 
 ### Fixed
 

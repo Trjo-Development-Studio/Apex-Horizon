@@ -30,10 +30,11 @@ class AnalyticsTier(Enum):
     BASIC = 1
     DETAILED = 2
     ADVANCED = 3
+    COMPLETE = 4
 
     def __str__(self) -> str:
         return {"BASIC": "Basic", "DETAILED": "Detailed",
-                "ADVANCED": "Advanced"}[self.name]
+                "ADVANCED": "Advanced", "COMPLETE": "Complete"}[self.name]
 
 
 @dataclass(frozen=True)
@@ -67,17 +68,24 @@ class AnalyticsService:
         self.context = context
         self.history = history
         self.tier: AnalyticsTier = AnalyticsTier.BASIC
+        #: False until Basic Analytics is unlocked (V6.6.1).
+        self.enabled: bool = True
+        #: The deepest internal business intelligence (V9.9), its own unlock.
+        self.company_analytics: bool = False
 
     def _has(self, tier: AnalyticsTier) -> bool:
         return self.tier.value >= tier.value
 
     def reports(self) -> list[Report]:
         """Every report the player has unlocked, in reading order."""
+        if not self.enabled:
+            return []
         built = [
             self.company_report(),
             self.employee_report(),
             self.market_report(),
             self.investment_report(),
+            self.company_intelligence_report(),
             self.historical_report(),
         ]
         return [report for report in built if report is not None]
@@ -132,6 +140,13 @@ class AnalyticsService:
                 average = sum(float(h) for h in happiness) / len(happiness)
                 report.add("Average happiness", f"{average:.0%}",
                            "Unhappy people leave", positive=average >= 0.5)
+        if self._has(AnalyticsTier.COMPLETE):
+            # V9.10: workforce performance in full.
+            training = sum(1 for employee in roster if employee.is_training)
+            report.add("In training", str(training),
+                       "Not producing while they learn")
+            report.add("Management output", f"{roster.management_output:.2f}",
+                       "Drives how quickly decisions are approved")
         return report
 
     # -- the market (V9.7) -------------------------------------------------
@@ -157,6 +172,13 @@ class AnalyticsService:
             report.add("Weakest industry", weakest.value,
                        Percentage(trends[weakest]).format(signed=True),
                        positive=False)
+        if self._has(AnalyticsTier.COMPLETE):
+            # V9.11: what is happening across the market as a whole.
+            spread = max(trends.values()) - min(trends.values()) if trends else 0.0
+            report.add("Industry spread", Percentage(spread).format(),
+                       "Between the strongest and weakest")
+            report.add("Total market value", market.total_market_cap().format(decimals=0),
+                       "Every listed company combined")
         return report
 
     # -- investments (V9.8) ------------------------------------------------
@@ -183,6 +205,45 @@ class AnalyticsService:
                        "Share of closed positions in profit")
         return report
 
+    # -- company analytics (V9.9) -----------------------------------------
+    def company_intelligence_report(self) -> Report | None:
+        """The deepest internal business intelligence (V9.9).
+
+        Its own unlock at the end of the Company branch, rather than a tier of
+        the Analytics branch, so it reports on the *organisation* — how each
+        department is doing and how efficiently the company runs — where the
+        other reports describe position and results.
+        """
+        if not self.company_analytics:
+            return None
+        company = getattr(self.context, "company", None)
+        roster = getattr(company, "employees", None) if company else None
+        if company is None or roster is None:
+            return None
+
+        from ..employees import Department
+
+        report = Report("Company intelligence", note="How the organisation performs")
+        for department in Department:
+            people = roster.in_department(department)
+            report.add(str(department), f"{roster.output(department):.2f}",
+                       f"{len(people)} assigned")
+
+        finances = company.finances
+        salaries = roster.monthly_salary_bill()
+        revenue = finances.ledger.lifetime.revenue
+        if revenue.is_positive:
+            # Operational efficiency: what share of what the company earned went
+            # on running it.
+            expenses = finances.ledger.lifetime.expenses
+            efficiency = 1 - float(expenses.amount / revenue.amount)
+            report.add("Operational efficiency", f"{efficiency:.0%}",
+                       "Revenue kept after running costs",
+                       positive=efficiency > 0)
+        report.add("Monthly payroll", salaries.format(decimals=0),
+                   f"Across {len(roster)} people")
+        return report
+
     # -- over time (V9.10) -------------------------------------------------
     def historical_report(self) -> Report | None:
         if self.history is None or not self._has(AnalyticsTier.DETAILED):
@@ -207,7 +268,13 @@ class AnalyticsService:
 
     # -- persistence -------------------------------------------------------
     def state(self) -> dict:
-        return {"tier": self.tier.name}
+        return {
+            "tier": self.tier.name,
+            "enabled": self.enabled,
+            "company_analytics": self.company_analytics,
+        }
 
     def restore(self, data: dict) -> None:
         self.tier = AnalyticsTier[data.get("tier", "BASIC")]
+        self.enabled = bool(data.get("enabled", True))
+        self.company_analytics = bool(data.get("company_analytics", False))

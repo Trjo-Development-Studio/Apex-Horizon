@@ -26,7 +26,7 @@ from ..engine.market import MarketSystem
 from ..engine.news import NewsSystem, NewsTier
 from ..engine.save import SaveService
 from ..engine.simulation import PeriodBoundary, SimulationEngine
-from ..engine.unlocks import BY_KEY
+from ..engine.unlocks import UnlockEffects
 from ..engine.values import Money
 from ..engine.world import WorldGenerator, generate_world
 from . import theme
@@ -156,6 +156,10 @@ class GameApp:
         history = HistoryRecorder(self.context)
         history.register(engine)
         self.context.analytics = AnalyticsService(self.context, history=history)
+
+        # What the player has unlocked decides what every system offers (V6.3).
+        self.effects = UnlockEffects(player.unlocks)
+        self.effects.apply(self.context)
 
         # Tell the player when the economy turns; news proper arrives later.
         engine.register_boundary(PeriodBoundary.MONTH, self._announce_economy)
@@ -379,6 +383,8 @@ class GameApp:
             if company is not None:
                 company.attach_market(self.context.market, self.context.allocator)
                 company.register(self.context.engine)
+                # A new company starts at whatever level the tree already grants.
+                self.effects.apply(self.context)
                 # Founding is a major decision, so the moment before it is kept
                 # (V16.6) and the game is marked as having unsaved changes.
                 self.saves.mark_changed()
@@ -438,7 +444,7 @@ class GameApp:
         """Buy an unlock with personal cash (V6.2)."""
         player = self.context.player
         tree = self.context.unlocks
-        unlock = BY_KEY.get(key)
+        unlock = tree.by_key.get(key)
         if tree is None or unlock is None:
             return
         allowed, reason = tree.can_purchase(key, player.cash)
@@ -467,6 +473,7 @@ class GameApp:
                 return
             player.cash = player.cash - tree.cost_of(key)
             tree.unlock(key)
+            self.effects.apply(self.context)
             self.notifications.push(f"{unlock.name} unlocked.",
                                     pygame.time.get_ticks(), emphasis=True)
             self.saves.mark_changed()
@@ -537,6 +544,12 @@ class GameApp:
         """Point the interface at the systems the loaded game created."""
         self.saves.on_autosave = [self._on_autosave]
         self.context.saves = self.saves
+        # The loaded game brought its own player, and so its own unlock tree;
+        # re-applying the effects makes the restored world behave exactly as the
+        # saved one did (V6.3, V16.28).
+        self.effects = UnlockEffects(self.context.player.unlocks)
+        self.effects.apply(self.context)
+        self.context.news.on_article = [self._on_article]
         self._last_reported_state = self.context.economy.state
         self.context.engine.register_boundary(PeriodBoundary.MONTH, self._announce_economy)
         for page in self.pages.values():

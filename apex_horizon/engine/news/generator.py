@@ -68,6 +68,9 @@ class NewsSystem:
         self.articles: list[NewsArticle] = []
         #: Raised by the News branch of the Unlock Tree (V6.6.2, V10.4).
         self.tier: NewsTier = NewsTier.BASIC
+        #: False until Basic News is unlocked: without it the player has no
+        #: financial press at all, rather than a press showing nothing (V6.6.2).
+        self.enabled: bool = True
         #: Live influence on prices, by company, decaying each day (V10.10).
         self.impacts: dict[str, float] = {}
         self._last_generated_day: int | None = None
@@ -98,6 +101,11 @@ class NewsSystem:
     def generate(self, context: SimulationContext) -> None:
         """Report yesterday's settled outcomes (V29.3)."""
         if self._last_generated_day == context.day_number:
+            return
+        if not self.enabled:
+            # Still mark the day, so unlocking the press later does not make it
+            # suddenly report a backlog of events the player never lived through.
+            self._last_generated_day = context.day_number
             return
         self._decay_impacts()
         self._report_companies(context)
@@ -240,6 +248,7 @@ class NewsSystem:
             "impacts": dict(self.impacts),
             "last_generated_day": self._last_generated_day,
             "last_market_report_day": self._last_market_report_day,
+            "enabled": self.enabled,
         }
 
     def restore(self, data: dict) -> None:
@@ -248,6 +257,7 @@ class NewsSystem:
         self.impacts = {k: float(v) for k, v in data.get("impacts", {}).items()}
         self._last_generated_day = data.get("last_generated_day")
         self._last_market_report_day = int(data.get("last_market_report_day", 0))
+        self.enabled = bool(data.get("enabled", True))
         self._last_economic_state = getattr(self.economy, "state", None)
 
 

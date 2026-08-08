@@ -54,6 +54,7 @@ def generate_applicant(
     *,
     tier: int = 0,
     reputation: float = 0.25,
+    reputation_weight: float | None = None,
     day: int = 1,
     config: Config | None = None,
 ) -> Employee:
@@ -66,7 +67,11 @@ def generate_applicant(
     source = config or get_config()
     ceiling = skill_ceiling_for_tier(tier, source)
     minimum = source.get_int("employees.skill_minimum")
-    weight = source.get_float("employees.reputation_quality_weight")
+    # Better Recruitment raises how much a good reputation counts (V6.7.5).
+    weight = (
+        reputation_weight if reputation_weight is not None
+        else source.get_float("employees.reputation_quality_weight")
+    )
 
     def roll() -> int:
         # Two rolls biased by reputation, taking the better of them: reputation
@@ -113,6 +118,7 @@ def generate_applicants(
     count: int | None = None,
     tier: int = 0,
     reputation: float = 0.25,
+    reputation_weight: float | None = None,
     day: int = 1,
     config: Config | None = None,
 ) -> list[Employee]:
@@ -121,6 +127,6 @@ def generate_applicants(
     size = count if count is not None else source.get_int("employees.applicant_pool_size")
     return [
         generate_applicant(rng, names, allocator, tier=tier, reputation=reputation,
-                           day=day, config=source)
+                           reputation_weight=reputation_weight, day=day, config=source)
         for _ in range(size)
     ]

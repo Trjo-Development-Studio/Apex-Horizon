@@ -49,6 +49,10 @@ class PlayerCompany:
         # Company Level is raised by purchasing unlocks in the Company branch of
         # the Unlock Tree (V6.7.3), not automatically by growth.
         self.level: int = 1
+        #: Borrowing is opened by the Finance branch of the Unlock Tree (V6.7.1).
+        self.borrowing_allowed: bool = False
+        #: How far along that branch, improving the terms banks offer.
+        self.finance_tier: int = 0
         self.bankrupt: bool = False
         self.bankrupt_on_day: int | None = None
         # Systems that must react to bankruptcy register here, so this module
@@ -105,6 +109,10 @@ class PlayerCompany:
         what it will provide — the offer's own conditions decide, so lending
         stays governed by the economy (V7.10).
         """
+        if not self.borrowing_allowed:
+            # Borrowing is opened by the Finance branch of the Unlock Tree
+            # (V6.7.1, V6.16).
+            return None
         minimum = Money(self.config.get_int("loans.minimum_amount"))
         if not terms.available or amount < minimum or amount > terms.maximum_loan:
             return None

@@ -4,7 +4,8 @@ V6.2 makes the point this module exists to enforce: new mechanics are *earned*,
 not immediately available. V6.19 asks for the tree to be a directed acyclic
 graph with each unlock's prerequisites stored as explicit edges, so branches
 defined later attach without changing traversal — which is exactly how it is
-built here.
+built here, and why V6.8's final unlock, which converges seven branches at once,
+needs no special handling.
 
 V6.4 fixes the start of the primary progression: the player **always begins with
 Basic Investing**, then Create Company, then Company Level 2. Beginning with
@@ -13,13 +14,11 @@ an individual investor with $10,000 (V1.19, V1.21) who can trade their own money
 from the first day, and who must build enough personal wealth to afford a
 company (V3.3).
 
-Only the part of the tree whose effects are actually wired is defined here.
-Selling the player an unlock that changes nothing would break V6.3, which
-requires every unlock to provide a noticeable improvement or a new system. The
-remaining branches arrive with the systems they gate.
-
-Costs live in configuration, never in this file (V15.10, and the project
-manager's ruling that unlock prices must stay tunable).
+The tree's contents live in :mod:`.catalogue`; this module is only the machinery
+that reads them. Prices come from configuration (V15.10, and the project
+manager's ruling that unlock prices stay tunable): each unlock declares how deep
+it sits and its price is a multiple of the company founding cost, so one number
+rescales the whole tree.
 """
 
 from __future__ import annotations
@@ -33,10 +32,6 @@ from ..values import Money
 
 logger = get_logger(__name__)
 
-#: Identifiers for the unlocks whose effects exist today (V6.5).
-BASIC_INVESTING = "basic_investing"
-CREATE_COMPANY = "create_company"
-
 
 @dataclass(frozen=True)
 class Unlock:
@@ -45,46 +40,32 @@ class Unlock:
     key: str
     name: str
     description: str
+    #: Which branch this belongs to, and where along it — used only for layout.
+    branch: str = "primary"
+    position: int = 0
     #: Keys that must already be unlocked. Empty for the root (V6.9).
     requires: tuple[str, ...] = ()
-    #: Config key holding this unlock's price outright, so it stays tunable
-    #: (V15.10). Mutually exclusive with the fraction pair below.
-    cost_key: str = ""
-    #: Or: a price expressed as a fraction of another configured figure, so the
-    #: two stay in proportion when either is retuned. The project manager chose
-    #: this for Create Company, tying it to what founding a company costs.
-    cost_fraction_key: str = ""
-    cost_base_key: str = ""
+    #: How deep this sits, indexing `unlocks.cost_multipliers`. Prices are never
+    #: written into the catalogue (V15.10).
+    cost_tier: int = 0
     #: True for unlocks the player already owns when the game begins (V6.4).
     owned_at_start: bool = False
-
-
-#: The primary progression, as far as its effects are implemented (V6.5).
-UNLOCKS: tuple[Unlock, ...] = (
-    Unlock(
-        key=BASIC_INVESTING,
-        name="Basic Investing",
-        description="Trade shares with your own money. Every player starts with this.",
-        owned_at_start=True,
-    ),
-    Unlock(
-        key=CREATE_COMPANY,
-        name="Create Company",
-        description="Permission to found a company. Founding it costs extra.",
-        requires=(BASIC_INVESTING,),
-        cost_fraction_key="unlocks.create_company_cost_fraction",
-        cost_base_key="company.founding_cost",
-    ),
-)
-
-BY_KEY: dict[str, Unlock] = {unlock.key: unlock for unlock in UNLOCKS}
+    #: False while the system this unlock gates does not exist yet. The node is
+    #: still shown, because V6.14 wants the remaining tree visible as long-term
+    #: ambition, but it cannot be bought: V6.3 requires an unlock to change
+    #: something.
+    implemented: bool = True
 
 
 class UnlockTree:
     """What the player has earned, and what they may earn next."""
 
     def __init__(self, *, config: Config | None = None):
+        from .catalogue import UNLOCKS
+
         self.config = config or get_config()
+        self.all = UNLOCKS
+        self.by_key = {unlock.key: unlock for unlock in UNLOCKS}
         self.unlocked: set[str] = {
             unlock.key for unlock in UNLOCKS if unlock.owned_at_start
         }
@@ -95,28 +76,45 @@ class UnlockTree:
     def has(self, key: str) -> bool:
         return key in self.unlocked
 
-    def cost_of(self, key: str) -> Money:
-        """What an unlock costs, read from configuration every time (V15.10).
+    def highest(self, *keys: str) -> int:
+        """How far along an ordered chain the player has reached, 0 for none.
 
-        A price may be configured outright, or as a fraction of another figure
-        so the two stay in proportion when either is retuned.
+        Branches are strictly sequential (V6.9), so counting how many of a chain
+        are owned is the same as finding the furthest one reached — and it saves
+        every caller writing a ladder of ``if has(...)`` for each level.
         """
-        unlock = BY_KEY.get(key)
-        if unlock is None:
+        reached = 0
+        for index, key in enumerate(keys, start=1):
+            if key in self.unlocked:
+                reached = index
+        return reached
+
+    def cost_of(self, key: str) -> Money:
+        """What an unlock costs, read from configuration every time (V15.10)."""
+        unlock = self.by_key.get(key)
+        if unlock is None or unlock.owned_at_start:
             return Money.zero()
-        if unlock.cost_key:
-            return Money(self.config.get_int(unlock.cost_key))
-        if unlock.cost_fraction_key and unlock.cost_base_key:
-            fraction = Decimal(str(self.config.get_float(unlock.cost_fraction_key)))
-            base = Decimal(self.config.get_int(unlock.cost_base_key))
-            return Money(base * fraction)
-        return Money.zero()
+        multipliers = self.config.get_list("unlocks.cost_multipliers")
+        if not multipliers:
+            return Money.zero()
+        index = max(0, min(unlock.cost_tier, len(multipliers) - 1))
+        founding = Decimal(self.config.get_int("company.founding_cost"))
+        return Money(founding * Decimal(str(multipliers[index])))
 
     def prerequisites_met(self, key: str) -> bool:
-        unlock = BY_KEY.get(key)
+        unlock = self.by_key.get(key)
         if unlock is None:
             return False
         return all(requirement in self.unlocked for requirement in unlock.requires)
+
+    def missing_prerequisites(self, key: str) -> list[Unlock]:
+        unlock = self.by_key.get(key)
+        if unlock is None:
+            return []
+        return [
+            self.by_key[requirement] for requirement in unlock.requires
+            if requirement not in self.unlocked and requirement in self.by_key
+        ]
 
     def available(self) -> list[Unlock]:
         """Unlocks the player could buy now: prerequisites met, not yet owned.
@@ -125,22 +123,33 @@ class UnlockTree:
         rather than being staggered, so this reports all of them.
         """
         return [
-            unlock for unlock in UNLOCKS
-            if unlock.key not in self.unlocked and self.prerequisites_met(unlock.key)
+            unlock for unlock in self.all
+            if unlock.key not in self.unlocked
+            and unlock.implemented
+            and self.prerequisites_met(unlock.key)
         ]
+
+    def branch(self, name: str) -> list[Unlock]:
+        """One branch in order, for drawing it as a horizontal line (V6.10)."""
+        return sorted(
+            (unlock for unlock in self.all if unlock.branch == name),
+            key=lambda unlock: unlock.position,
+        )
 
     def can_purchase(self, key: str, cash: Money) -> tuple[bool, str]:
         """Whether an unlock may be bought now, and why not if not."""
-        unlock = BY_KEY.get(key)
+        unlock = self.by_key.get(key)
         if unlock is None:
             return False, "That unlock does not exist."
         if key in self.unlocked:
             return False, f"{unlock.name} is already unlocked."
+        if not unlock.implemented:
+            return False, (
+                f"{unlock.name} arrives with the system it opens, in a later "
+                "version of the game."
+            )
         if not self.prerequisites_met(key):
-            missing = [
-                BY_KEY[requirement].name for requirement in unlock.requires
-                if requirement not in self.unlocked
-            ]
+            missing = [item.name for item in self.missing_prerequisites(key)]
             # V6.9: progression cannot be skipped.
             return False, f"{unlock.name} requires {' and '.join(missing)} first."
         cost = self.cost_of(key)
@@ -156,7 +165,7 @@ class UnlockTree:
         if key in self.unlocked:
             return
         self.unlocked.add(key)
-        unlock = BY_KEY.get(key)
+        unlock = self.by_key.get(key)
         logger.info("Unlocked %s.", unlock.name if unlock else key)
         for callback in list(self.on_unlocked):
             callback(unlock)
@@ -170,5 +179,5 @@ class UnlockTree:
         # An unlock every player starts with is never absent, even from a save
         # written before it existed (V16.15).
         self.unlocked.update(
-            unlock.key for unlock in UNLOCKS if unlock.owned_at_start
+            unlock.key for unlock in self.all if unlock.owned_at_start
         )

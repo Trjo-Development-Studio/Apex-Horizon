@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from itertools import pairwise
 
 import pytest
 
 from apex_horizon.engine.company import Player
 from apex_horizon.engine.unlocks import (
+    BASIC_ANALYTICS,
     BASIC_INVESTING,
+    BASIC_NEWS,
     CREATE_COMPANY,
     UNLOCKS,
     UnlockTree,
@@ -33,11 +36,11 @@ def test_the_player_always_begins_with_basic_investing():
     assert not tree.has(CREATE_COMPANY)
 
 
-def test_create_company_follows_basic_investing():
-    """V6.5: the primary progression runs Basic Investing -> Create Company."""
+def test_the_two_basic_investing_branches_open_immediately():
+    """V6.5 and V6.6: Create Company, plus the Analytics and News branch roots."""
     tree = UnlockTree()
     available = [unlock.key for unlock in tree.available()]
-    assert available == [CREATE_COMPANY]
+    assert set(available) == {CREATE_COMPANY, BASIC_ANALYTICS, BASIC_NEWS}
 
 
 def test_progression_cannot_be_skipped():
@@ -79,12 +82,25 @@ def test_an_unlock_is_not_bought_twice():
 def test_costs_come_from_configuration():
     """The project manager tunes prices without touching code (V15.10)."""
     tree = UnlockTree()
-    fraction = tree.config.get_float("unlocks.create_company_cost_fraction")
+    multipliers = tree.config.get_list("unlocks.cost_multipliers")
     founding = tree.config.get_int("company.founding_cost")
+    unlock = tree.by_key[CREATE_COMPANY]
 
-    assert tree.cost_of(CREATE_COMPANY) == Money(Decimal(founding) * Decimal(str(fraction)))
+    assert tree.cost_of(CREATE_COMPANY) == Money(
+        Decimal(founding) * Decimal(str(multipliers[unlock.cost_tier]))
+    )
     # An unlock the player starts with is never sold to them.
     assert tree.cost_of(BASIC_INVESTING) == Money.zero()
+
+
+def test_prices_rise_with_depth():
+    """V6.11: unlocks should appear gradually as the company grows."""
+    tree = UnlockTree()
+    costs = [
+        tree.cost_of(unlock.key) for unlock in tree.branch("news")
+    ]
+    assert costs == sorted(costs)
+    assert costs[0] < costs[-1]
 
 
 def test_the_create_company_price_follows_the_founding_cost():
@@ -101,12 +117,14 @@ def test_the_create_company_price_follows_the_founding_cost():
 
 
 def test_no_unlock_hard_codes_its_price():
+    """Every price is a multiple from configuration, never a literal (V15.10)."""
+    tree = UnlockTree()
+    multipliers = tree.config.get_list("unlocks.cost_multipliers")
     for unlock in UNLOCKS:
         if unlock.owned_at_start:
             continue
-        assert unlock.cost_key or (unlock.cost_fraction_key and unlock.cost_base_key), (
-            f"{unlock.name} must read its price from config"
-        )
+        assert 0 <= unlock.cost_tier < len(multipliers), unlock.name
+        assert tree.cost_of(unlock.key).is_positive, unlock.name
 
 
 def test_unlocking_notifies_listeners():
@@ -172,3 +190,253 @@ def test_a_save_without_unlocks_still_starts_with_basic_investing():
 
     assert restored.has(BASIC_INVESTING)
     assert not restored.has(CREATE_COMPANY)
+
+
+# -- the shape of the tree (V6.5-V6.8) ------------------------------------
+
+
+def test_the_tree_is_acyclic_and_fully_connected():
+    """V6.19: a directed acyclic graph, every node reachable from the root."""
+    tree = UnlockTree()
+    reachable = {BASIC_INVESTING}
+    changed = True
+    while changed:
+        changed = False
+        for unlock in tree.all:
+            if unlock.key in reachable:
+                continue
+            if unlock.requires and all(r in reachable for r in unlock.requires):
+                reachable.add(unlock.key)
+                changed = True
+
+    assert reachable == {unlock.key for unlock in tree.all}, (
+        "every unlock must trace back to Basic Investing (V6.10)"
+    )
+
+
+def test_no_unlock_requires_itself_or_something_later():
+    """A cycle would make part of the tree unreachable (V6.19)."""
+    tree = UnlockTree()
+    order = {unlock.key: index for index, unlock in enumerate(tree.all)}
+    for unlock in tree.all:
+        assert unlock.key not in unlock.requires
+        for requirement in unlock.requires:
+            assert requirement in order, f"{unlock.name} requires an unknown unlock"
+
+
+def test_investment_funds_needs_every_branch():
+    """V6.8 lists seven prerequisites, one from the end of each branch."""
+    from apex_horizon.engine.unlocks import (
+        BETTER_ANALYTICS_3,
+        BETTER_EMPLOYEES_3,
+        BETTER_FINANCE_3,
+        BETTER_TRAINING_3,
+        BREAKING_NEWS,
+        COMPANY_ANALYTICS,
+        EMPLOYEE_PERFORMANCE,
+        INVESTMENT_FUNDS,
+    )
+
+    tree = UnlockTree()
+    assert set(tree.by_key[INVESTMENT_FUNDS].requires) == {
+        BETTER_ANALYTICS_3, BETTER_FINANCE_3, BETTER_EMPLOYEES_3, COMPANY_ANALYTICS,
+        BETTER_TRAINING_3, EMPLOYEE_PERFORMANCE, BREAKING_NEWS,
+    }
+
+
+def test_an_unbuilt_system_cannot_be_bought():
+    """V6.3: never sell an unlock that changes nothing."""
+    from apex_horizon.engine.unlocks import INVESTMENT_FUNDS
+
+    tree = UnlockTree()
+    for unlock in tree.all:
+        tree.unlocked.add(unlock.key)
+    tree.unlocked.discard(INVESTMENT_FUNDS)
+
+    allowed, reason = tree.can_purchase(INVESTMENT_FUNDS, Money(100_000_000))
+    assert not allowed
+    assert "later version" in reason
+    assert INVESTMENT_FUNDS not in {u.key for u in tree.available()}
+
+
+def test_every_branch_is_a_straight_sequence():
+    """V6.9: progression is linear along a branch, left to right."""
+    tree = UnlockTree()
+    for name in ("analytics", "news", "finance", "employees", "training", "recruitment"):
+        branch = tree.branch(name)
+        assert branch, name
+        for earlier, later in pairwise(branch):
+            assert earlier.key in later.requires, (
+                f"{later.name} should follow {earlier.name}"
+            )
+
+
+# -- what unlocks actually do (V6.3) --------------------------------------
+
+
+class FakeRoster:
+    def __init__(self):
+        self.recruitment_tier = 0
+        self.training_allowed = False
+        self.training_speed = 1.0
+        self.applicant_pool = 0
+        self.reputation_weight = 0.0
+        self.strengths_visible = False
+        self.performance_visible = False
+
+
+class FakeCompany:
+    def __init__(self):
+        self.level = 1
+        self.borrowing_allowed = False
+        self.finance_tier = 0
+        self.employees = FakeRoster()
+        self.max_level = 5
+
+    def set_level(self, level):
+        self.level = level
+
+
+class FakeNews:
+    def __init__(self):
+        self.enabled = True
+        self.tier = None
+
+
+class FakeAnalytics:
+    def __init__(self):
+        self.enabled = True
+        self.tier = None
+        self.company_analytics = False
+
+
+class FakeContext:
+    def __init__(self):
+        self.news = FakeNews()
+        self.analytics = FakeAnalytics()
+        self.company = FakeCompany()
+
+    def snapshot(self) -> tuple:
+        """Everything the effects layer is allowed to configure."""
+        company = self.company
+        return (
+            vars(self.news).copy(),
+            vars(self.analytics).copy(),
+            company.level, company.borrowing_allowed, company.finance_tier,
+            vars(company.employees).copy(),
+        )
+
+
+def applied(*keys):
+    """A context with the given unlocks granted and their effects applied."""
+    from apex_horizon.engine.unlocks import UnlockEffects
+
+    tree = UnlockTree()
+    for key in keys:
+        tree.unlock(key)
+    context = FakeContext()
+    UnlockEffects(tree).apply(context)
+    return context
+
+
+def test_company_level_follows_the_company_branch():
+    from apex_horizon.engine.unlocks import (
+        COMPANY_LEVEL_2,
+        COMPANY_LEVEL_3,
+        COMPANY_LEVEL_4,
+        COMPANY_LEVEL_5,
+    )
+
+    assert applied().company.level == 1
+    assert applied(COMPANY_LEVEL_2).company.level == 2
+    levels = (COMPANY_LEVEL_2, COMPANY_LEVEL_3, COMPANY_LEVEL_4, COMPANY_LEVEL_5)
+    assert applied(*levels).company.level == 5
+
+
+def test_skill_ceilings_follow_the_employee_branch():
+    """V6.7.2 gives 1-20, 1-30 and 1-40 for the three levels."""
+    from apex_horizon.engine.unlocks import (
+        BETTER_EMPLOYEES_1,
+        BETTER_EMPLOYEES_2,
+        BETTER_EMPLOYEES_3,
+    )
+
+    assert applied().company.employees.recruitment_tier == 0
+    assert applied(BETTER_EMPLOYEES_1).company.employees.recruitment_tier == 1
+    assert applied(
+        BETTER_EMPLOYEES_1, BETTER_EMPLOYEES_2, BETTER_EMPLOYEES_3
+    ).company.employees.recruitment_tier == 3
+
+
+def test_training_is_gated_and_then_improves():
+    from apex_horizon.engine.unlocks import BETTER_TRAINING_1, EMPLOYEE_TRAINING
+
+    assert not applied().company.employees.training_allowed
+    granted = applied(EMPLOYEE_TRAINING).company.employees
+    assert granted.training_allowed
+    assert granted.training_speed == 1.0
+
+    faster = applied(EMPLOYEE_TRAINING, BETTER_TRAINING_1).company.employees
+    assert faster.training_speed > granted.training_speed
+
+
+def test_borrowing_is_gated_by_the_finance_branch():
+    from apex_horizon.engine.unlocks import BETTER_FINANCE_1, FINANCE
+
+    assert not applied().company.borrowing_allowed
+    assert applied(FINANCE).company.borrowing_allowed
+    assert applied(FINANCE, BETTER_FINANCE_1).company.finance_tier == 1
+
+
+def test_the_recruitment_branch_reveals_and_widens():
+    from apex_horizon.engine.unlocks import (
+        BETTER_RECRUITMENT,
+        EMPLOYEE_PERFORMANCE,
+        EMPLOYEE_STRENGTHS,
+        MORE_APPLICANTS,
+    )
+
+    plain = applied().company.employees
+    assert not plain.strengths_visible and not plain.performance_visible
+
+    wider = applied(BETTER_RECRUITMENT, MORE_APPLICANTS).company.employees
+    assert wider.applicant_pool > plain.applicant_pool
+    assert wider.reputation_weight > plain.reputation_weight
+
+    seen = applied(
+        BETTER_RECRUITMENT, MORE_APPLICANTS, EMPLOYEE_STRENGTHS, EMPLOYEE_PERFORMANCE
+    ).company.employees
+    assert seen.strengths_visible and seen.performance_visible
+
+
+def test_every_purchasable_unlock_changes_something():
+    """V6.3: the player should never buy something insignificant.
+
+    Each unlock is applied on top of its prerequisites and the resulting
+    configuration compared against the same tree without it.
+
+    Two are exempt, for stated reasons rather than by oversight: Create Company
+    acts on the founding gate in ``Player`` rather than on any system this layer
+    configures, and the Employees root was ruled purely structural by the
+    project manager, opening the quality levels beneath it.
+    """
+    from apex_horizon.engine.unlocks import EMPLOYEES, UnlockEffects
+
+    structural = {CREATE_COMPANY, EMPLOYEES}
+    reference = UnlockTree()
+    for unlock in reference.all:
+        if unlock.owned_at_start or not unlock.implemented or unlock.key in structural:
+            continue
+
+        before, after = UnlockTree(), UnlockTree()
+        for key in unlock.requires:
+            before.unlock(key)
+            after.unlock(key)
+        after.unlock(unlock.key)
+
+        first, second = FakeContext(), FakeContext()
+        UnlockEffects(before).apply(first)
+        UnlockEffects(after).apply(second)
+        assert first.snapshot() != second.snapshot(), (
+            f"{unlock.name} changes nothing when unlocked"
+        )

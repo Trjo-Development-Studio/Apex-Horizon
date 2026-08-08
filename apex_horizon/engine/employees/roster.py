@@ -41,6 +41,18 @@ class EmployeeRoster:
         self.recruitment_tier: int = 0
         #: Whether hidden characteristics are visible (Recruitment branch, V6.7.5).
         self.strengths_visible: bool = False
+        #: Whether performance statistics are shown (Recruitment branch, V6.7.5).
+        self.performance_visible: bool = False
+        #: Training is gated behind its own unlock (V6.7.4); hiring is not.
+        self.training_allowed: bool = False
+        #: How much faster training teaches, raised by the Training branch.
+        self.training_speed: float = 1.0
+        #: Applicants offered, and how strongly reputation shapes their quality,
+        #: both raised by the Recruitment branch (V6.7.5).
+        self.applicant_pool: int = self.config.get_int("employees.applicant_pool_size")
+        self.reputation_weight: float = self.config.get_float(
+            "employees.reputation_quality_weight"
+        )
         self._last_worked_day: int | None = None
 
     # -- the roster --------------------------------------------------------
@@ -72,8 +84,10 @@ class EmployeeRoster:
         """Draw a new pool of candidates, shaped by company reputation."""
         self.applicants = generate_applicants(
             rng, names, allocator,
+            count=self.applicant_pool,
             tier=self.recruitment_tier,
             reputation=self.company.reputation,
+            reputation_weight=self.reputation_weight,
             day=day,
             config=self.config,
         )
@@ -156,6 +170,11 @@ class EmployeeRoster:
     def start_training(self, employee: Employee, department: Department, day: int,
                        days: int | None = None) -> tuple[bool, str]:
         """Send an employee on a course measured in days, not weeks."""
+        if not self.training_allowed:
+            # V6.7.4: training is earned through the Unlock Tree.
+            return False, (
+                "Employee Training has not been unlocked yet."
+            )
         if employee.is_training:
             return False, f"{employee.name} is already training."
         length = days or self.config.get_int("employees.training_default_days")
@@ -170,7 +189,8 @@ class EmployeeRoster:
         training.days_remaining -= 1
         employee.gain_experience(
             training.department,
-            self.config.get_float("employees.training_experience_per_day"),
+            self.config.get_float("employees.training_experience_per_day")
+            * self.training_speed,
             self.config,
         )
         if training.days_remaining <= 0:
