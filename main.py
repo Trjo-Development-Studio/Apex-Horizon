@@ -34,7 +34,7 @@ def main() -> int:
 
     try:
         from apex_horizon.ui import run_game
-    except ModuleNotFoundError as exc:
+    except ModuleNotFoundError as exc:  # pragma: no cover - environment guard
         if exc.name == "pygame":
             print(
                 "Pygame is not installed. Run: uv sync",

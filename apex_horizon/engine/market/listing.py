@@ -82,8 +82,14 @@ class MarketListing:
 
     @property
     def previous_close(self) -> Money | None:
-        """Yesterday's closing price, if the company has traded before."""
-        return self.history[-1] if self.history else None
+        """Yesterday's closing price, if the company has traded before.
+
+        Today's close is already the last entry in the history by the time
+        anything reads this, so yesterday is the entry before it. Comparing
+        against the last entry would compare today with itself and report no
+        movement at all.
+        """
+        return self.history[-2] if len(self.history) >= 2 else None
 
     def daily_change(self) -> Percentage:
         """Change against the previous close."""
@@ -101,10 +107,14 @@ class MarketListing:
         self.pending_demand += shares
 
     def price_on(self, days_ago: int) -> Money | None:
-        """A past closing price, or ``None`` if history does not reach back."""
-        if days_ago <= 0 or days_ago > len(self.history):
+        """A past closing price, or ``None`` if history does not reach back.
+
+        ``days_ago`` of 1 is yesterday. The last history entry is today's close,
+        so it is skipped.
+        """
+        if days_ago <= 0 or days_ago >= len(self.history):
             return None
-        return self.history[-days_ago]
+        return self.history[-1 - days_ago]
 
     def change_over(self, days: int) -> Percentage:
         """Price change over the last ``days`` of trading."""

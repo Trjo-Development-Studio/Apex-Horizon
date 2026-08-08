@@ -9,6 +9,48 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Milestone 7: User Interface framework (V14, V27)
+
+The game is now visible and clickable. Code lives in `apex_horizon/ui/` and is
+documented in [`docs/user-interface.md`](docs/user-interface.md).
+
+- **Visual language** (V1.15, V14.3): a near-monochrome dark palette drawn from
+  professional financial software, with colour reserved for meaning — one accent
+  for the active element, green and red only for gain and loss. Everything
+  visual comes from `theme.py`.
+- **Icons** (V27.10): monochrome outline icons drawn rather than loaded, so the
+  set stays one family and nothing can go missing at runtime. Every icon is
+  paired with a label or tooltip.
+- **Shared page layout** (V14.20, V14.28): header, breadcrumb, summary cards,
+  search, content — positioned by the base `Page` class rather than by each
+  page, so consistency is structural.
+- **Sidebar and breadcrumbs** (V14.4-V14.6, V27.4): the eight sections V14.5
+  names, and a clickable path so no page is ever a dead end.
+- **Tables** (V14.8, V14.17, V27.2-V27.5): search that filters as you type,
+  explicit sorting remembered per list, pagination, numeric columns aligned in a
+  monospaced face, and a single click to open a row.
+- **Popups** (V13.20, V14.15, V27.6): every popup pauses the simulation, offers
+  a clear default and cancel, and only one decision is shown at a time.
+- **Notifications** (V14.16, V27.7): lower-left, sliding in and out, never
+  pausing the game, never stacking beyond what can be read.
+- **Time controls** (V14.18, V27.9): ×1/×2/×3 always visible and reachable by
+  keyboard, with no pause button — pausing happens only through popups.
+- **Pages**: Dashboard, Company (with the founding flow), Market, a company
+  drill-down showing *why* a price moved cause by cause, Financial Management,
+  Settings, and honest empty states for the systems not yet built (V14.26).
+- **29 further tests** (316 total), exercising real layout and rendering.
+
+### Fixed
+
+- Every "Today" column read 0.00%: the market appends today's close before
+  anything reads it, so the daily change was comparing today with itself. Past
+  prices were off by one day for the same reason.
+- Right-aligned table headers collided with the next column, because headers
+  used a different inset from their own cells.
+- The sort marker rendered as an empty box — the arrow character is missing from
+  many system fonts. Sort markers and pagination chevrons are now drawn rather
+  than typed.
+
 ### Added — Milestone 6: Company & Financial Management (V3, V17)
 
 The player can now found and run a company. Code lives in
