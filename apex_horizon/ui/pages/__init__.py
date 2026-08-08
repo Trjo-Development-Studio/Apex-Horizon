@@ -5,14 +5,17 @@ from the shared layout in :mod:`.base` so that every page behaves the same way
 (V14.20, V14.28).
 """
 
+from .analytics import AnalyticsPage
 from .base import EmptyStatePage, Page
 from .company import CompanyPage, FinancePage
 from .dashboard import DashboardPage
 from .employees import EmployeeDetailPage, EmployeesPage
 from .market import CompanyDetailPage, MarketPage
-from .simple import InvestmentsPage, NewsPage, SettingsPage, UnlockTreePage
+from .news import NewsPage
+from .simple import InvestmentsPage, SettingsPage, UnlockTreePage
 
 __all__ = [
+    "AnalyticsPage",
     "CompanyDetailPage",
     "CompanyPage",
     "DashboardPage",

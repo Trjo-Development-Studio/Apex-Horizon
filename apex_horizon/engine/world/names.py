@@ -241,11 +241,31 @@ class NameGenerator:
         return self._unique(SCOPE_ORGANISATION, build)
 
     # -- persistence -----------------------------------------------------
-    def state(self) -> dict[str, list[str]]:
-        """Used names, saved with the world so uniqueness survives a reload."""
-        return {scope: sorted(names) for scope, names in self._used.items()}
+    def state(self) -> dict:
+        """Used names and the position of the stream that produced them.
+
+        Uniqueness alone is not enough for determinism (V15.11): a name is drawn
+        from the random stream, so if that stream restarted from the seed on
+        every load, the next company to be founded would be named differently
+        from the one an uninterrupted game would have named. Both halves are
+        saved — which names are taken, and where in the stream to continue.
+        """
+        return {
+            "used": {scope: sorted(names) for scope, names in self._used.items()},
+            "rng_state": self._rng.getstate(),
+        }
 
     @classmethod
-    def from_state(cls, rng: Random, state: dict[str, list[str]] | None) -> NameGenerator:
-        used = {scope: set(names) for scope, names in (state or {}).items()}
+    def from_state(cls, rng: Random, state: dict | None) -> NameGenerator:
+        state = state or {}
+        # Saves written before the stream position was recorded held the used
+        # names at the top level; both shapes are accepted (V16.15).
+        raw = state.get("used", state)
+        used = {
+            scope: set(names) for scope, names in raw.items() if scope != "rng_state"
+        }
+        rng_state = state.get("rng_state")
+        if rng_state is not None:
+            version, internal, gauss = rng_state
+            rng.setstate((version, tuple(internal), gauss))
         return cls(rng, used=used)

@@ -76,11 +76,19 @@ def test_pages_render_before_a_company_exists(app):
 
 
 def test_sidebar_lists_the_sections_the_design_bible_names():
+    """V14.5 names eight sections and allows more as the game expands.
+
+    So the requirement is that every named section is present and in the stated
+    order — not that the list matches exactly, which would forbid the additions
+    V14.5 permits.
+    """
     labels = [item.label for item in NAV_ITEMS]
-    assert labels == [
+    named = [
         "Dashboard", "Company", "Investments", "Market", "News",
         "Unlock Tree", "Financial Management", "Settings",
     ]
+    assert set(named) <= set(labels)
+    assert [label for label in labels if label in named] == named
 
 
 def test_every_sidebar_destination_has_a_page(app):
@@ -370,3 +378,90 @@ def test_window_can_be_resized(app):
     app.draw(0)
     # Never smaller than the minimum usable size.
     assert app.surface.get_width() >= 1100
+
+
+# -- news and analytics pages (V10.15, V9.22) -----------------------------
+
+
+def test_the_news_page_lists_stories_and_shows_one_in_full(app):
+    from apex_horizon.engine.news import NewsTier
+
+    app.context.news.tier = NewsTier.BREAKING
+    app.context.engine.run_days(200)
+    app.navigate("news")
+    app.draw(0)
+
+    page = app.pages["news"]
+    assert page.articles(), "200 days should have produced something to report"
+    assert page._row_hitboxes, "the archive should be selectable"
+
+    # Selecting a later story changes which one is shown in full.
+    row, index = page._row_hitboxes[2]
+    page.handle_event(click(row.center))
+    assert page.selected == index
+
+
+def test_the_news_page_offers_only_unlocked_tiers(app):
+    from apex_horizon.engine.news import NewsTier
+
+    assert app.pages["news"].filters() == ["All", "Company"]
+
+    app.context.news.tier = NewsTier.BREAKING
+    assert app.pages["news"].filters() == [
+        "All", "Company", "Market", "Economy", "Breaking",
+    ]
+
+
+def test_filtering_the_news_narrows_the_archive(app):
+    from apex_horizon.engine.news import NewsTier
+
+    app.context.news.tier = NewsTier.MARKET
+    app.context.engine.run_days(200)
+    page = app.pages["news"]
+    page.filter = "Market"
+
+    assert page.articles()
+    assert all(str(a.tier) == "Market" for a in page.articles())
+
+
+def test_an_empty_news_archive_states_so(app):
+    app.navigate("news")
+    app.draw(0)  # day zero: nothing has happened yet
+    assert app.pages["news"].articles() == []
+
+
+def test_every_unlocked_report_is_drawn(app):
+    """A report the player has unlocked must not be lost to the layout."""
+    from apex_horizon.engine.analytics import AnalyticsTier
+
+    app.context.player.cash = Money(200_000)
+    company, _ = app.context.player.found_company("Test Capital", 1)
+    company.attach_market(app.context.market, app.context.allocator)
+    company.register(app.context.engine)
+    app.context.analytics.tier = AnalyticsTier.ADVANCED
+    app.context.engine.run_days(28 * 14)
+
+    app.navigate("analytics")
+    app.draw(0)
+
+    reports = app.context.analytics.reports()
+    assert len(reports) == 5
+
+    page = app.pages["analytics"]
+    drawn = []
+    page._draw_report = lambda surface, rect, fonts, report: drawn.append((rect, report))
+    app.draw(0)
+
+    assert len(drawn) == len(reports)
+    for rect, report in drawn:
+        needed = 68 + len(report.metrics) * 44
+        assert rect.height >= min(needed, rect.height), report.title
+
+
+def test_analytics_before_a_company_shows_only_what_exists(app):
+    """The market is there from the start; the company reports are not."""
+    app.navigate("analytics")
+    app.draw(0)
+
+    titles = [report.title for report in app.context.analytics.reports()]
+    assert titles == ["Market"]

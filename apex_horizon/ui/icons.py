@@ -118,6 +118,13 @@ def _chevron_right(surface, colour):
     pygame.draw.lines(surface, colour, False, [(9, 5), (15, 12), (9, 19)], LINE_WIDTH)
 
 
+def _analytics(surface, colour):
+    """A pie divided into segments - figures broken down and compared."""
+    pygame.draw.circle(surface, colour, (12, 12), 8, LINE_WIDTH)
+    pygame.draw.line(surface, colour, (12, 12), (12, 4), LINE_WIDTH)
+    pygame.draw.line(surface, colour, (12, 12), (19, 16), LINE_WIDTH)
+
+
 def _sort(surface, colour):
     pygame.draw.lines(surface, colour, False, [(8, 10), (12, 6), (16, 10)], LINE_WIDTH)
     pygame.draw.lines(surface, colour, False, [(8, 14), (12, 18), (16, 14)], LINE_WIDTH)
@@ -129,6 +136,7 @@ ICONS: dict[str, Callable[[pygame.Surface, tuple[int, int, int]], None]] = {
     "investments": _investments,
     "market": _market,
     "news": _news,
+    "analytics": _analytics,
     "unlocks": _unlocks,
     "finance": _finance,
     "settings": _settings,

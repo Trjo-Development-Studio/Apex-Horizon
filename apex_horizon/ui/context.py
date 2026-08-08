@@ -25,6 +25,8 @@ class GameContext:
     # unique when the market keeps creating companies after a reload (V34.3).
     allocator: Any = None
     names: Any = None
+    news: Any = None
+    analytics: Any = None
     saves: Any = None
 
     @property

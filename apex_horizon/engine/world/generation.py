@@ -55,6 +55,26 @@ class WorldGenerator:
         self.names = names or NameGenerator(rng)
         self.config = config or get_config()
 
+    # -- persistence -------------------------------------------------------
+    def state(self) -> dict:
+        """The generator's own random state (V15.11).
+
+        The generator keeps producing companies long after the world is first
+        built — the market lists a new one every so often (V4.13). If its random
+        stream restarted from the seed on every load, a company founded after
+        loading would come out different from the one an uninterrupted game
+        would have founded, so a save would quietly change the future. Carrying
+        the stream position in the save is what stops that.
+        """
+        return {"rng_state": self.rng.getstate()}
+
+    def restore(self, data: dict) -> None:
+        rng_state = data.get("rng_state")
+        if rng_state is not None:
+            # Tuples survive a round trip through most encodings as lists.
+            version, internal, gauss = rng_state
+            self.rng.setstate((version, tuple(internal), gauss))
+
     # -- industry distribution -------------------------------------------
     def _industry_plan(self, count: int) -> list[Industry]:
         """Spread companies across every industry rather than clustering them.

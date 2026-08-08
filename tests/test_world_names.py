@@ -207,11 +207,13 @@ def test_companies_and_banks_share_one_uniqueness_scope():
 def test_people_and_cities_use_separate_scopes():
     names = generator()
     names.person_name()
-    assert names.is_used(SCOPE_PERSON, names.state()[SCOPE_PERSON][0])
+    used = names.state()["used"]
+    assert names.is_used(SCOPE_PERSON, used[SCOPE_PERSON][0])
     names.city_name()
-    assert names.state()[SCOPE_CITY]
+    used = names.state()["used"]
+    assert used[SCOPE_CITY]
     # Scopes are tracked independently.
-    assert names.state()[SCOPE_PERSON] != names.state()[SCOPE_CITY]
+    assert used[SCOPE_PERSON] != used[SCOPE_CITY]
 
 
 def test_exhausted_pool_degrades_to_a_plausible_qualifier():
@@ -261,3 +263,27 @@ def test_each_industry_can_produce_many_distinct_names(industry: Industry):
     names = generator(seed=7)
     produced = {names.company_name(industry) for _ in range(150)}
     assert len(produced) == 150
+
+
+def test_the_name_stream_position_is_saved():
+    """V15.11: names drawn after loading match an uninterrupted run."""
+    names = generator()
+    for _ in range(5):
+        names.person_name()
+
+    restored = NameGenerator.from_state(Random(0), names.state())
+
+    assert [restored.person_name() for _ in range(5)] == [
+        names.person_name() for _ in range(5)
+    ]
+
+
+def test_a_save_written_before_the_stream_was_recorded_still_loads():
+    """V16.15: an older save holds only the used names, at the top level."""
+    old_format = {SCOPE_PERSON: ["Ada Lovelace"], SCOPE_ORGANISATION: ["Atlas Foods"]}
+
+    names = NameGenerator.from_state(Random(1), old_format)
+
+    assert names.is_used(SCOPE_PERSON, "Ada Lovelace")
+    assert names.is_used(SCOPE_ORGANISATION, "Atlas Foods")
+    assert "rng_state" not in names.state()["used"]

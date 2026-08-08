@@ -9,6 +9,59 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Milestone 11: News & Analytics (V10, V9)
+
+The world now reports on itself, and the game reports back to the player. Code
+lives in `apex_horizon/engine/news/` and `apex_horizon/engine/analytics/`, and is
+documented in [`docs/news-and-analytics.md`](docs/news-and-analytics.md).
+
+- **News generated from real events** (V10.9, V10.24): the News System runs
+  first in the day (V29.3) over *yesterday's* settled data, so every headline
+  describes something that genuinely happened. Company moves past 4.5% are
+  reported, 12% is breaking, the market is surveyed weekly, and the economy is
+  reported when it turns.
+- **Bylines from the world** (V33.10): each story is attributed to one of the
+  world's own news agencies, with financial specialists preferred for market and
+  economic stories.
+- **News moves prices** (V10.10): a story pushes the company it concerns for a
+  few days, decaying as it ages. V4.4 lists news as a distinct cause of price
+  movement, so `PriceChange` now carries a separate `news` term instead of
+  folding it into sentiment — which is what lets the market name the news as the
+  reason for a move (V4.21).
+- **The archive, not a ticker** (V10.15): the last 120 stories stay readable on
+  the News page, filterable by tier, with the selected story shown in full.
+- **Tiered coverage** (V10.4, V10.16): Basic, Market, Economic and Breaking are
+  raised through the Unlock Tree. A locked tier is genuinely withheld rather
+  than shown in reduced detail.
+- **Analytics across five views** (V9.5–V9.10): the company, its employees, the
+  market, investments, and change over time — each gated by an analytics tier
+  that adds depth rather than access. A report whose subject does not exist yet
+  is absent rather than empty (V9.21).
+- **Historical tracking** (V9.10): nothing else in the simulation remembered the
+  past. A monthly snapshot of net worth, cash and the market index is now kept
+  and charted, capped at `analytics.history_limit`.
+- **Analysis stays out of the simulation** (V9.22): reports are plain data, and
+  the page that draws them knows nothing about how any figure was reached.
+
+### Fixed
+
+- **Reloading a game could change its future** (V15.11, V16.28). The world
+  generator's and name generator's random streams were not saved, so they
+  restarted from the seed on every load — meaning a company listed after loading
+  differed from the one an uninterrupted game would have listed. Both now carry
+  their stream position in the save. Saves written before this change still
+  load.
+- Headlines reporting a fall read "down -4.5%", a double negative, because the
+  template already supplied the direction. The figure is now written unsigned.
+
+### Changed
+
+- Only breaking news and shifts in the economy raise a notification. Every
+  article did, which buried the screen in toasts and made the story that
+  mattered no easier to notice than the rest (V10.14, V14.16).
+- The sidebar gains an Analytics section, which V14.5 permits ("additional
+  sections may be added as the game expands").
+
 ### Added — Milestone 10: Investment System (V8)
 
 The company now earns. Code lives in `apex_horizon/engine/investments/` and is

@@ -25,6 +25,7 @@ two disagree, the Design Bible wins (V19.3).
 | [economy.md](economy.md) | Economic states, inflation, industry response, and lending conditions (V7, V25) |
 | [company-and-finances.md](company-and-finances.md) | The player's company, the ledger, loans, and bankruptcy (V3, V17) |
 | [investments.md](investments.md) | The research → approval → execution → sale workflow (V8) |
+| [news-and-analytics.md](news-and-analytics.md) | News generation, tiers, and the analytics reports and history (V10, V9) |
 | [employees.md](employees.md) | Skills, departments, recruitment, training, pay and morale (V5, V18) |
 | [save-system.md](save-system.md) | Save format, slots, validation, recovery, migration (V16) |
 | [user-interface.md](user-interface.md) | The interface framework: theme, widgets, pages, popups (V14, V27) |
@@ -33,6 +34,5 @@ two disagree, the Design Bible wins (V19.3).
 ## Planned documents
 
 One document per major system, added as each is implemented (V15.14, V19.13):
-Time & Simulation, Market, Economy, Company, Employees, Investment, Research &
-Analytics, News, Unlock Tree, Save System, Financial Management, Acquisitions,
-Investment Funds, AI Companies, and the World Database.
+Unlock Tree, Financial Management, Acquisitions, Investment Funds, and AI
+Companies.

@@ -82,13 +82,29 @@ class SaveService:
             "market": context.market.state(),
             "economy": context.economy.state_data(),
             "banking": context.banking.state_data() if context.banking else {},
+            "news": context.news.state() if getattr(context, "news", None) else {},
+            "analytics": self._analytics_state(),
             "player": context.player.state(),
             "generation": {
                 "allocator": getattr(context, "allocator", IdAllocator()).state(),
                 "names": context.names.state() if getattr(context, "names", None) else {},
+                "generator": (
+                    context.market.generator.state()
+                    if getattr(context.market, "generator", None) else {}
+                ),
             },
         }
         return SaveDocument(metadata=self.metadata, summary=self._summary(), state=state)
+
+    def _analytics_state(self) -> dict:
+        """The analytics tier and the history behind it (V9.10, V16.11)."""
+        service = getattr(self.context, "analytics", None)
+        if service is None:
+            return {}
+        state = service.state()
+        if service.history is not None:
+            state["history"] = service.history.state()
+        return state
 
     def _summary(self) -> SaveSummary:
         """The figures a slot shows without loading the world (V16.9)."""
@@ -132,6 +148,7 @@ class SaveService:
             Random(world.seed), state.get("generation", {}).get("names", {})
         )
         generator = WorldGenerator(Random(world.seed), allocator=allocator, names=names)
+        generator.restore(state.get("generation", {}).get("generator", {}))
 
         market = MarketSystem(world, generator=generator, economy=economy,
                               config=self.config)
@@ -140,6 +157,12 @@ class SaveService:
         banking = BankingSystem(world, economy, config=self.config)
         banking.restore(state.get("banking", {}))
 
+        from ..news import NewsSystem
+
+        news = NewsSystem(world, market, economy, allocator=allocator, config=self.config)
+        news.restore(state.get("news", {}))
+        market.news = news
+
         player = Player("Founder", config=self.config, allocator=allocator)
         player.restore(state.get("player", {}))
 
@@ -147,6 +170,7 @@ class SaveService:
         engine.restore(state.get("engine", {}))
 
         # Re-attach every system to the fresh engine.
+        news.register(engine)
         economy.register(engine)
         banking.register(engine)
         market.register(engine)
@@ -161,14 +185,28 @@ class SaveService:
         context.economy = economy
         context.market = market
         context.banking = banking
+        context.news = news
         context.player = player
         context.allocator = allocator
         context.names = names
+
+        self._restore_analytics(state.get("analytics", {}), engine)
 
         self.metadata = document.metadata
         self.playtime_seconds = document.metadata.playtime_seconds
         self._months_since_autosave = 0
         self.unsaved_changes = False
+
+    def _restore_analytics(self, data: dict, engine: SimulationEngine) -> None:
+        """Rebuild analytics against the reloaded world and re-attach it."""
+        from ..analytics import AnalyticsService, HistoryRecorder
+
+        history = HistoryRecorder(self.context, config=self.config)
+        history.restore(data.get("history", {}))
+        history.register(engine)
+        service = AnalyticsService(self.context, history=history)
+        service.restore(data)
+        self.context.analytics = service
 
     # -- saving ------------------------------------------------------------
     def save_to_slot(self, slot: str | int, name: str | None = None) -> SaveResult:

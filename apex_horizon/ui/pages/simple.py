@@ -102,14 +102,6 @@ class InvestmentsPage(Page):
             y += 24
 
 
-class NewsPage(EmptyStatePage):
-    key = "news"
-    title = "News"
-    subtitle = "What is happening in the financial world"
-    message = "The News System is not built yet."
-    detail = "Headlines will be generated from real simulation events."
-
-
 class UnlockTreePage(EmptyStatePage):
     key = "unlocks"
     title = "Unlock Tree"

@@ -16,12 +16,14 @@ from random import Random
 import pygame
 
 from .. import __version__
+from ..engine.analytics import AnalyticsService, HistoryRecorder
 from ..engine.company import Player
 from ..engine.config import get_config
 from ..engine.economy import BankingSystem, EconomySystem
 from ..engine.errors import subscribe_error_notifier
 from ..engine.logging_setup import get_logger
 from ..engine.market import MarketSystem
+from ..engine.news import NewsSystem, NewsTier
 from ..engine.save import SaveService
 from ..engine.simulation import PeriodBoundary, SimulationEngine
 from ..engine.values import Money
@@ -30,6 +32,7 @@ from . import theme
 from .chrome import NAV_ITEMS, Breadcrumb, NotificationCentre, SaveIndicator, Sidebar, TimeControls
 from .context import GameContext
 from .pages import (
+    AnalyticsPage,
     CompanyDetailPage,
     CompanyPage,
     DashboardPage,
@@ -90,6 +93,7 @@ class GameApp:
             "market": market_page,
             "market:company": CompanyDetailPage(self.context, market_page),
             "news": NewsPage(self.context),
+            "analytics": AnalyticsPage(self.context),
             "unlocks": UnlockTreePage(self.context),
             "finance": FinancePage(self.context),
             "settings": SettingsPage(self.context),
@@ -121,8 +125,11 @@ class GameApp:
         market.populate(Random(seed))
         banking = BankingSystem(world, economy)
         banking.populate(Random(seed))
+        news = NewsSystem(world, market, economy, allocator=allocator)
+        market.news = news
 
         engine = SimulationEngine(seed=seed)
+        news.register(engine)
         economy.register(engine)
         banking.register(engine)
         market.register(engine)
@@ -137,10 +144,34 @@ class GameApp:
         self.context.player = player
         self.context.allocator = allocator
         self.context.names = names
+        self.context.news = news
+        news.on_article.append(self._on_article)
+
+        # Analytics read the world back to the player; the recorder is the only
+        # part that touches the simulation, and only to remember (V9.10, V9.22).
+        history = HistoryRecorder(self.context)
+        history.register(engine)
+        self.context.analytics = AnalyticsService(self.context, history=history)
 
         # Tell the player when the economy turns; news proper arrives later.
         engine.register_boundary(PeriodBoundary.MONTH, self._announce_economy)
         self._last_reported_state = economy.state
+
+    def _on_article(self, article) -> None:
+        """Interrupt the player only for a story that warrants it (V14.16).
+
+        The world publishes something most days, and pushing every routine
+        company move as a notification buries the screen in toasts — which
+        makes the one story that mattered no easier to notice than the rest.
+        V10.14 reserves the interruption for genuinely significant events, so
+        only breaking news and shifts in the economy arrive this way; everything
+        else waits on the News page, where V10.15 keeps it readable.
+        """
+        if not (article.is_breaking or article.tier is NewsTier.ECONOMIC):
+            return
+        self.notifications.push(
+            article.headline, pygame.time.get_ticks(), emphasis=article.is_breaking
+        )
 
     def _announce_economy(self, context) -> None:
         economy = self.context.economy

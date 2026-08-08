@@ -27,6 +27,7 @@ from .pricing import PricingWeights, apply_change, compute_change
 
 if TYPE_CHECKING:  # pragma: no cover - avoids a circular import at runtime
     from ..economy import EconomySystem
+    from ..news import NewsSystem
 
 logger = get_logger(__name__)
 
@@ -36,7 +37,8 @@ class MarketSystem:
 
     def __init__(self, world: World, *, config: Config | None = None,
                  generator: WorldGenerator | None = None,
-                 economy: EconomySystem | None = None):
+                 economy: EconomySystem | None = None,
+                 news: NewsSystem | None = None):
         self.world = world
         self.config = config or get_config()
         self.weights = PricingWeights.from_config(self.config)
@@ -45,6 +47,9 @@ class MarketSystem:
         # economic conditions become a distinct cause of price movement (V4.6,
         # V4.4) and the market's mood follows the economy (V7.9).
         self.economy = economy
+        #: Optional; when present, current stories push the prices they concern
+        #: (V4.4, V10.10).
+        self.news = news
         self.economy_weight = Decimal(str(self.config.get_float("economy.market_influence")))
 
         self.listings: dict[str, MarketListing] = {}
@@ -112,6 +117,7 @@ class MarketSystem:
                 rng=context.rng,
                 weights=self.weights,
                 economy_influence=self._economy_influence(),
+                news_influence=self._news_influence(listing.company_id),
             )
             apply_change(listing, change)
             listing.record_close()
@@ -133,6 +139,12 @@ class MarketSystem:
             return Decimal(0)
         conditions = Decimal(str(self.economy.health)) * self.economy_weight
         return conditions + Decimal(str(self.economy.daily_inflation))
+
+    def _news_influence(self, company_id: str) -> Decimal:
+        """Today's price contribution from stories about this company (V10.10)."""
+        if self.news is None:
+            return Decimal(0)
+        return Decimal(str(round(self.news.impact_for(company_id), 6)))
 
     def _drift_sentiment(self, rng: Random) -> None:
         """Move the market mood, pulling it toward the prevailing economy.

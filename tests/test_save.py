@@ -334,6 +334,29 @@ def test_a_reloaded_game_continues_identically(game):
     assert actual == expected
 
 
+def test_a_company_founded_after_loading_matches_an_uninterrupted_game(game):
+    """The world generator's own random stream is part of the save (V15.11).
+
+    The market keeps listing new companies long after the world is built. If the
+    generator restarted from the seed on every load, a company founded after
+    loading would differ from the one an uninterrupted game would have founded —
+    so saving and reloading would quietly change the future.
+    """
+    game.context.engine.run_days(100)
+    game.saves.save_to_slot(1)
+    at_save = len(game.context.world.companies)
+
+    game.context.engine.run_days(120)
+    expected = {c.id: c.name for c in game.context.world.companies}
+    assert len(expected) > at_save, "the market should list new companies over 120 days"
+
+    game.saves.load_from_slot(1)
+    game.context.engine.run_days(120)
+    actual = {c.id: c.name for c in game.context.world.companies}
+
+    assert actual == expected
+
+
 def test_price_history_survives_saving(game):
     # V4.22: market state including price history is saved in its entirety.
     game.context.engine.run_days(90)

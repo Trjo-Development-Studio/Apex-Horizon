@@ -185,6 +185,34 @@ stop_loss_aggressive = 0.22
 # Even without hitting either, a position is eventually closed.
 maximum_hold_days = 900
 
+[analytics]
+# Analytics read the simulation back to the player (V9) and never feed into it
+# (V9.22). Depth is gated by tier (V9.4), unlocked through the Unlock Tree.
+
+# How many monthly snapshots of net worth and cash to keep (V9.10). A century
+# of play is about 1200 rows, which stays small in a save and charts cleanly.
+history_limit = 1200
+
+[news]
+# News is generated from events that have actually happened in the simulation
+# (V10.9), so an article can always be traced back to something real (V10.24).
+# The tiers of V10.4 - Basic, Market, Economic, Breaking - are unlocked through
+# the News branch of the Unlock Tree (V6.6.2).
+
+# How large a daily price move must be before it is worth reporting.
+company_move_threshold = 0.045
+breaking_move_threshold = 0.12
+# Industry and market reporting cadences, in days.
+market_report_interval = 7
+# How strongly a story pushes the price of the company it concerns (V10.10),
+# and how quickly that influence fades. News moves prices for a few days, not
+# forever.
+impact_strength = 0.35
+impact_decay = 0.45
+# Articles retained for the archive (V10.15); older ones are discarded so a save
+# cannot grow without bound (V16.20).
+archive_size = 120
+
 [market]
 # Share price behaviour (V4.4). Every movement is the sum of traceable
 # contributions, never a single opaque random number: company performance,
