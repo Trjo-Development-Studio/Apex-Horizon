@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
 
 from apex_horizon.engine.company import Player
@@ -77,18 +79,34 @@ def test_an_unlock_is_not_bought_twice():
 def test_costs_come_from_configuration():
     """The project manager tunes prices without touching code (V15.10)."""
     tree = UnlockTree()
-    assert tree.cost_of(CREATE_COMPANY) == Money(
-        tree.config.get_int("unlocks.create_company_cost")
-    )
+    fraction = tree.config.get_float("unlocks.create_company_cost_fraction")
+    founding = tree.config.get_int("company.founding_cost")
+
+    assert tree.cost_of(CREATE_COMPANY) == Money(Decimal(founding) * Decimal(str(fraction)))
     # An unlock the player starts with is never sold to them.
     assert tree.cost_of(BASIC_INVESTING) == Money.zero()
+
+
+def test_the_create_company_price_follows_the_founding_cost():
+    """PM decision: the two stay in proportion when either is retuned."""
+    tree = UnlockTree()
+    before = tree.cost_of(CREATE_COMPANY)
+
+    original = tree.config.get_int("company.founding_cost")
+    tree.config._data["company"]["founding_cost"] = original * 2
+    try:
+        assert tree.cost_of(CREATE_COMPANY) == before + before
+    finally:
+        tree.config._data["company"]["founding_cost"] = original
 
 
 def test_no_unlock_hard_codes_its_price():
     for unlock in UNLOCKS:
         if unlock.owned_at_start:
             continue
-        assert unlock.cost_key, f"{unlock.name} must read its price from config"
+        assert unlock.cost_key or (unlock.cost_fraction_key and unlock.cost_base_key), (
+            f"{unlock.name} must read its price from config"
+        )
 
 
 def test_unlocking_notifies_listeners():

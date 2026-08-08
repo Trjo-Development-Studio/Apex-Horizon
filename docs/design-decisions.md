@@ -55,6 +55,40 @@ recognisable, neutral/monochrome, and functional rather than decorative**,
 consistent with the rest of the interface. No new visual style may be introduced
 that conflicts with the Design Bible.
 
+## Early-game pacing (PM, 2026-08-08)
+
+The player begins with $10,000 (V1.2) and founding a company costs $25,000 (PM),
+so the player must roughly triple their money before founding one. Measured
+across six worlds, a diversified buy-and-hold position returned a median **6.1%
+a year** — about **18 in-game years** to triple, and in one world the position
+was still below its starting value after a decade.
+
+V1.19's worked example describes a player founding a company after "several
+in-game weeks", which the figures above do not support. The project manager was
+shown the measurement and the alternatives, and ruled:
+
+> **The long individual-investor phase is intended.** The founding cost stays at
+> $25,000; the player trades personally for a long time before founding a
+> company.
+
+This is consistent with V1.20, which makes remaining an individual investor a
+valid playstyle in its own right. The consequence for implementation is that the
+opening of the game must stand on its own for many in-game years: personal
+investing, the market, news and analytics all have to be worth using before a
+company exists, and the route to a company has to read as a plan rather than a
+locked door.
+
+No personal income mechanic was added. The Design Bible describes none, and
+inventing one would have been a new mechanic rather than an implementation
+detail (V15.9, V19.4).
+
+## Unlock pricing (PM, 2026-08-08)
+
+Unlock prices must never be hard-coded. **Create Company is priced as a fraction
+of the founding cost** rather than as a figure of its own, so the two stay in
+proportion whenever either is retuned: `unlocks.create_company_cost_fraction`,
+currently 0.2, giving $5,000 against a $25,000 founding cost.
+
 ## Content and assets
 
 | Decision | Detail |

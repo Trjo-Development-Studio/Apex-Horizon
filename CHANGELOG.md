@@ -44,6 +44,25 @@ progression is now enforced end to end, and documented in
 - The Investments page leads with the player's own portfolio and shows the
   company's operation beneath it, so the separation is visible rather than
   implied.
+- The Company page, before a company exists, shows the route to one as numbered
+  steps with the player's position on each, rather than a disabled button. The
+  individual-investor phase is long by design (see below), so it has to read as
+  a plan being worked through rather than a refusal (V14.26).
+
+### Balance — the individual-investor phase is long by design (PM decision)
+
+Measured across six worlds, a diversified buy-and-hold position returns a median
+6.1% a year, so tripling $10,000 into the $30,000 a company needs takes about 18
+in-game years. V1.19's example describes "several in-game weeks". Shown the
+measurement, the project manager ruled that the long phase is intended and the
+$25,000 founding cost stands (V1.20 makes remaining an individual investor a
+valid playstyle). No personal income mechanic was added: the Design Bible
+describes none, and inventing one would be a new mechanic rather than an
+implementation detail (V15.9).
+
+The Create Company unlock is now priced as a **fraction of the founding cost**
+(`unlocks.create_company_cost_fraction`, 0.2) rather than a figure of its own,
+so the two stay in proportion whenever either is retuned.
 
 ### Fixed
 

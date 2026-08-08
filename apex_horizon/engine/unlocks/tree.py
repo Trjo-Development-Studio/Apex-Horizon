@@ -25,6 +25,7 @@ manager's ruling that unlock prices must stay tunable).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 from ..config import Config, get_config
 from ..logging_setup import get_logger
@@ -46,8 +47,14 @@ class Unlock:
     description: str
     #: Keys that must already be unlocked. Empty for the root (V6.9).
     requires: tuple[str, ...] = ()
-    #: Config key holding this unlock's price, so it stays tunable (V15.10).
+    #: Config key holding this unlock's price outright, so it stays tunable
+    #: (V15.10). Mutually exclusive with the fraction pair below.
     cost_key: str = ""
+    #: Or: a price expressed as a fraction of another configured figure, so the
+    #: two stay in proportion when either is retuned. The project manager chose
+    #: this for Create Company, tying it to what founding a company costs.
+    cost_fraction_key: str = ""
+    cost_base_key: str = ""
     #: True for unlocks the player already owns when the game begins (V6.4).
     owned_at_start: bool = False
 
@@ -65,7 +72,8 @@ UNLOCKS: tuple[Unlock, ...] = (
         name="Create Company",
         description="Permission to found a company. Founding it costs extra.",
         requires=(BASIC_INVESTING,),
-        cost_key="unlocks.create_company_cost",
+        cost_fraction_key="unlocks.create_company_cost_fraction",
+        cost_base_key="company.founding_cost",
     ),
 )
 
@@ -88,11 +96,21 @@ class UnlockTree:
         return key in self.unlocked
 
     def cost_of(self, key: str) -> Money:
-        """What an unlock costs, read from configuration every time (V15.10)."""
+        """What an unlock costs, read from configuration every time (V15.10).
+
+        A price may be configured outright, or as a fraction of another figure
+        so the two stay in proportion when either is retuned.
+        """
         unlock = BY_KEY.get(key)
-        if unlock is None or not unlock.cost_key:
+        if unlock is None:
             return Money.zero()
-        return Money(self.config.get_int(unlock.cost_key))
+        if unlock.cost_key:
+            return Money(self.config.get_int(unlock.cost_key))
+        if unlock.cost_fraction_key and unlock.cost_base_key:
+            fraction = Decimal(str(self.config.get_float(unlock.cost_fraction_key)))
+            base = Decimal(self.config.get_int(unlock.cost_base_key))
+            return Money(base * fraction)
+        return Money.zero()
 
     def prerequisites_met(self, key: str) -> bool:
         unlock = BY_KEY.get(key)

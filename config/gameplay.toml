@@ -193,7 +193,11 @@ maximum_hold_days = 900
 # Prices live here rather than in code so they stay tunable (V15.10). Create
 # Company is only permission to found a company - founding it costs
 # `company.founding_cost` on top, and is a separate decision (V3.3).
-create_company_cost = 5000
+#
+# PM decision (2026-08-08): the Create Company price is a fraction of the
+# founding cost rather than a figure of its own, so the two stay in proportion
+# whenever either is retuned. At 0.2 of a $25,000 founding cost it is $5,000.
+create_company_cost_fraction = 0.2
 
 [analytics]
 # Analytics read the simulation back to the player (V9) and never feed into it

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pygame
 
+from ...engine.unlocks import CREATE_COMPANY
 from .. import theme
 from ..widgets import Button, Card, draw_text, panel
 from .base import Page
@@ -112,22 +113,53 @@ class CompanyPage(Page):
                       (right.left + 20, right.bottom - 40), theme.NEGATIVE)
 
     def _draw_no_company(self, surface, rect, fonts, mouse) -> None:
+        """The road to a company, shown as steps rather than a locked door.
+
+        Reaching a company takes a long time by design, so this state has to
+        read as a plan the player is working through rather than a refusal
+        (V14.26). Each step says plainly where the player stands on it.
+        """
         player = self.context.player
-        box = pygame.Rect(rect.left, rect.top, rect.width, 210)
+        box = pygame.Rect(rect.left, rect.top, rect.width, 250)
         panel(surface, box)
         draw_text(surface, fonts.subheading, "You have not founded a company yet",
-                  (box.left + 24, box.top + 26))
+                  (box.left + 24, box.top + 24))
+        draw_text(surface, fonts.small,
+                  "You are an individual investor. Build your personal wealth by "
+                  "trading, then take these steps when you are ready.",
+                  (box.left + 24, box.top + 52), theme.TEXT_MUTED)
+
         allowed, reason = player.can_found_company() if player else (False, "")
-        message = (
-            "Founding your investment company is the first real decision of a "
-            "playthrough, and it is deliberately yours to time."
-            if allowed else reason
-        )
-        draw_text(surface, fonts.small, message, (box.left + 24, box.top + 62),
-                  theme.TEXT_MUTED)
+        for index, (label, done, detail) in enumerate(self._founding_steps(player)):
+            y = box.top + 92 + index * 30
+            marker = "✓" if done else str(index + 1)
+            colour = theme.POSITIVE if done else theme.TEXT_FAINT
+            draw_text(surface, fonts.small, marker, (box.left + 26, y), colour)
+            draw_text(surface, fonts.small, label, (box.left + 48, y),
+                      theme.TEXT if done else theme.TEXT_MUTED)
+            draw_text(surface, fonts.small, detail, (box.left + 330, y), theme.TEXT_FAINT)
+
+        if not allowed and reason:
+            draw_text(surface, fonts.small, reason, (box.left + 24, box.bottom - 62),
+                      theme.TEXT_FAINT)
         self.found_button.enabled = allowed
-        self.found_button.draw(surface, pygame.Rect(box.left + 24, box.top + 112, 170, 38),
+        self.found_button.draw(surface, pygame.Rect(box.right - 194, box.bottom - 56, 170, 38),
                                fonts, mouse)
+
+    def _founding_steps(self, player):
+        """The progression V6.4 and V3.3 lay down, with the player's position."""
+        if player is None:
+            return []
+        unlocks = player.unlocks
+        cost = unlocks.cost_of(CREATE_COMPANY)
+        unlocked = unlocks.has(CREATE_COMPANY)
+        return [
+            ("Unlock Create Company", unlocked,
+             "Unlocked" if unlocked else f"{cost.format(decimals=0)} on the Unlock Tree"),
+            ("Afford the founding cost", player.cash >= player.founding_cost,
+             f"{player.cash.format(decimals=0)} of "
+             f"{player.founding_cost.format(decimals=0)}"),
+        ]
 
 
 class FinancePage(Page):
