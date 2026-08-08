@@ -71,8 +71,15 @@ def compute_change(
     sentiment: float,
     rng: Random,
     weights: PricingWeights,
+    economy_influence: Decimal = Decimal(0),
 ) -> PriceChange:
-    """Work out today's price change for one company, cause by cause."""
+    """Work out today's price change for one company, cause by cause.
+
+    ``economy_influence`` is the contribution of economic conditions and
+    inflation, supplied by the Economy System. V4.4 lists economic conditions as
+    a distinct cause of price movement, so it is kept separate rather than
+    folded into the industry or sentiment terms.
+    """
     performance = Decimal(str(listing.performance)) * weights.performance
     industry = Decimal(str(industry_trend)) * weights.industry
     mood = Decimal(str(sentiment)) * weights.sentiment
@@ -99,12 +106,13 @@ def compute_change(
     variation = Decimal(str(rng.gauss(0.0, sigma) + (sigma * sigma) / 2))
 
     total = _clamp(
-        performance + industry + mood + supply_demand + variation,
+        performance + industry + economy_influence + mood + supply_demand + variation,
         weights.max_daily_change,
     )
     return PriceChange(
         performance=Percentage(performance),
         industry=Percentage(industry),
+        economy=Percentage(economy_influence),
         sentiment=Percentage(mood),
         supply_demand=Percentage(supply_demand),
         variation=Percentage(variation),

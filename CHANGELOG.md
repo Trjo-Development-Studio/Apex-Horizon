@@ -9,6 +9,57 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Milestone 5: Economy & Banking (V7, V25)
+
+The economy now drives the world. Code lives in `apex_horizon/engine/economy/`
+and is documented in [`docs/economy.md`](docs/economy.md).
+
+- **Economic health** (V7.21): a single continuous value in [-1, +1] with the
+  five states of V7.4 derived as thresholds over it, keeping the simulation
+  deterministic while transitions stay gradual. Health and velocity behave as a
+  damped oscillator whose period sets the length of a business cycle.
+- **Five states** (V7.4): Growth, Stable, Slowdown, Recession, Recovery. Because
+  health alone cannot separate a Slowdown from a Recovery, the state is derived
+  from health *and* a smoothed trend, with hysteresis so a reported change always
+  means something real.
+- **Inflation** (V7.5, V25.2): moves toward a target set by conditions and
+  accumulates into a price level, so nominal cash loses meaning over a long
+  playthrough.
+- **Industry response** (V7.6): every industry has a documented sensitivity —
+  defensive industries barely notice the cycle, cyclical ones amplify it.
+- **Banking** (V7.10, V25.3): interest rates, lending multiples, and trust
+  requirements all follow the economy, so borrowing is cheap and generous in a
+  boom and expensive and restrictive in a downturn — hardest exactly when it is
+  most needed. Bank tiers make company reputation determine which banks are
+  accessible (V33.4). Loans themselves belong to V17.13.
+- **Market integration** (V4.4, V4.6, V7.9): economic conditions became a
+  distinct, separately reported cause of price movement, industry trends follow
+  the economy, and market sentiment leans toward economic health.
+- **Project manager decisions recorded** in
+  [`docs/design-decisions.md`](docs/design-decisions.md): company founding cost,
+  employee capacity per level, bankruptcy thresholds and handling, unlock costs
+  to remain data-driven, and the sidebar icon direction.
+- **34 further tests** (245 total).
+
+### Fixed
+
+- The economic cycle was noise rather than a cycle: recessions arrived several
+  times a year and lasted about three weeks. Because reversion acts on velocity,
+  the cycle length is roughly 2*pi/sqrt(mean_reversion) days, so the constant had
+  to fall by two orders of magnitude to produce the multi-year downturns V7.19
+  describes.
+- The state was named from a single day's movement, which reported a Slowdown
+  roughly half the time even in a healthy economy; it now uses a smoothed trend.
+- Recovery could never occur, because the two directional states were tested
+  asymmetrically.
+- Economic conditions reached share prices through three channels at once — the
+  economy term, sentiment, and industry trends — compounding a sustained boom
+  into a market index millions of times its opening level. Industries now
+  contribute only their difference from the market average, and sentiment leans
+  toward health rather than mirroring it.
+- Capped share volatility, which compounds across the hundreds of in-game years
+  a save may span and let the most volatile company dominate the index.
+
 ### Added — Milestone 4: Market System (V4)
 
 The market now runs. Code lives in `apex_horizon/engine/market/` and is

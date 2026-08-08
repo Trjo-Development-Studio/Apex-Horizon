@@ -21,8 +21,14 @@ founding_cost = 25_000
 # PM decision (2026-08-08) — company bankruptcy occurs at this company cash
 # balance. V3.20 / V17.25 explicitly left this threshold undefined.
 bankruptcy_cash_threshold = -1_000_000
+# PM decision (2026-08-08) — minimum personal net worth required to found a
+# replacement company after a bankruptcy. V3.3 left this undefined.
+refounding_net_worth_requirement = 500_000
 # V3.7 — companies progress through Levels 1-5.
 max_level = 5
+# PM decision (2026-08-08) — maximum employees at each company level. V5.17 and
+# V18.5 tie capacity to company level but give no numbers.
+employee_capacity_per_level = [10, 25, 50, 100, 200]
 
 [simulation]
 # V13.4 — default simulation speed is one real-life second per in-game day.
@@ -93,8 +99,12 @@ industry_weight = 0.0005
 sentiment_weight = 0.0004
 supply_demand_weight = 0.05
 # Per-company random variation, drawn from a normal distribution.
-volatility_min = 0.008
-volatility_max = 0.030
+# Volatility is capped well below what a single stock can show in reality,
+# because it compounds across the hundreds of in-game years a save may span:
+# each company's spread widens with the square root of time, and the most
+# volatile company eventually dominates a capitalisation-weighted index.
+volatility_min = 0.006
+volatility_max = 0.018
 # Hard bound on a single day's move, so no combination of causes can produce an
 # implausible overnight jump.
 max_daily_change = 0.25
@@ -118,6 +128,70 @@ delisting_price_floor = 0.5
 delisting_grace_days = 28
 new_listing_weekly_chance = 0.15
 max_listings = 90
+
+[economy]
+# The economy is modelled as movement along a single continuous health value in
+# the range -1 to +1, with the five named states of V7.4 derived as thresholds
+# over it. V7.21 requires exactly this: it keeps the simulation deterministic
+# while letting transitions feel gradual rather than binary.
+#
+# Health and velocity together behave as a damped oscillator: because reversion
+# pulls on velocity rather than on health directly, the natural cycle length is
+# roughly 2*pi/sqrt(mean_reversion) days. That single relationship is what sets
+# the length of a business cycle, so mean_reversion is deliberately tiny — at
+# 0.00001 the cycle runs about six in-game years, which is what allows the
+# "extended Recession lasting several in-game years" described in V7.19.
+# Larger values produce a jittery economy that crosses in and out of recession
+# several times a year, which reads as noise rather than a cycle.
+daily_drift = 0.00018
+momentum = 0.992
+mean_reversion = 0.00001
+# Reversion pulls toward a mildly positive resting point, so expansions are
+# somewhat more common than contractions, as in a real economy.
+health_bias = 0.10
+# Hysteresis: how far past a threshold the economy must move before the named
+# state changes. Prevents flickering between two states on the boundary, so a
+# reported state change always means something real (V7.4).
+state_hysteresis = 0.05
+# The state is named from a trend smoothed over several weeks, not a single
+# day's movement, and the trend must be this firm before direction alone renames
+# the state. Judging direction from one day's movement would report a Slowdown
+# roughly half the time even in a healthy economy.
+trend_smoothing = 0.05
+trend_threshold = 0.0002
+
+# Annual inflation by economic condition (V7.5). Inflation runs hot in booms and
+# cools or turns negative in downturns; V25.2 wants it noticeable across long
+# playthroughs rather than short ones.
+inflation_base = 0.025
+inflation_health_sensitivity = 0.02
+inflation_drift = 0.002
+inflation_min = -0.02
+inflation_max = 0.12
+
+# How strongly economic conditions push share prices (V4.4 lists economic
+# conditions as a distinct cause). Kept small: like every market weight this
+# compounds daily, and the economy is the *only* channel carrying the aggregate
+# effect of the cycle — industries contribute only their difference from the
+# market average, and sentiment only leans toward health rather than mirroring
+# it, so the same boom is never counted three times over.
+market_influence = 0.0002
+
+[banking]
+# Banks respond to economic conditions (V7.10): better offers in strong
+# economies, more conservative lending in weak ones. Loans themselves belong to
+# the Financial Management System (V17.13); this section governs the conditions
+# banks offer.
+base_interest_rate = 0.06
+# How far the interest rate moves between a boom and a deep recession.
+rate_health_sensitivity = 0.04
+# Multiple of company value a bank will lend at full trust in a strong economy.
+base_lending_multiple = 1.5
+lending_health_sensitivity = 0.6
+# Minimum reputation a company needs before a bank will lend at all; rises when
+# the economy weakens (V7.10 "changes in trust requirements").
+base_trust_requirement = 0.20
+trust_health_sensitivity = 0.25
 
 [random_events]
 # V13.18 — approximate probability that a random event fires at each scale.

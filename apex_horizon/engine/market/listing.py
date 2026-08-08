@@ -28,6 +28,7 @@ class PriceChange:
 
     performance: Percentage = field(default_factory=Percentage.zero)
     industry: Percentage = field(default_factory=Percentage.zero)
+    economy: Percentage = field(default_factory=Percentage.zero)
     sentiment: Percentage = field(default_factory=Percentage.zero)
     supply_demand: Percentage = field(default_factory=Percentage.zero)
     variation: Percentage = field(default_factory=Percentage.zero)
@@ -38,6 +39,7 @@ class PriceChange:
         contributions = {
             "company performance": self.performance,
             "industry conditions": self.industry,
+            "economic conditions": self.economy,
             "market sentiment": self.sentiment,
             "supply and demand": self.supply_demand,
             "ordinary variation": self.variation,

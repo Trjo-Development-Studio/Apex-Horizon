@@ -13,7 +13,9 @@ price reflects the full day rather than an incomplete subset of it.
 from __future__ import annotations
 
 from collections import deque
+from decimal import Decimal
 from random import Random
+from typing import TYPE_CHECKING
 
 from ..config import Config, get_config
 from ..logging_setup import get_logger
@@ -23,6 +25,9 @@ from ..world import Industry, World, WorldGenerator
 from .listing import MarketListing, PriceChange
 from .pricing import PricingWeights, apply_change, compute_change
 
+if TYPE_CHECKING:  # pragma: no cover - avoids a circular import at runtime
+    from ..economy import EconomySystem
+
 logger = get_logger(__name__)
 
 
@@ -30,11 +35,17 @@ class MarketSystem:
     """Simulates share prices, industry conditions, and market sentiment."""
 
     def __init__(self, world: World, *, config: Config | None = None,
-                 generator: WorldGenerator | None = None):
+                 generator: WorldGenerator | None = None,
+                 economy: EconomySystem | None = None):
         self.world = world
         self.config = config or get_config()
         self.weights = PricingWeights.from_config(self.config)
         self.generator = generator
+        # Optional so the market can be simulated in isolation; when present,
+        # economic conditions become a distinct cause of price movement (V4.6,
+        # V4.4) and the market's mood follows the economy (V7.9).
+        self.economy = economy
+        self.economy_weight = Decimal(str(self.config.get_float("economy.market_influence")))
 
         self.listings: dict[str, MarketListing] = {}
         # Per-industry conditions: different industries perform differently in
@@ -100,6 +111,7 @@ class MarketSystem:
                 sentiment=self.sentiment,
                 rng=context.rng,
                 weights=self.weights,
+                economy_influence=self._economy_influence(),
             )
             apply_change(listing, change)
             listing.record_close()
@@ -109,15 +121,35 @@ class MarketSystem:
 
         self._last_priced_day = context.day_number
 
+    def _economy_influence(self) -> Decimal:
+        """Today's price contribution from economic conditions and inflation.
+
+        V4.4 lists economic conditions as a distinct cause, and V7.5 makes
+        inflation influence market valuations. Both are folded into one
+        economic term rather than hidden inside the industry or sentiment
+        contributions, so the player can be told which it was.
+        """
+        if self.economy is None:
+            return Decimal(0)
+        conditions = Decimal(str(self.economy.health)) * self.economy_weight
+        return conditions + Decimal(str(self.economy.daily_inflation))
+
     def _drift_sentiment(self, rng: Random) -> None:
-        """Move the market mood, pulling gently back toward neutral.
+        """Move the market mood, pulling it toward the prevailing economy.
 
         Mean reversion keeps bull and bear markets as phases the market passes
-        through rather than states it becomes stuck in (V4.5).
+        through rather than states it becomes stuck in (V4.5). When an economy
+        is present the mood reverts toward economic health rather than plain
+        neutrality, which is how the economy changes investment confidence
+        (V7.9) without dictating prices directly.
         """
         drift = self.config.get_float("market.sentiment_drift")
         reversion = self.config.get_float("market.sentiment_reversion")
-        self.sentiment += rng.gauss(0.0, drift) - self.sentiment * reversion
+        # Sentiment leans toward the economy without simply mirroring it: the
+        # economy already reaches prices directly through its own term, so a
+        # full mirror would count the same conditions twice.
+        anchor = self.economy.health * 0.5 if self.economy is not None else 0.0
+        self.sentiment += rng.gauss(0.0, drift) - (self.sentiment - anchor) * reversion
         self.sentiment = max(-1.0, min(1.0, self.sentiment))
 
     # -- weekly fundamentals ---------------------------------------------
@@ -133,7 +165,14 @@ class MarketSystem:
 
         for industry in self.industry_trends:
             moved = self.industry_trends[industry] + context.rng.gauss(0.0, industry_drift)
-            self.industry_trends[industry] = max(-1.0, min(1.0, moved * 0.95))
+            if self.economy is not None:
+                # Industries are pulled toward how the economy treats them, so a
+                # downturn hurts construction far more than healthcare (V7.6).
+                target = self.economy.industry_relative_condition(industry)
+                moved += (target - moved) * 0.15
+                self.industry_trends[industry] = max(-1.0, min(1.0, moved))
+            else:
+                self.industry_trends[industry] = max(-1.0, min(1.0, moved * 0.95))
 
         for listing in self.listings.values():
             if listing.delisted:
