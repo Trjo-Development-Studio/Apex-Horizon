@@ -26,8 +26,18 @@ from .loans import Loan, LoanBook
 logger = get_logger(__name__)
 
 
-class PlayerCompany:
-    """The single investment company the player owns and manages (V1.3, V3.3)."""
+class InvestmentCompany:
+    """An investment company: the player's, or one of the AI's.
+
+    The player owns exactly one of these (V1.3, V3.3). V26.10 requires AI
+    companies to be instances of the *same* structure, differing only in that
+    their decisions are generated procedurally rather than taken by the player —
+    which is why this class is not named for the player. Reuse is what keeps AI
+    companies automatically compatible with every future change to company-level
+    systems (V15.7), and what lets V26.7 hold: an AI company invests through the
+    identical workflow, so its behaviour is understandable in exactly the terms a
+    player uses to understand their own.
+    """
 
     def __init__(
         self,
@@ -57,7 +67,7 @@ class PlayerCompany:
         self.bankrupt_on_day: int | None = None
         # Systems that must react to bankruptcy register here, so this module
         # never needs to know about employees, subsidiaries, or funds (V15.7).
-        self.on_bankruptcy: list[Callable[[PlayerCompany], None]] = []
+        self.on_bankruptcy: list[Callable[[InvestmentCompany], None]] = []
 
         # Employees belong to the company, not the player (V5.2).
         from ..employees import EmployeeRoster

@@ -122,8 +122,19 @@ class SaveDocument:
 
 
 def _obfuscate(payload: bytes) -> bytes:
+    """XOR the payload against a repeating key.
+
+    Done a whole machine word at a time rather than byte by byte. A save is
+    hundreds of kilobytes once the world is populated, and a per-byte generator
+    made autosaving the single most expensive thing the simulation did — more
+    than every company in the world put together.
+    """
     key = _OBFUSCATION_KEY
-    return bytes(byte ^ key[index % len(key)] for index, byte in enumerate(payload))
+    repeats = -(-len(payload) // len(key))
+    mask = (key * repeats)[: len(payload)]
+    return (
+        int.from_bytes(payload, "big") ^ int.from_bytes(mask, "big")
+    ).to_bytes(len(payload), "big") if payload else b""
 
 
 # The transform is its own inverse.

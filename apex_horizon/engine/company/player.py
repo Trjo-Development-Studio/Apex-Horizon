@@ -18,7 +18,7 @@ from ..logging_setup import get_logger
 from ..portfolio import PersonalPortfolio
 from ..unlocks import CREATE_COMPANY, UnlockTree
 from ..values import EntityKind, IdAllocator, Money
-from .company import PlayerCompany
+from .company import InvestmentCompany
 from .ledger import RevenueCategory
 
 logger = get_logger(__name__)
@@ -40,7 +40,7 @@ class Player:
         starting = Money(self.config.get_int("player.starting_personal_cash"))
         self.cash = cash if cash is not None else starting
         self.allocator = allocator or IdAllocator()
-        self.company: PlayerCompany | None = None
+        self.company: InvestmentCompany | None = None
         #: Progression (V6). Create Company must be earned before a company can
         #: be founded; Basic Investing is owned from the first day (V6.4).
         self.unlocks = UnlockTree(config=self.config)
@@ -95,7 +95,7 @@ class Player:
             )
         return True, ""
 
-    def found_company(self, name: str, day: int) -> tuple[PlayerCompany | None, str]:
+    def found_company(self, name: str, day: int) -> tuple[InvestmentCompany | None, str]:
         """Found the player's investment company (V2.4, V3.3).
 
         The founding cost leaves personal cash. By default it becomes the new
@@ -113,7 +113,7 @@ class Player:
         becomes_capital = self.config.get_bool("company.founding_cost_becomes_capital")
         opening = self.founding_cost if becomes_capital else Money.zero()
 
-        company = PlayerCompany(
+        company = InvestmentCompany(
             company_id=self.allocator.next_id(EntityKind.COMPANY),
             name=name,
             founded_on_day=day,
@@ -219,7 +219,7 @@ class Player:
             self._portfolio_state = portfolio_state
         company_state = data.get("company")
         if company_state:
-            company = PlayerCompany(
+            company = InvestmentCompany(
                 company_id=company_state["id"],
                 name=company_state["name"],
                 founded_on_day=int(company_state["founded_on_day"]),

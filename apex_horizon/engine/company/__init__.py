@@ -6,7 +6,7 @@ money is governed by the Financial Management System, in which every movement is
 recorded so the player can always understand where money came from and went.
 """
 
-from .company import PlayerCompany
+from .company import InvestmentCompany
 from .finances import CompanyFinances
 from .ledger import (
     EntryKind,
@@ -23,12 +23,12 @@ __all__ = [
     "CompanyFinances",
     "EntryKind",
     "ExpenseCategory",
+    "InvestmentCompany",
     "Ledger",
     "LedgerEntry",
     "Loan",
     "LoanBook",
     "PeriodTotals",
     "Player",
-    "PlayerCompany",
     "RevenueCategory",
 ]

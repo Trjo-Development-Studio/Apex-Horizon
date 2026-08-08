@@ -185,6 +185,46 @@ stop_loss_aggressive = 0.22
 # Even without hitting either, a position is eventually closed.
 maximum_hold_days = 900
 
+[ai]
+# AI companies (V26). They are ordinary investment companies whose decisions are
+# generated rather than taken by the player (V26.10), so almost everything about
+# them is governed by the settings other systems already use. Only what makes
+# them a *population* lives here (V26.11).
+
+# How many operate in the world alongside the player.
+company_count = 12
+
+# The capital each is founded with. The spread is wide on purpose: a world of
+# identically sized competitors would read as one opponent rather than a
+# population of independent organisations.
+starting_capital_minimum = 40_000
+starting_capital_maximum = 400_000
+
+# V26.4 has AI staff skewing toward higher risk than the player's, through the
+# same hidden characteristics (V5.7) rather than a separate system. Each company
+# draws its own bias in this range, so some still end up conservative (V26.3).
+# Zero would match the player exactly; one leans bolder at every opportunity.
+risk_bias_minimum = 0.15
+risk_bias_maximum = 0.75
+
+# Recruitment tier AI companies hire at, indexing employees.skill_cap_by_tier.
+# They are established organisations rather than a first-time founder, so they
+# reach a little beyond an unequipped player without matching a developed one.
+recruitment_tier = 1
+
+# How often a company reconsiders its staffing, in days. AI companies act
+# continuously (V13.15) but do not re-examine hiring every single day.
+hiring_review_days = 14
+
+# Months of payroll a company keeps in reserve before hiring again, which is
+# what makes some of them overreach and fail (V26.11, V17.18).
+salary_runway_months = 4.0
+
+# Company value needed to reach Levels 2 to 5. The player buys these as unlocks
+# (V6.7.3); an AI company has no Unlock Tree, so it grows on what it is worth,
+# which keeps growth an emergent outcome of investing well (V26.5, V18.17).
+level_value_thresholds = [750_000, 3_000_000, 12_000_000, 50_000_000]
+
 [unlocks]
 # The Unlock Tree (V6). New mechanics are earned, never immediately available
 # (V6.2). The player always begins with Basic Investing (V6.4), which is what

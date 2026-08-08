@@ -9,6 +9,49 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Milestone 13: AI Companies (V26)
+
+The world now has other investment companies in it. Code lives in
+`apex_horizon/engine/ai/` and is documented in
+[`docs/ai-companies.md`](docs/ai-companies.md).
+
+- **They are ordinary companies** (V26.10). An AI company is an instance of the
+  same structure the player's company uses, differing only in that its decisions
+  are generated rather than taken by a person. There is no AI company class —
+  only an `AIDirector` operating a normal `InvestmentCompany`. Investing runs
+  through the identical V8.3 workflow (V26.7), orders reach the market as
+  ordinary demand (V26.8), and solvency follows the same financial rules
+  (V17.18).
+- **`PlayerCompany` is now `InvestmentCompany`.** It is no longer the player's
+  alone, and a name implying otherwise would mislead the next reader.
+- **A population, not an opponent** (V26.11). Each company draws its own bias
+  toward risk, which shifts the distribution of the hidden characteristics its
+  employees are generated with (V5.7) rather than forcing an outcome — so AI
+  staff skew bolder than the player's on average (V26.4) while some companies
+  still end up conservative (V26.3). Over fifteen in-game years the strongest
+  firm reached $2.8M and the weakest fell below zero.
+- **They hire and grow** (V5.18, V18.16). A director staffs its weakest
+  department first, keeps months of payroll in reserve before hiring again, and
+  raises its Company Level as the company becomes worth more — the procedural
+  equivalent of the player buying Company Level unlocks, which keeps growth an
+  emergent outcome of investing well (V26.5, V18.17).
+- **Competition is never adversarial** (V26.6). No AI company knows the player
+  exists; they simply act, and an opportunity hesitated over may be taken first.
+- **The dashboard shows them** by name, value, staff and level, with where the
+  player ranks among them — V4.10 says the market does not revolve around the
+  player, which is hard to believe from a screen where nobody else appears.
+
+### Fixed
+
+- Saving XOR'd its payload a byte at a time in Python, which made autosaving the
+  single most expensive thing the simulation did — more than every company in
+  the world combined. Doing it a machine word at a time roughly halved the cost
+  of simulating a year.
+- AI directors' random streams were not saved, so a reloaded world took
+  different decisions from the one that was saved (V15.11, V16.28). This is the
+  third time this class of bug has appeared; the rule is now written down in
+  `docs/ai-companies.md`.
+
 ### Added — Milestone 12: the Unlock Tree (V6)
 
 The whole tree of Volume 6, and the effects behind it. Code lives in

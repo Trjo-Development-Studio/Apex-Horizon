@@ -47,6 +47,9 @@ class EmployeeRoster:
         self.training_allowed: bool = False
         #: How much faster training teaches, raised by the Training branch.
         self.training_speed: float = 1.0
+        #: How strongly this employer's staff lean toward risk. Zero for the
+        #: player; AI companies skew higher (V26.4).
+        self.risk_bias: float = 0.0
         #: Applicants offered, and how strongly reputation shapes their quality,
         #: both raised by the Recruitment branch (V6.7.5).
         self.applicant_pool: int = self.config.get_int("employees.applicant_pool_size")
@@ -88,6 +91,7 @@ class EmployeeRoster:
             tier=self.recruitment_tier,
             reputation=self.company.reputation,
             reputation_weight=self.reputation_weight,
+            risk_bias=self.risk_bias,
             day=day,
             config=self.config,
         )

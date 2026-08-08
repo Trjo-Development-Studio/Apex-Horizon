@@ -8,10 +8,10 @@ import pytest
 
 from apex_horizon.engine.company import (
     ExpenseCategory,
+    InvestmentCompany,
     Ledger,
     PeriodTotals,
     Player,
-    PlayerCompany,
     RevenueCategory,
 )
 from apex_horizon.engine.economy import BankingSystem, EconomySystem
@@ -35,7 +35,7 @@ def make_engine(seed: int = 1) -> SimulationEngine:
     return SimulationEngine(clock=clock, seed=seed)
 
 
-def founded_player(cash: int = 100_000) -> tuple[Player, PlayerCompany]:
+def founded_player(cash: int = 100_000) -> tuple[Player, InvestmentCompany]:
     player = Player("Test Owner", cash=Money(cash))
     player.unlocks.unlock(CREATE_COMPANY)
     company, _ = player.found_company("Test Capital", day=1)

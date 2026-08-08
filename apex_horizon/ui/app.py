@@ -16,6 +16,7 @@ from random import Random
 import pygame
 
 from .. import __version__
+from ..engine.ai import AICompanies
 from ..engine.analytics import AnalyticsService, HistoryRecorder
 from ..engine.company import Player
 from ..engine.config import get_config
@@ -129,10 +130,16 @@ class GameApp:
         news = NewsSystem(world, market, economy, allocator=allocator)
         market.news = news
 
+        # The world's other investment companies, so it is inhabited rather than
+        # a backdrop (V26.2, V4.10).
+        ai = AICompanies(allocator=allocator)
+        ai.populate(Random(seed + 1), market, names)
+
         engine = SimulationEngine(seed=seed)
         news.register(engine)
         economy.register(engine)
         banking.register(engine)
+        ai.register(engine)
         market.register(engine)
 
         player = Player("Founder", allocator=allocator)
@@ -149,6 +156,7 @@ class GameApp:
         self.context.allocator = allocator
         self.context.names = names
         self.context.news = news
+        self.context.ai = ai
         news.on_article.append(self._on_article)
 
         # Analytics read the world back to the player; the recorder is the only

@@ -84,6 +84,7 @@ class SaveService:
             "banking": context.banking.state_data() if context.banking else {},
             "news": context.news.state() if getattr(context, "news", None) else {},
             "analytics": self._analytics_state(),
+            "ai": context.ai.state() if getattr(context, "ai", None) else {},
             "player": context.player.state(),
             "generation": {
                 "allocator": getattr(context, "allocator", IdAllocator()).state(),
@@ -192,6 +193,16 @@ class SaveService:
         context.player = player
         context.allocator = allocator
         context.names = names
+
+        # The world's other companies, restored against the reloaded market so
+        # they keep trading exactly as they were (V26.2, V16.11).
+        from ..ai import AICompanies
+
+        ai = AICompanies(allocator=allocator)
+        ai.restore(state.get("ai", {}), market=market, names=names,
+                   rng=Random(world.seed))
+        ai.register(engine)
+        context.ai = ai
 
         self._restore_analytics(state.get("analytics", {}), engine)
 

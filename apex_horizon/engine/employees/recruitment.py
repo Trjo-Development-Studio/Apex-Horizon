@@ -47,6 +47,21 @@ def salary_for(skills: dict[Department, int], config: Config | None = None) -> M
     return Money(base + per_point * total_skill)
 
 
+def _risk_tolerance(rng: Random, bias: float) -> RiskTolerance:
+    """Draw a risk tolerance, optionally leaning bolder.
+
+    V26.4 asks for AI-employed staff to skew toward higher risk *on average*,
+    through this same system rather than a separate one — so the bias shifts the
+    distribution rather than forcing an outcome. That is what lets V26.3 hold:
+    some AI companies still end up conservative, simply through who they hired.
+    """
+    levels = list(RiskTolerance)
+    drawn = rng.randrange(len(levels))
+    if bias > 0 and rng.random() < bias:
+        drawn = min(len(levels) - 1, drawn + rng.randint(1, 2))
+    return levels[drawn]
+
+
 def generate_applicant(
     rng: Random,
     names: NameGenerator,
@@ -55,6 +70,7 @@ def generate_applicant(
     tier: int = 0,
     reputation: float = 0.25,
     reputation_weight: float | None = None,
+    risk_bias: float = 0.0,
     day: int = 1,
     config: Config | None = None,
 ) -> Employee:
@@ -88,8 +104,8 @@ def generate_applicant(
     priorities.sort(key=lambda d: skills[d], reverse=True)
 
     hidden = HiddenCharacteristics(
-        investment_size=round(rng.uniform(0.15, 0.9), 3),
-        risk_tolerance=rng.choice(list(RiskTolerance)),
+        investment_size=round(min(0.95, rng.uniform(0.15, 0.9) + risk_bias * 0.2), 3),
+        risk_tolerance=_risk_tolerance(rng, risk_bias),
         investment_style=rng.choice(list(InvestmentStyle)),
         market_focus=rng.choice(list(Industry)).value if rng.random() < 0.4 else None,
     )
@@ -119,6 +135,7 @@ def generate_applicants(
     tier: int = 0,
     reputation: float = 0.25,
     reputation_weight: float | None = None,
+    risk_bias: float = 0.0,
     day: int = 1,
     config: Config | None = None,
 ) -> list[Employee]:
@@ -127,6 +144,7 @@ def generate_applicants(
     size = count if count is not None else source.get_int("employees.applicant_pool_size")
     return [
         generate_applicant(rng, names, allocator, tier=tier, reputation=reputation,
-                           reputation_weight=reputation_weight, day=day, config=source)
+                           reputation_weight=reputation_weight, risk_bias=risk_bias,
+                           day=day, config=source)
         for _ in range(size)
     ]

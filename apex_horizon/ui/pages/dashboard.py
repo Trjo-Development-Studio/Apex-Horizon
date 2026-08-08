@@ -94,3 +94,62 @@ class DashboardPage(Page):
             draw_text(surface, fonts.small, truncate(fonts.small, value, column - 160),
                       (world.right - 20, y), theme.TEXT, align="right")
             y += 25
+
+        rivals = pygame.Rect(rect.left, activity.bottom + theme.GAP, rect.width,
+                             max(0, min(250, rect.bottom - activity.bottom - theme.GAP)))
+        if rivals.height >= 120:
+            self._draw_competitors(surface, rivals, fonts)
+
+    def _draw_competitors(self, surface, rect, fonts) -> None:
+        """The other investment companies in the world (V26.11).
+
+        V4.10 and V26.2 both make the point that the market does not revolve
+        around the player, and it is hard to believe that from a screen where no
+        one else appears. Showing the rivals by name, size and staffing is what
+        makes the world read as inhabited rather than as a backdrop.
+        """
+        panel(surface, rect)
+        draw_text(surface, fonts.subheading, "Other investment companies",
+                  (rect.left + 20, rect.top + 16))
+
+        ai = getattr(self.context, "ai", None)
+        if ai is None or not ai.companies:
+            draw_text(surface, fonts.small, "No other companies are trading.",
+                      (rect.left + 20, rect.top + 52), theme.TEXT_FAINT)
+            return
+
+        stats = ai.statistics()
+        draw_text(surface, fonts.small,
+                  f"{stats['Operating']} operating · {stats['Failed']} failed · "
+                  f"{stats['People employed']} people employed",
+                  (rect.left + 20, rect.top + 44), theme.TEXT_MUTED)
+
+        player_company = self.context.company
+        headers = (("Value", 520), ("Staff", 620), ("Level", 710))
+        for label, offset in headers:
+            draw_text(surface, fonts.small, label, (rect.left + offset, rect.top + 76),
+                      theme.TEXT_FAINT, align="right")
+
+        y = rect.top + 100
+        for rival in ai.ranked():
+            if y + 24 > rect.bottom - 8:
+                break
+            draw_text(surface, fonts.small,
+                      truncate(fonts.small, rival.name, 460), (rect.left + 20, y))
+            draw_text(surface, fonts.mono_small, rival.value().format(decimals=0),
+                      (rect.left + 520, y),
+                      theme.value_colour(not rival.value().is_negative), align="right")
+            draw_text(surface, fonts.mono_small, str(len(rival.employees)),
+                      (rect.left + 620, y), theme.TEXT, align="right")
+            draw_text(surface, fonts.mono_small, str(rival.level),
+                      (rect.left + 710, y), theme.TEXT_MUTED, align="right")
+            y += 24
+
+        if player_company is not None:
+            # Where the player stands among them, which is the only reason the
+            # list is worth reading.
+            stronger = sum(1 for rival in ai.operating
+                           if rival.value() > player_company.value())
+            draw_text(surface, fonts.small,
+                      f"You rank {stronger + 1} of {len(ai.operating) + 1} by company value.",
+                      (rect.right - 20, rect.bottom - 26), theme.TEXT_MUTED, align="right")
