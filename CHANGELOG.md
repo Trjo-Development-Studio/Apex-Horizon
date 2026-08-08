@@ -9,6 +9,42 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Milestone 1: Data Standards (V30)
+
+Shared value types in `apex_horizon/engine/values/`, enforced through types
+rather than developer convention (V30.9), documented in
+[`docs/data-standards.md`](docs/data-standards.md).
+
+- **`Money`** (V30.2, V30.7): a single normalised internal currency wrapping
+  `Decimal`, so `0.1 + 0.2` is exactly `0.3` and errors cannot compound across
+  the hundreds of in-game years a save may span. Full precision is retained
+  through every computation; rounding and the `$` symbol occur only at display.
+  Money × Money and construction from `bool` both raise.
+- **`Percentage`** (V30.3): stored as a fraction (5% is `0.05`, never `5`), with
+  the `%` symbol applied only at display, plus `scale_factor()` for applying
+  percentage changes.
+- **`SimulationDate`** (V30.4, V13.6): in-game time as a single continuously
+  incrementing day counter, from which the Year/Month/Week/Day calendar is
+  derived — never the reverse. Immutable, with boundary helpers
+  (`starts_new_week/month/year`) that will drive the scheduled events of
+  V13.9–V13.11. The `Calendar` shape is configuration-driven.
+- **`IdAllocator`** (V30.6): sequential per-kind identifiers such as
+  `company-000001`, distinct from display names. Sequential rather than random
+  so world generation is reproducible (V15.11); counters are saved with the
+  world so identifiers never collide after a reload. `new_save_id()` provides
+  the random Save ID required by V16.17.
+- **Timestamps** (V30.5): ISO 8601 UTC helpers for save metadata, kept strictly
+  separate from in-game time; naive datetimes are treated as UTC so an older
+  save never fails to load over a missing offset.
+- **55 further tests** (85 total), including a direct check of the Design
+  Bible's own training example — a Friday plus ten days lands on a Monday.
+
+Open interpretation, pending project manager confirmation: the Design Bible
+states seven-day weeks but not weeks per month or months per year. Uniform
+4-week months (28-day months, 336-day years) were chosen so weeks nest cleanly
+inside months as the V13.6 display format implies. The values live in
+`config/gameplay.toml`, so revising them is a configuration change.
+
 ### Added — Milestone 0: Foundation
 
 - **Layer-based project structure** (V15.3): `apex_horizon/engine/` for

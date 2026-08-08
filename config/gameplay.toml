@@ -33,6 +33,21 @@ default_speed = 1
 # V13.19 — a general background update occurs roughly every five ticks.
 background_update_every_ticks = 5
 
+[calendar]
+# V13.6 — the calendar hierarchy is Year -> Month -> Week -> Day, displayed as
+# e.g. "Year 3, Month 8, Week 2, Day 4". V30.4 requires time to be stored as a
+# single continuously incrementing day counter, from which this calendar is
+# derived (never the reverse).
+#
+# Seven-day weeks are established by the training example in V5.9/V13.12
+# ("beginning on a Friday for 10 days completes the following Monday").
+# The Design Bible does not state weeks per month or months per year; uniform
+# 4-week months are used so weeks nest cleanly inside months as the V13.6
+# display format implies. TODO: confirm with the project manager.
+days_per_week = 7
+weeks_per_month = 4
+months_per_year = 12
+
 [random_events]
 # V13.18 — approximate probability that a random event fires at each scale.
 daily_chance = 0.05

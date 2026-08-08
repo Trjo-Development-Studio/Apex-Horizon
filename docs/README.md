@@ -18,6 +18,7 @@ two disagree, the Design Bible wins (V19.3).
 | Document | Covers |
 |---|---|
 | [architecture.md](architecture.md) | Layer structure, engine foundations, and the planned simulation architecture |
+| [data-standards.md](data-standards.md) | The shared `Money`, `Percentage`, `SimulationDate`, and identifier types (V30) |
 
 ## Planned documents
 
