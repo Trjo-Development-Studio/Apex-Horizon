@@ -9,6 +9,51 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Milestone 6: Company & Financial Management (V3, V17)
+
+The player can now found and run a company. Code lives in
+`apex_horizon/engine/company/` and is documented in
+[`docs/company-and-finances.md`](docs/company-and-finances.md).
+
+- **Player and company as separate financial systems** (V1.4, V3.4): personal
+  cash may move into the company and never back out. The rule is enforced
+  structurally — `transfer_to_company` has no counterpart anywhere in the code.
+- **Founding** (V2.4, V3.3): costs $25,000 against a $10,000 starting purse, so
+  the player must build capital first. The cost becomes the company's opening
+  capital by default, since a company founded with nothing could not act at all.
+- **The append-only ledger** (V17.27): every movement of money records an entry,
+  and the week, month, year, lifetime, per-category and cash-flow totals are all
+  updated by that same call — consistent by construction rather than by
+  discipline. Bounded for saves (V16.20) while lifetime totals persist.
+- **Financial figures** (V17.6-V17.12): revenue, categorised expenses, profit,
+  assets, liabilities, net worth, and company value with goodwill from sustained
+  profit. Assets held by other systems arrive through registered providers, so
+  each system keeps its own data (V15.7).
+- **The company through time** (V13.9-V13.11): weekly operating costs and loan
+  repayments, monthly closes, yearly profit tax. Reputation drifts toward
+  sustained profitability in small steps, so trust is earned (V3.8).
+- **Levels and capacity**: Company Level is raised by Unlock Tree purchases
+  (V6.7.3), not automatically; capacity follows at 10/25/50/100/200.
+- **Loans** (V17.13): terms come from the banks of V7.10, so borrowing already
+  follows the economic cycle. Weekly repayments with interest on the declining
+  balance.
+- **Bankruptcy** (V3.14, V17.19): triggered at -$1,000,000 company cash, with
+  other systems notified through callbacks so this module stays independent of
+  employees, subsidiaries and funds. Company failure does not end the
+  playthrough (V1.13); refounding requires $500,000 personal net worth.
+- **42 further tests** (287 total).
+
+### Fixed
+
+- Owner capital and loan drawdowns were being counted as revenue, which inflated
+  profit and would have let a player mistake borrowing for trading well —
+  precisely the confusion V17.26 requires the interface to prevent. Financing is
+  now a distinct kind of entry that moves cash and appears in cash flow but never
+  touches profit. For the same reason, repaying loan principal is financing while
+  only the interest is an expense.
+- The refounding requirement was never applied to the first replacement company,
+  because it tested a history that is only written once the replacement exists.
+
 ### Added — Milestone 5: Economy & Banking (V7, V25)
 
 The economy now drives the world. Code lives in `apex_horizon/engine/economy/`

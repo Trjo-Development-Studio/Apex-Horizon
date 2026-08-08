@@ -29,6 +29,33 @@ max_level = 5
 # PM decision (2026-08-08) — maximum employees at each company level. V5.17 and
 # V18.5 tie capacity to company level but give no numbers.
 employee_capacity_per_level = [10, 25, 50, 100, 200]
+# Whether the founding cost becomes the new company's opening cash, or is spent
+# as a fee. Treating it as capital is the reading that makes the company usable
+# from its first day; a company founded with nothing would force an immediate
+# transfer before it could act at all. TODO: confirm with the project manager.
+founding_cost_becomes_capital = true
+# Reputation (V3.8) runs from 0 to 1 and follows sustained profitability.
+starting_reputation = 0.25
+reputation_drift = 0.004
+# Weekly running cost of simply existing, before salaries (V17.7 operational
+# costs). Scales gently with company level as the organisation grows.
+weekly_operational_cost = 250
+operational_cost_per_level = 400
+# Company value (V17.12) is net worth plus a goodwill multiple of recent yearly
+# profit, so a profitable company is worth more than the sum of its assets.
+value_profit_multiple = 3.0
+
+[tax]
+# V13.11 requires yearly government tax calculations and V15.10 lists tax values
+# as configuration. The Design Bible sets no rate, so this is a placeholder for
+# balancing. TODO: confirm with the project manager.
+yearly_profit_rate = 0.22
+
+[loans]
+# V17.13: loans have an amount, interest, repayment and history. Repayments fall
+# due weekly (V13.9). Interest accrues on the declining balance.
+default_term_weeks = 104
+minimum_amount = 10_000
 
 [simulation]
 # V13.4 — default simulation speed is one real-life second per in-game day.
