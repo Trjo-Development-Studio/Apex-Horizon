@@ -68,6 +68,57 @@ news_agencies = 5
 universities = 6
 organisations = 5
 
+[market]
+# Share price behaviour (V4.4). Every movement is the sum of traceable
+# contributions, never a single opaque random number: company performance,
+# industry trend, market sentiment, supply and demand, and bounded variation.
+# V4.21 requires movement to always be traceable to an underlying cause.
+starting_price_min = 5
+starting_price_max = 400
+# Shares in issue, used for market capitalisation and to scale the price impact
+# of a given order size (V4.8).
+shares_outstanding_min = 1_000_000
+shares_outstanding_max = 250_000_000
+
+# Daily influence weights. Each is the maximum contribution that source can make
+# to a single day's price change, expressed as a fraction of price.
+#
+# These are deliberately small because they compound every single day: a 0.04%
+# daily drift is already about +14% a year, and roughly a fourfold gain across a
+# decade, which is the pace a genuinely strong company should manage (V4.11).
+# Larger values produce absurd growth over the hundreds of in-game years a save
+# may span (V16.20), destroying the believability V4.21 depends on.
+performance_weight = 0.0004
+industry_weight = 0.0005
+sentiment_weight = 0.0004
+supply_demand_weight = 0.05
+# Per-company random variation, drawn from a normal distribution.
+volatility_min = 0.008
+volatility_max = 0.030
+# Hard bound on a single day's move, so no combination of causes can produce an
+# implausible overnight jump.
+max_daily_change = 0.25
+
+# How company fundamentals and the wider mood drift over time. Performance and
+# industry trends are re-evaluated weekly (V4.11), sentiment daily (V4.5).
+performance_drift = 0.05
+industry_trend_drift = 0.08
+sentiment_drift = 0.06
+sentiment_reversion = 0.10
+
+# Daily closing prices retained per company. Older history is summarised rather
+# than kept day by day, so saves stay small (V16.20) while still supporting the
+# historical prices of V4.15. TODO: confirm retention with the project manager.
+price_history_days = 730
+
+# Long-term market evolution (V4.14). A company trading below the floor for this
+# many consecutive days is delisted, and new listings appear over time so the
+# market keeps producing fresh opportunities.
+delisting_price_floor = 0.5
+delisting_grace_days = 28
+new_listing_weekly_chance = 0.15
+max_listings = 90
+
 [random_events]
 # V13.18 — approximate probability that a random event fires at each scale.
 daily_chance = 0.05

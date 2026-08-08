@@ -9,6 +9,48 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Milestone 4: Market System (V4)
+
+The market now runs. Code lives in `apex_horizon/engine/market/` and is
+documented in [`docs/market.md`](docs/market.md).
+
+- **`MarketListing`** (V4.3): price, shares in issue, volatility, performance,
+  reputation, financial health, and bounded price history. Market data lives
+  here rather than on the company record, so each system owns its own state
+  (V15.7) while the game still has only one company structure (V15.4).
+- **Cause-by-cause price movement** (V4.4, V4.21): each day's change is the sum
+  of company performance, industry conditions, market sentiment, supply and
+  demand, and bounded random variation — and the breakdown is kept, so
+  `market.explain()` can say *why* a price moved. The total is clamped so no
+  combination can produce an implausible overnight jump.
+- **Supply and demand** (V4.8): participants register buying or selling
+  pressure, scaled by shares in issue so the same order moves a small company
+  more than a large one. Pressure is consumed by the price it produces. The
+  player's investors and AI companies will use the same entry point (V4.9).
+- **Market-wide behaviour** (V4.5, V4.12): sentiment drifts daily with mean
+  reversion so bull and bear markets are phases rather than permanent states;
+  industry trends and company fundamentals evolve weekly so trajectories are
+  recognisable rather than noise.
+- **Long-term evolution** (V4.14): companies trading below the floor for a
+  sustained period are delisted, and new companies list over time through the
+  same world generator, so the market keeps producing fresh opportunities.
+- **Statistics** (V4.15): market index, total capitalisation, top movers,
+  industry performance, bull/bear state, and historical prices.
+- **Determinism and saving** (V4.22, V15.11): every listing's full price history
+  is saved, so reloading never produces a different outcome. `update_prices` is
+  retry-safe and cannot move prices twice for one day (V15.26).
+- **31 further tests** (211 total).
+
+### Fixed
+
+- Rebalanced the daily influence weights, which compounded to absurd growth —
+  a 0.4% daily drift is roughly fourfold per year, and produced a
+  five-thousand-fold market index across ten in-game years.
+- Corrected random variation for compounding. Symmetric multiplicative returns
+  are not neutral: a 10% gain followed by a 10% loss leaves you below where you
+  started, which dragged the median company down about 70% per decade from
+  noise alone. Adding half the variance cancels the drag.
+
 ### Added — Milestone 3: World Database & Generation (V32–V36)
 
 The Alternative Earth now exists. Code lives in `apex_horizon/engine/world/` and

@@ -21,6 +21,7 @@ two disagree, the Design Bible wins (V19.3).
 | [data-standards.md](data-standards.md) | The shared `Money`, `Percentage`, `SimulationDate`, and identifier types (V30) |
 | [time-and-simulation.md](time-and-simulation.md) | The clock, the simulation engine, and the ten daily phases (V13, V29) |
 | [world-database.md](world-database.md) | Naming standards, database categories, and world generation (V32–36) |
+| [market.md](market.md) | Share prices, supply and demand, sentiment, and market evolution (V4) |
 
 ## Planned documents
 
