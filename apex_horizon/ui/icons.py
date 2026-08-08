@@ -125,6 +125,14 @@ def _analytics(surface, colour):
     pygame.draw.line(surface, colour, (12, 12), (19, 16), LINE_WIDTH)
 
 
+def _statistics(surface, colour):
+    """A tally of rising columns - figures accumulated over time."""
+    for index, height in enumerate((6, 10, 14)):
+        x = 6 + index * 6
+        pygame.draw.line(surface, colour, (x, 18), (x, 18 - height), LINE_WIDTH)
+    pygame.draw.line(surface, colour, (4, 20), (20, 20), LINE_WIDTH)
+
+
 def _sort(surface, colour):
     pygame.draw.lines(surface, colour, False, [(8, 10), (12, 6), (16, 10)], LINE_WIDTH)
     pygame.draw.lines(surface, colour, False, [(8, 14), (12, 18), (16, 14)], LINE_WIDTH)
@@ -137,6 +145,7 @@ ICONS: dict[str, Callable[[pygame.Surface, tuple[int, int, int]], None]] = {
     "market": _market,
     "news": _news,
     "analytics": _analytics,
+    "statistics": _statistics,
     "unlocks": _unlocks,
     "finance": _finance,
     "settings": _settings,

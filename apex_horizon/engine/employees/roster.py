@@ -57,6 +57,9 @@ class EmployeeRoster:
             "employees.reputation_quality_weight"
         )
         self._last_worked_day: int | None = None
+        #: Called with each person taken on, so anything that wants to count
+        #: hires can, without this module knowing what it is (V15.7).
+        self.on_hire: list = []
 
     # -- the roster --------------------------------------------------------
     def __len__(self) -> int:
@@ -118,6 +121,8 @@ class EmployeeRoster:
         self.applicants = [a for a in self.applicants if a.id != applicant.id]
         applicant.record(day, f"Joined the company as {applicant.primary}", "+")
         logger.info("%s hired %s.", self.company.name, applicant.name)
+        for callback in list(self.on_hire):
+            callback(applicant)
         return True, f"{applicant.name} joined the company."
 
     def fire(self, employee: Employee) -> tuple[bool, str]:

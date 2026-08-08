@@ -85,6 +85,10 @@ class SaveService:
             "news": context.news.state() if getattr(context, "news", None) else {},
             "analytics": self._analytics_state(),
             "ai": context.ai.state() if getattr(context, "ai", None) else {},
+            "statistics": (
+                context.statistics.state()
+                if getattr(context, "statistics", None) else {}
+            ),
             "player": context.player.state(),
             "generation": {
                 "allocator": getattr(context, "allocator", IdAllocator()).state(),
@@ -203,6 +207,14 @@ class SaveService:
                    rng=Random(world.seed))
         ai.register(engine)
         context.ai = ai
+
+        # Lifetime records belong to the playthrough, so they are restored
+        # rather than rebuilt (V28.7).
+        from ..statistics import LifetimeStatistics
+
+        statistics = LifetimeStatistics(config=self.config)
+        statistics.restore(state.get("statistics", {}))
+        context.statistics = statistics
 
         self._restore_analytics(state.get("analytics", {}), engine)
 

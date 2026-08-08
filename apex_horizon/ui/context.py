@@ -28,6 +28,7 @@ class GameContext:
     news: Any = None
     analytics: Any = None
     ai: Any = None
+    statistics: Any = None
     saves: Any = None
 
     @property

@@ -93,6 +93,8 @@ class SubsidiaryBook:
         self.market = market
         self.subsidiaries: list[Subsidiary] = []
         self._last_income_day: int | None = None
+        #: Called with each company bought, for anything keeping a tally.
+        self.on_acquired: list = []
 
         # Subsidiaries count toward company value (V12.11, V17.12) without the
         # finances module needing to know what a subsidiary is (V15.7).
@@ -203,6 +205,8 @@ class SubsidiaryBook:
         self.market.delist(company_id, reason="acquired")
         logger.info("%s acquired %s for %s.",
                     self.company.name, record.name, price.format(decimals=0))
+        for callback in list(self.on_acquired):
+            callback(subsidiary)
         return subsidiary, f"Acquired {record.name} for {price.format(decimals=0)}."
 
     # -- ongoing operation (V12.5) ----------------------------------------

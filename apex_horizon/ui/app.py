@@ -16,6 +16,7 @@ from random import Random
 import pygame
 
 from .. import __version__
+from ..debug import DebugConsole
 from ..engine.ai import AICompanies
 from ..engine.analytics import AnalyticsService, HistoryRecorder
 from ..engine.company import Player
@@ -27,6 +28,7 @@ from ..engine.market import MarketSystem
 from ..engine.news import NewsSystem, NewsTier
 from ..engine.save import SaveService
 from ..engine.simulation import PeriodBoundary, SimulationEngine
+from ..engine.statistics import LifetimeStatistics
 from ..engine.unlocks import UnlockEffects
 from ..engine.values import Money
 from ..engine.world import WorldGenerator, generate_world
@@ -47,6 +49,7 @@ from .pages import (
     MarketPage,
     NewsPage,
     SettingsPage,
+    StatisticsPage,
     SubsidiariesPage,
     SubsidiaryDetailPage,
     UnlockTreePage,
@@ -107,6 +110,7 @@ class GameApp:
             "news": NewsPage(self.context),
             "analytics": AnalyticsPage(self.context),
             "unlocks": UnlockTreePage(self.context),
+            "statistics": StatisticsPage(self.context),
             "finance": FinancePage(self.context),
             "settings": SettingsPage(self.context),
         }
@@ -119,6 +123,11 @@ class GameApp:
         self.current_slot: str = "1"
 
         subscribe_error_notifier(self._on_engine_error)
+
+        # Developer commands from the launching terminal (V15.18). Inert when
+        # there is no terminal to read, which is every test and CI run.
+        self.console = DebugConsole(self.context, app=self)
+        self.console.start()
 
     def _on_autosave(self, message: str) -> None:
         """A brief, non-pausing confirmation that an autosave completed (V16.24)."""
@@ -179,9 +188,44 @@ class GameApp:
         self.effects = UnlockEffects(player.unlocks)
         self.effects.apply(self.context)
 
+        # Cumulative records for the whole playthrough (V28.7). Fed through the
+        # callbacks systems already expose, so none of them knows it exists.
+        self.context.statistics = LifetimeStatistics()
+        player.unlocks.on_unlocked.append(self.context.statistics.record_unlock)
+        player.portfolio.on_trade.append(self.context.statistics.record_trade)
+
         # Tell the player when the economy turns; news proper arrives later.
         engine.register_boundary(PeriodBoundary.MONTH, self._announce_economy)
+        engine.register_boundary(PeriodBoundary.MONTH, self._record_high_water_marks)
         self._last_reported_state = economy.state
+
+    def _observe_company(self, company) -> None:
+        """Point the lifetime counters at a newly founded company (V28.7)."""
+        statistics = self.context.statistics
+        statistics.record_founding(company)
+        company.employees.on_hire.append(statistics.record_hire)
+        company.on_bankruptcy.append(statistics.record_bankruptcy)
+        if company.investments is not None:
+            company.investments.on_invested.append(statistics.record_invested)
+            company.investments.on_closed.append(statistics.record_closed_position)
+        if company.subsidiaries is not None:
+            company.subsidiaries.on_acquired.append(statistics.record_acquisition)
+        if company.funds is not None:
+            company.funds.on_created.append(statistics.record_fund)
+            company.funds.on_created.append(self._observe_fund)
+
+    def _observe_fund(self, fund) -> None:
+        """Count the fees a newly opened fund goes on to pay (V28.7)."""
+        fund.on_fee.append(self.context.statistics.record_fee)
+
+    def _record_high_water_marks(self, context) -> None:
+        """Highest net worth and company value only ever rise (V28.7)."""
+        statistics = self.context.statistics
+        company = self.context.company
+        statistics.observe(
+            net_worth=self.context.player.net_worth(),
+            company_value=company.value() if company else None,
+        )
 
     def _on_article(self, article) -> None:
         """Interrupt the player only for a story that warrants it (V14.16).
@@ -410,6 +454,7 @@ class GameApp:
                 company.register(self.context.engine)
                 # A new company starts at whatever level the tree already grants.
                 self.effects.apply(self.context)
+                self._observe_company(company)
                 # Founding is a major decision, so the moment before it is kept
                 # (V16.6) and the game is marked as having unsaved changes.
                 self.saves.mark_changed()
@@ -704,6 +749,9 @@ class GameApp:
         delta_ms = self.clock.tick(TARGET_FPS)
         now = pygame.time.get_ticks()
         self.handle_events()
+        # Developer commands run here rather than on the reader thread, so one
+        # can never change the world halfway through a frame (V15.18).
+        self.console.poll()
 
         # Every popup pauses the simulation (V13.20, V14.15).
         clock = self.context.engine.clock
@@ -781,6 +829,7 @@ class GameApp:
 
     def shutdown(self) -> None:
         logger.info("Apex Horizon shutting down.")
+        self.console.stop()
         pygame.quit()
 
 

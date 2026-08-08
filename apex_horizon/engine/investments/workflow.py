@@ -46,6 +46,10 @@ class InvestmentSystem:
         self.positions: list[Position] = []
         self.closed: list[Position] = []
         self._last_run_day: int | None = None
+        #: Called with each position opened and closed, for anything keeping a
+        #: tally. Nothing here knows what a statistic is (V15.7).
+        self.on_invested: list = []
+        self.on_closed: list = []
 
         # Holdings count toward company assets (V17.9) without the finances
         # module needing to know what an investment is.
@@ -276,6 +280,8 @@ class InvestmentSystem:
             self.company.finances.invest(
                 context.day_number, spend, f"Bought {shares} shares"
             )
+            for callback in list(self.on_invested):
+                callback(spend)
             # The market feels the purchase (V4.8), before prices update today.
             self.market.record_demand(opportunity.company_id, shares)
             self.positions.append(position)
@@ -359,6 +365,8 @@ class InvestmentSystem:
         position.proceeds = proceeds
         position.realised_gain = gain
         position.close_reason = reason
+        for callback in list(self.on_closed):
+            callback(gain)
         # Selling presses on the price exactly as buying did (V4.8).
         self.market.record_demand(position.company_id, -position.shares)
 

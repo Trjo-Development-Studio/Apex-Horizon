@@ -37,6 +37,8 @@ class FundBook:
         #: Unlocked through the Unlock Tree's final node (V11.3, V6.8).
         self.unlocked: bool = False
         self._last_month_day: int | None = None
+        #: Called with each fund opened, for anything keeping a tally.
+        self.on_created: list = []
 
         # Assets under management are the client's, never the company's, so
         # they are deliberately *not* registered as a company asset (V11.5).
@@ -116,6 +118,8 @@ class FundBook:
             fund.attach_market(self.market, self.allocator)
         self.funds.append(fund)
         logger.info("Opened fund %s with %s.", name, seed.format(decimals=0))
+        for callback in list(self.on_created):
+            callback(fund)
         return fund, f"{name} opened with {seed.format(decimals=0)} under management."
 
     # -- simulation --------------------------------------------------------

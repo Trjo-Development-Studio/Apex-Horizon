@@ -33,6 +33,7 @@ two disagree, the Design Bible wins (V19.3).
 | [employees.md](employees.md) | Skills, departments, recruitment, training, pay and morale (V5, V18) |
 | [save-system.md](save-system.md) | Save format, slots, validation, recovery, migration (V16) |
 | [user-interface.md](user-interface.md) | The interface framework: theme, widgets, pages, popups (V14, V27) |
+| [statistics-and-tooling.md](statistics-and-tooling.md) | Lifetime statistics and the terminal developer console (V28, V15.18) |
 | [design-decisions.md](design-decisions.md) | Project-manager rulings where the Design Bible is deliberately silent |
 
 ## Planned documents

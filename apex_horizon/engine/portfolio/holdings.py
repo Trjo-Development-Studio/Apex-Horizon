@@ -124,6 +124,8 @@ class PersonalPortfolio:
         self.holdings: dict[str, Holding] = {}
         self.trades: list[Trade] = []
         self.realised: Money = Money.zero()
+        #: Called with each completed trade, for anything keeping a tally.
+        self.on_trade: list = []
 
     # -- access ------------------------------------------------------------
     def holding_for(self, company_id: str) -> Holding | None:
@@ -247,6 +249,8 @@ class PersonalPortfolio:
     def _record(self, trade: Trade) -> None:
         self.trades.append(trade)
         del self.trades[: -self.MAX_HISTORY]
+        for callback in list(self.on_trade):
+            callback(trade)
 
     # -- statistics --------------------------------------------------------
     def statistics(self) -> dict[str, object]:

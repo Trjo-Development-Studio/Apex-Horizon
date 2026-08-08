@@ -59,6 +59,8 @@ class InvestmentFund:
         #: Created when the fund is attached to a market, exactly as a company's
         #: investment operation is (V11.23: composition, not duplication).
         self.investments = None
+        #: Called with each management fee charged, for anything keeping a tally.
+        self.on_fee: list = []
 
         self.finances.register_asset_provider("investments", self._holdings_value)
 
@@ -130,6 +132,8 @@ class InvestmentFund:
         self.finances.spend_management_fee(day, fee, self.name)
         self.company.finances.receive_fund_income(day, fee, self.name)
         self.fees_paid = self.fees_paid + fee
+        for callback in list(self.on_fee):
+            callback(fee)
         return fee
 
     # -- statistics (V11.10) ----------------------------------------------

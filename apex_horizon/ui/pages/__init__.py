@@ -14,6 +14,7 @@ from .funds import FundDetailPage, FundsPage
 from .market import CompanyDetailPage, MarketPage
 from .news import NewsPage
 from .simple import InvestmentsPage, SettingsPage
+from .statistics import StatisticsPage
 from .subsidiaries import SubsidiariesPage, SubsidiaryDetailPage
 from .unlocks import UnlockTreePage
 
@@ -33,6 +34,7 @@ __all__ = [
     "NewsPage",
     "Page",
     "SettingsPage",
+    "StatisticsPage",
     "SubsidiariesPage",
     "SubsidiaryDetailPage",
     "UnlockTreePage",

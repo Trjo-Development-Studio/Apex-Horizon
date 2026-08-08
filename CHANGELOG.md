@@ -9,6 +9,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Milestone 16: Statistics & developer tooling (V28, V15.18)
+
+Documented in
+[`docs/statistics-and-tooling.md`](docs/statistics-and-tooling.md).
+
+- **Lifetime statistics** (V28.7): cumulative figures across a whole
+  playthrough, kept as permanent never-reset records — profit and losses ever
+  taken, employees ever hired, companies founded, lost and acquired, funds
+  opened, trades made, and the highest net worth and company value ever reached.
+  A company can go bankrupt and be founded again without touching any of them,
+  because they describe the playthrough rather than the company.
+- **A Statistics page** gathering the categories V28 catalogues — lifetime,
+  company, investments and the world — in one place.
+- **The terminal developer console** (V15.18): commands typed into the terminal
+  that launched the game, covering every capability the volume names — money,
+  time, employees, research, market events and the economy — plus unlocks and a
+  status summary. A daemon thread reads the terminal so the simulation never
+  blocks, and commands run on the main thread so one can never change the world
+  halfway through a frame. It stays inert wherever there is no terminal, which
+  is every test and CI run, and a typo is reported rather than ending the game.
+- Counters are fed through callback lists systems already expose, so nothing in
+  the engine knows the statistics module exists (V15.7).
+
+### Fixed
+
+- Several lifetime counters were defined but never connected, so the Statistics
+  page showed "Profit ever made $0" beside "Realised $3,598,463". Closed
+  positions, amounts invested, management fees and high-water marks are now
+  actually recorded. Building the page is what exposed it — a recorder nothing
+  calls looks correct in any test that only exercises the recorder.
+
 ### Added — Milestone 15: Investment Funds (V11)
 
 The last system in the Unlock Tree, and the one that changes what the company
