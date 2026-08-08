@@ -8,6 +8,7 @@ from the shared layout in :mod:`.base` so that every page behaves the same way
 from .base import EmptyStatePage, Page
 from .company import CompanyPage, FinancePage
 from .dashboard import DashboardPage
+from .employees import EmployeeDetailPage, EmployeesPage
 from .market import CompanyDetailPage, MarketPage
 from .simple import InvestmentsPage, NewsPage, SettingsPage, UnlockTreePage
 
@@ -15,6 +16,8 @@ __all__ = [
     "CompanyDetailPage",
     "CompanyPage",
     "DashboardPage",
+    "EmployeeDetailPage",
+    "EmployeesPage",
     "EmptyStatePage",
     "FinancePage",
     "InvestmentsPage",

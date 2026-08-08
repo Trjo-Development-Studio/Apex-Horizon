@@ -25,6 +25,8 @@ class CompanyPage(Page):
         super().__init__(context)
         self.found_button = Button("Found company", primary=True)
         self.found_requested = False
+        self.employees_button = Button("Employee Management", primary=True)
+        self.employees_requested = False
 
     def cards(self):
         company = self.context.company
@@ -58,7 +60,16 @@ class CompanyPage(Page):
                 and self.found_button.take_click()):
             self.found_requested = True
             return True
+        if (self.context.company is not None
+                and self.employees_button.handle_event(event)
+                and self.employees_button.take_click()):
+            self.employees_requested = True
+            return True
         return False
+
+    def take_employees_request(self) -> bool:
+        requested, self.employees_requested = self.employees_requested, False
+        return requested
 
     def take_found_request(self) -> bool:
         requested, self.found_requested = self.found_requested, False
@@ -85,12 +96,16 @@ class CompanyPage(Page):
                             rect.width - left.width - theme.GAP, 268)
         panel(surface, right)
         draw_text(surface, fonts.subheading, "Organisation", (right.left + 20, right.top + 18))
-        draw_text(surface, fonts.small,
-                  f"Employees 0 of {company.employee_capacity}",
-                  (right.left + 20, right.top + 58), theme.TEXT_MUTED)
-        draw_text(surface, fonts.small,
-                  "Hiring, departments and training arrive with the Employee System.",
-                  (right.left + 20, right.top + 84), theme.TEXT_FAINT)
+        roster = company.employees
+        y = right.top + 56
+        for label, value in roster.statistics().items():
+            draw_text(surface, fonts.small, label, (right.left + 20, y), theme.TEXT_MUTED)
+            text = value.format(decimals=0) if hasattr(value, "format") else str(value)
+            draw_text(surface, fonts.mono_small, text, (right.right - 20, y),
+                      theme.TEXT, align="right")
+            y += 25
+        self.employees_button.draw(
+            surface, pygame.Rect(right.left + 20, right.bottom - 52, 200, 34), fonts, mouse)
 
         if company.bankrupt:
             draw_text(surface, fonts.small, "This company is bankrupt.",

@@ -473,7 +473,7 @@ def test_company_statistics_cover_volume_3_13():
     _, company = founded_player()
     stats = company.statistics()
     for key in ("Company Value", "Cash", "Net Worth", "Weekly Profit",
-                "Reputation", "Company Level", "Employee Capacity", "Debt"):
+                "Reputation", "Company Level", "Employees", "Debt"):
         assert key in stats
     assert isinstance(stats["Reputation"], Percentage)
 

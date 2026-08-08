@@ -240,6 +240,12 @@ class NotificationCentre:
         self.items: list[Notification] = []
 
     def push(self, text: str, now_ms: int, *, emphasis: bool = False) -> None:
+        # A message identical to the one already showing refreshes it rather
+        # than stacking a duplicate, so a routine event such as an autosave
+        # cannot crowd out messages the player has not read yet (V27.7).
+        if self.items and self.items[-1].text == text:
+            self.items[-1].created_ms = now_ms
+            return
         self.items.append(Notification(text, now_ms, emphasis=emphasis))
         # Keep the queue short; the oldest are the ones already read.
         del self.items[: -12]

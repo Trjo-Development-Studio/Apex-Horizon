@@ -101,6 +101,49 @@ news_agencies = 5
 universities = 6
 organisations = 5
 
+[employees]
+# Every employee has all three skills of V5.4 - Research, Management and
+# Investment - rated on this scale. The maximum an applicant can reach rises
+# with the Better Employees unlocks of V6.7.2, which give ranges of 1-20, 1-30
+# and 1-40; before any of them the pool is more modest.
+skill_minimum = 1
+skill_cap_by_tier = [10, 20, 30, 40]
+
+# Effectiveness by department priority (V5.5): an employee performs best in
+# their primary department, less well in their secondary, and least in their
+# third. This is what lets a single generalist run a small company while
+# specialisation still pays off as it grows (V5.6).
+primary_effectiveness = 1.0
+secondary_effectiveness = 0.6
+third_effectiveness = 0.3
+
+# Salary (V5.11). Higher-quality employees cost more, so a strong hire is a
+# commitment rather than a free upgrade.
+salary_base = 1_800
+salary_per_skill_point = 320
+
+# Happiness (V5.10) runs 0 to 1 and follows pay, workload and company success.
+starting_happiness = 0.6
+happiness_drift = 0.06
+# Effectiveness at zero happiness, so an unhappy employee still works, badly.
+unhappy_effectiveness = 0.45
+
+# Development (V5.8): experience accrues from working and from training, and
+# raises skill slowly toward the employee's ceiling.
+experience_per_day = 0.9
+# Experience needed per skill point. Calibrated so an employee gains a little
+# over one point a year in their primary department and less in the others: fast
+# enough that development is visible across a playthrough (V5.8), slow enough
+# that training remains worth paying for.
+experience_per_skill_point = 90
+training_experience_per_day = 4.5
+training_default_days = 10
+
+# Recruitment (V5.3): how many applicants are offered, and how strongly company
+# reputation improves their quality.
+applicant_pool_size = 5
+reputation_quality_weight = 0.5
+
 [market]
 # Share price behaviour (V4.4). Every movement is the sum of traceable
 # contributions, never a single opaque random number: company performance,

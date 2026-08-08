@@ -9,6 +9,48 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Milestone 9: Employees & Company Management (V5, V18)
+
+The company now has people. Code lives in `apex_horizon/engine/employees/` and
+is documented in [`docs/employees.md`](docs/employees.md).
+
+- **Three skills, three departments** (V5.4, V5.5): every employee has all three
+  and is assigned a primary, secondary and third priority, performing best in
+  their primary. One generalist can run an early company while specialisation
+  still pays off later (V5.6).
+- **Recruitment** (V5.3): candidates drawn from the same population as the rest
+  of the world, with reputation shifting the distribution rather than
+  guaranteeing quality. Skill ceilings follow the Better Employees tiers of
+  V6.7.2.
+- **Development and training** (V5.8, V5.9): experience accrues where work is
+  done, so employees improve fastest in their primary department. Training is
+  measured entirely in days and survives week and month boundaries.
+- **Pay and morale** (V5.10, V5.11, V5.24): happiness follows pay measured
+  against what an employee now believes they are worth. Because expectation
+  derives from current skills, leaving a strong employee on their starting
+  salary slowly costs performance rather than saving money for free.
+- **Timeline** (V5.16): the previous ten in-game days per employee.
+- **Capacity and bankruptcy**: capacity follows Company Level; on bankruptcy
+  training is cancelled and staff released, wired through the company's
+  bankruptcy callback so neither system knows the other's internals.
+- **Interface** (V5.14, V5.15): Employee Management behind Company → Employees,
+  with a searchable sortable list, and a details page carrying skills,
+  department dropdowns, training, pay, timeline, and hidden characteristics
+  gated until the Recruitment unlocks reveal them.
+- **34 further tests** (396 total).
+
+### Fixed
+
+- Employee development was effectively invisible: at the original experience
+  cost an employee gained nothing in a full in-game year, contradicting V5.8.
+  Recalibrated to a little over one skill point a year in a primary department.
+- Timeline markers used decorative glyphs that render as empty boxes in many
+  system fonts — the same class of defect already fixed for sort markers.
+  Markers are now plain ASCII.
+- Repeated identical notifications now refresh rather than stacking, so routine
+  messages such as autosaves cannot crowd out ones the player has not read
+  (V27.7).
+
 ### Added — Milestone 8: Save System (V16)
 
 Progress is now safe. Code lives in `apex_horizon/engine/save/` and is

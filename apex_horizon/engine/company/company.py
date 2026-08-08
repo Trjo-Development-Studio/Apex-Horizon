@@ -55,6 +55,16 @@ class PlayerCompany:
         # never needs to know about employees, subsidiaries, or funds (V15.7).
         self.on_bankruptcy: list[Callable[[PlayerCompany], None]] = []
 
+        # Employees belong to the company, not the player (V5.2).
+        from ..employees import EmployeeRoster
+
+        self.employees = EmployeeRoster(self, config=self.config)
+        # On bankruptcy, training is cancelled and staff are released (project
+        # manager ruling, recorded in docs/design-decisions.md).
+        self.on_bankruptcy.append(
+            lambda company: company.employees.release_all(company.bankrupt_on_day or 0)
+        )
+
         self.finances.register_liability_provider("loans", self.loans.total_outstanding)
         self._last_daily_day: int | None = None
 
@@ -118,6 +128,7 @@ class PlayerCompany:
     def register(self, engine: SimulationEngine) -> None:
         """Attach to the simulation (V29.6, V29.11, V13.9-V13.11)."""
         engine.register(SimulationPhase.COMPANIES, self.update_daily)
+        self.employees.register(engine)
         engine.register_boundary(PeriodBoundary.WEEK, self.close_week)
         engine.register_boundary(PeriodBoundary.MONTH, self.close_month)
         engine.register_boundary(PeriodBoundary.YEAR, self.close_year)
@@ -213,7 +224,7 @@ class PlayerCompany:
             "Lifetime Profit": self.finances.lifetime_profit,
             "Reputation": Percentage(str(self.reputation)),
             "Company Level": self.level,
-            "Employee Capacity": self.employee_capacity,
+            "Employees": f"{len(self.employees)} of {self.employee_capacity}",
             "Debt": self.loans.total_outstanding(),
         }
 
@@ -230,6 +241,7 @@ class PlayerCompany:
             "last_daily_day": self._last_daily_day,
             "finances": self.finances.state(),
             "loans": self.loans.state(),
+            "employees": self.employees.state(),
         }
 
     def restore(self, data: dict) -> None:
@@ -243,3 +255,4 @@ class PlayerCompany:
         self._last_daily_day = data.get("last_daily_day")
         self.finances.restore(data.get("finances", {}))
         self.loans.restore(data.get("loans", {}))
+        self.employees.restore(data.get("employees", {}))

@@ -411,3 +411,73 @@ def draw_tooltip(surface, fonts, text: str, anchor: tuple[int, int]) -> None:
     panel(surface, rect, fill=theme.SURFACE_RAISED, border=theme.BORDER_STRONG)
     draw_text(surface, fonts.small, text, (rect.left + 10, rect.centery),
               theme.TEXT, baseline="middle")
+
+
+class Dropdown:
+    """A menu that opens to show its options.
+
+    V5.5 and V5.15 call for department priorities to be chosen with dropdown
+    menus. The open list is drawn in a later pass than the rest of the page, so
+    it always sits above the content beneath it rather than being covered by it.
+    """
+
+    def __init__(self, options: list[str], selected: str, *, width: int = 150):
+        self.options = options
+        self.selected = selected
+        self.width = width
+        self.open = False
+        self.rect = pygame.Rect(0, 0, 0, 0)
+        self._option_rects: list[tuple[pygame.Rect, str]] = []
+        self.changed_to: str | None = None
+
+    def handle_event(self, event) -> bool:
+        if event.type != pygame.MOUSEBUTTONDOWN or event.button != 1:
+            return False
+        if self.open:
+            for rect, option in self._option_rects:
+                if rect.collidepoint(event.pos):
+                    if option != self.selected:
+                        self.selected = option
+                        self.changed_to = option
+                    self.open = False
+                    return True
+            self.open = False
+            return self.rect.collidepoint(event.pos)
+        if self.rect.collidepoint(event.pos):
+            self.open = True
+            return True
+        return False
+
+    def take_change(self) -> str | None:
+        change, self.changed_to = self.changed_to, None
+        return change
+
+    def draw(self, surface, rect, fonts, mouse) -> None:
+        self.rect = pygame.Rect(rect)
+        hovered = self.rect.collidepoint(mouse)
+        panel(surface, self.rect,
+              fill=theme.SURFACE_HOVER if hovered or self.open else theme.SURFACE_RAISED,
+              border=theme.ACCENT if self.open else theme.BORDER)
+        draw_text(surface, fonts.small, self.selected,
+                  (self.rect.left + 10, self.rect.centery), theme.TEXT, baseline="middle")
+        chevron = icons.render("chevron", theme.TEXT_FAINT, 12)
+        chevron = pygame.transform.rotate(chevron, -90)
+        surface.blit(chevron, chevron.get_rect(center=(self.rect.right - 14, self.rect.centery)))
+
+    def draw_open(self, surface, fonts, mouse) -> None:
+        """Draw the expanded list. Called after the page, so it sits on top."""
+        self._option_rects.clear()
+        if not self.open:
+            return
+        height = len(self.options) * 26 + 8
+        panel_rect = pygame.Rect(self.rect.left, self.rect.bottom + 2, self.rect.width, height)
+        panel(surface, panel_rect, fill=theme.SURFACE_RAISED, border=theme.BORDER_STRONG)
+        for index, option in enumerate(self.options):
+            option_rect = pygame.Rect(panel_rect.left + 4, panel_rect.top + 4 + index * 26,
+                                      panel_rect.width - 8, 24)
+            self._option_rects.append((option_rect, option))
+            if option_rect.collidepoint(mouse):
+                pygame.draw.rect(surface, theme.SURFACE_HOVER, option_rect, border_radius=4)
+            colour = theme.ACCENT if option == self.selected else theme.TEXT
+            draw_text(surface, fonts.small, option,
+                      (option_rect.left + 8, option_rect.centery), colour, baseline="middle")

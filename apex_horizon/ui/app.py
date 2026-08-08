@@ -33,6 +33,8 @@ from .pages import (
     CompanyDetailPage,
     CompanyPage,
     DashboardPage,
+    EmployeeDetailPage,
+    EmployeesPage,
     FinancePage,
     InvestmentsPage,
     MarketPage,
@@ -78,9 +80,12 @@ class GameApp:
         self.popups = PopupManager()
 
         market_page = MarketPage(self.context)
+        employees_page = EmployeesPage(self.context)
         self.pages = {
             "dashboard": DashboardPage(self.context),
             "company": CompanyPage(self.context),
+            "company:employees": employees_page,
+            "company:employee": EmployeeDetailPage(self.context, employees_page),
             "investments": InvestmentsPage(self.context),
             "market": market_page,
             "market:company": CompanyDetailPage(self.context, market_page),
@@ -208,8 +213,15 @@ class GameApp:
         if page.navigate_to:
             destination, page.navigate_to = page.navigate_to, None
             self.navigate(destination)
-        if isinstance(page, CompanyPage) and page.take_found_request():
-            self._prompt_found_company()
+        if isinstance(page, CompanyPage):
+            if page.take_found_request():
+                self._prompt_found_company()
+            if page.take_employees_request():
+                self.navigate("company:employees")
+        if isinstance(page, EmployeesPage):
+            self._handle_employees_page(page)
+        if isinstance(page, EmployeeDetailPage):
+            self._handle_employee_detail(page)
         if isinstance(page, SettingsPage):
             speed = page.take_speed_request()
             if speed:
@@ -223,6 +235,75 @@ class GameApp:
                     self._save_slot(slot)
                 else:
                     self._prompt_load(slot)
+
+    def _handle_employees_page(self, page) -> None:
+        """Recruiting and hiring (V5.3)."""
+        roster = page.roster
+        if roster is None:
+            return
+        if page.take_recruit_request():
+            roster.refresh_applicants(
+                self.context.engine.rng, self.context.names,
+                self.context.allocator, self.context.engine.date.day,
+            )
+            self.saves.mark_changed()
+        applicant_id = page.take_hire_request()
+        if applicant_id:
+            applicant = next((a for a in roster.applicants if a.id == applicant_id), None)
+            if applicant is not None:
+                ok, message = roster.hire(applicant, self.context.engine.date.day)
+                self.notifications.push(message, pygame.time.get_ticks(), emphasis=not ok)
+                if ok:
+                    self.saves.mark_changed()
+
+    def _handle_employee_detail(self, page) -> None:
+        """Assignment, training, pay and dismissal (V5.5, V5.9, V5.11)."""
+        request = page.take_request()
+        employee = page.employee
+        if request is None or employee is None:
+            return
+        roster = page.employees_page.roster
+        day = self.context.engine.date.day
+        action, value = request
+
+        if action == "department":
+            slot, department = value
+            # Swap so all three departments stay assigned exactly once (V5.5).
+            order = list(employee.priorities)
+            index = ("primary", "secondary", "third").index(slot)
+            other = order.index(department)
+            order[index], order[other] = order[other], order[index]
+            roster.assign_departments(employee, *order, day)
+            self.saves.mark_changed()
+        elif action == "train":
+            ok, message = roster.start_training(employee, value, day)
+            self.notifications.push(message, pygame.time.get_ticks(), emphasis=not ok)
+            self.saves.mark_changed()
+        elif action == "raise":
+            _, message = roster.set_salary(employee, employee.expected_salary(), day)
+            self.notifications.push(message, pygame.time.get_ticks())
+            self.saves.mark_changed()
+        elif action == "dismiss":
+            self._prompt_dismiss(roster, employee)
+
+    def _prompt_dismiss(self, roster, employee) -> None:
+        popup = Popup(
+            title=f"Dismiss {employee.name}?",
+            message="They will leave the company immediately. This cannot be undone.",
+            actions=[PopupAction("cancel", "Cancel"),
+                     PopupAction("dismiss", "Dismiss", primary=True)],
+        )
+
+        def on_choice(choice: str) -> None:
+            if choice != "dismiss":
+                return
+            ok, message = roster.fire(employee)
+            self.notifications.push(message, pygame.time.get_ticks(), emphasis=not ok)
+            if ok:
+                self.saves.mark_changed()
+                self.navigate("company:employees")
+
+        self.popups.open(popup, on_choice)
 
     def _prompt_found_company(self) -> None:
         """Ask the player to name their company (V3.3)."""
@@ -396,6 +477,9 @@ class GameApp:
         )
         self.page.draw(self.surface, content, self.fonts, mouse, self.breadcrumb)
 
+        overlays = getattr(self.page, "draw_overlays", None)
+        if overlays is not None:
+            overlays(self.surface, self.fonts, mouse)
         self.notifications.draw(self.surface, self.fonts, now_ms)
         self.sidebar.draw_tooltip(self.surface, self.fonts)
         self.popups.draw(self.surface, self.fonts, mouse)
