@@ -58,11 +58,11 @@ def move_price(listing, fraction: float) -> None:
 def test_a_large_move_is_reported():
     news, market, engine = build()
     listing = market.active_listings()[0]
-    move_price(listing, 0.08)
+    move_price(listing, 0.05)
 
     engine.run_days(1)
 
-    assert news.articles, "a move well past the threshold should produce a story"
+    assert news.articles, "a move past the reporting threshold should produce a story"
     assert any(a.company_id == listing.company_id for a in news.articles)
 
 
@@ -100,7 +100,7 @@ def test_a_headline_states_the_size_of_a_fall_without_a_double_negative():
     """"slides 4.9%", never "slides -4.9%" — the template supplies the direction."""
     news, market, engine = build()
     listing = market.active_listings()[0]
-    move_price(listing, -0.09)
+    move_price(listing, -0.05)
 
     engine.run_days(1)
 
@@ -113,7 +113,7 @@ def test_a_story_pushes_the_price_it_concerns():
     """V10.10: news is one of the causes of price movement (V4.4)."""
     news, market, engine = build()
     listing = market.active_listings()[0]
-    move_price(listing, 0.08)
+    move_price(listing, 0.05)
 
     engine.run_days(1)
 
@@ -129,7 +129,7 @@ def test_a_story_pushes_the_price_it_concerns():
 def test_news_appears_as_a_named_cause_of_a_price_change():
     _, market, engine = build()
     listing = market.active_listings()[0]
-    move_price(listing, 0.10)
+    move_price(listing, 0.05)
     engine.run_days(2)
 
     assert listing.last_change.news is not None
@@ -162,7 +162,7 @@ def test_only_unlocked_tiers_are_offered():
 def test_state_survives_a_round_trip():
     news, market, engine = build()
     listing = market.active_listings()[0]
-    move_price(listing, 0.08)
+    move_price(listing, 0.05)
     engine.run_days(1)
     news.tier = NewsTier.MARKET
 
@@ -179,9 +179,24 @@ def test_every_article_carries_a_byline_from_the_world():
     """V33.10: stories come from the world's own news agencies."""
     news, market, engine = build()
     for listing in market.active_listings()[:5]:
-        move_price(listing, 0.08)
+        move_price(listing, 0.05)
     engine.run_days(1)
 
     agencies = {agency.name for agency in news.world.news_agencies}
     assert news.articles
     assert all(article.agency in agencies for article in news.articles)
+
+
+def test_the_breaking_threshold_is_reachable():
+    """A tier the market can never trigger would make its unlock worthless.
+
+    The breaking threshold is sized against what prices actually do, not against
+    the clamp in [market]: over 45,733 observed daily moves the largest was
+    7.23%, so a double-digit threshold would never once fire.
+    """
+    news, _, _ = build()
+    threshold = news.config.get_float("news.breaking_move_threshold")
+    largest_observed = 0.0723
+
+    assert threshold < largest_observed
+    assert threshold > news.config.get_float("news.company_move_threshold")

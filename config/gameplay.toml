@@ -199,9 +199,17 @@ history_limit = 1200
 # The tiers of V10.4 - Basic, Market, Economic, Breaking - are unlocked through
 # the News branch of the Unlock Tree (V6.6.2).
 
-# How large a daily price move must be before it is worth reporting.
+# How large a daily price move must be before it is worth reporting, and how
+# large before it is breaking (V10.13).
+#
+# These are sized against what the market actually does rather than against the
+# 25% clamp in [market]. Over 45,733 observed daily moves the median was 0.72%,
+# the 99.9th percentile 4.97%, and the largest 7.23% - so a threshold set in the
+# double digits would never once be reached, and the Breaking News unlock would
+# buy the player nothing. 6% sits just past the 99.99th percentile: a handful of
+# genuinely extraordinary sessions a year.
 company_move_threshold = 0.045
-breaking_move_threshold = 0.12
+breaking_move_threshold = 0.06
 # Industry and market reporting cadences, in days.
 market_report_interval = 7
 # How strongly a story pushes the price of the company it concerns (V10.10),

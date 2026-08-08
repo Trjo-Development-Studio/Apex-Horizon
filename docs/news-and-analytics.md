@@ -28,9 +28,15 @@ Like every phase handler it guards against being run twice for the same day
 | Kind | Trigger | Bible |
 |---|---|---|
 | Company | A daily price move of at least `news.company_move_threshold` (4.5%) | V10.5, V10.8 |
-| Breaking | A move of at least `news.breaking_move_threshold` (12%) | V10.13 |
+| Breaking | A move of at least `news.breaking_move_threshold` (6%) | V10.13 |
 | Market | Every `news.market_report_interval` days (7): strongest and weakest industry, the index, the mood | V10.6 |
 | Economic | When the economy changes state | V10.7 |
+
+Both thresholds are sized against what the market actually does, not against
+the 25% clamp in `[market]`: over 45,733 observed daily moves the median was
+0.72%, the 99.9th percentile 4.97% and the largest 7.23%. A double-digit
+breaking threshold would therefore never once fire, leaving the Breaking News
+unlock worthless — 6% yields roughly 2.6 extraordinary sessions a year.
 
 Headlines are drawn from families of templates rather than single strings, so
 the same kind of event does not produce a word-for-word identical article

@@ -18,7 +18,7 @@ documented in [`docs/news-and-analytics.md`](docs/news-and-analytics.md).
 - **News generated from real events** (V10.9, V10.24): the News System runs
   first in the day (V29.3) over *yesterday's* settled data, so every headline
   describes something that genuinely happened. Company moves past 4.5% are
-  reported, 12% is breaking, the market is surveyed weekly, and the economy is
+  reported, 6% is breaking, the market is surveyed weekly, and the economy is
   reported when it turns.
 - **Bylines from the world** (V33.10): each story is attributed to one of the
   world's own news agencies, with financial specialists preferred for market and
@@ -51,6 +51,12 @@ documented in [`docs/news-and-analytics.md`](docs/news-and-analytics.md).
   differed from the one an uninterrupted game would have listed. Both now carry
   their stream position in the save. Saves written before this change still
   load.
+- **Breaking news could never happen.** The threshold was set at a 12% daily
+  move, sized against the 25% price clamp rather than against what the market
+  actually does: over 45,733 observed daily moves the median was 0.72% and the
+  largest 7.23%, so the Breaking News unlock would have bought the player
+  nothing. Lowered to 6%, just past the 99.99th percentile — measured at about
+  2.6 genuinely extraordinary sessions a year.
 - Headlines reporting a fall read "down -4.5%", a double negative, because the
   template already supplied the direction. The figure is now written unsigned.
 
