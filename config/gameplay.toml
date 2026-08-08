@@ -56,6 +56,18 @@ days_per_week = 7
 weeks_per_month = 4
 months_per_year = 12
 
+[world]
+# Initial size of a generated world (V34). These are starting populations, not
+# pool limits: the naming databases can produce far more unique names than any
+# single playthrough consumes, so the market can keep generating new companies
+# across a full lifecycle (V4.14, V33.3).
+companies = 60
+banks = 8
+cities = 24
+news_agencies = 5
+universities = 6
+organisations = 5
+
 [random_events]
 # V13.18 — approximate probability that a random event fires at each scale.
 daily_chance = 0.05

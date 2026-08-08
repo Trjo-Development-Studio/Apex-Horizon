@@ -9,6 +9,48 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Milestone 3: World Database & Generation (V32–V36)
+
+The Alternative Earth now exists. Code lives in `apex_horizon/engine/world/` and
+is documented in [`docs/world-database.md`](docs/world-database.md).
+
+- **Curated word pools** (V32.2, V32.5): corporate word families including all
+  thirteen the Design Bible names explicitly, invented-word fragments,
+  internationally representative personal names, city components, and
+  institutional vocabulary — all composed into names rather than stored whole,
+  giving the "controlled variety" of V32.3.
+- **Twenty industry naming identities** (V32.7): every industry in the Design
+  Bible's list has a documented naming philosophy and its own nouns and
+  patterns, so a player can often infer an industry from a company's name. Four
+  identities come from the Design Bible directly; the other sixteen are
+  documented here for the first time.
+- **`NameGenerator`** (V33, V34.4): composes company, person, city, bank, news
+  agency, university, organisation, and fund names, enforcing per-save
+  uniqueness across three scopes so a world never contains a company and a bank
+  sharing a name. Degrades to a plausible qualifier before ever repeating.
+- **World entities** (V30.6): `Company` is the single company structure the
+  whole game will use, as V15.4, V26.10 and V12.23 require — AI companies and
+  subsidiaries reuse it rather than introducing parallel models.
+- **`WorldGenerator`** (V34): builds one save's world — cities, companies with
+  industries and named CEOs, banks, news agencies, universities, and regulators
+  — dealing industries round-robin so all twenty are represented (V33.3).
+  Generation state travels with the world so companies created later never
+  collide with the originals.
+- **Determinism** (V15.11, V34.6): the same seed regenerates an identical world;
+  different seeds produce genuinely different ones (V34.2).
+- **62 further tests** (180 total), including data-quality checks on the pools
+  themselves and two rules found only by reading real generated output.
+
+### Fixed
+
+- Naming patterns no longer place the industry noun before its qualifier.
+  Reversed forms such as "Foods Marigold" and "Masonry Onward" read as generated
+  rather than chosen, failing V32.5's professional-tone rule.
+- Partnership names no longer repeat a surname ("Gallagher & Gallagher
+  Partners"); each placeholder occurrence is now filled independently.
+- Removed a non-ASCII entry that had slipped into the invented-word fragments,
+  which would have leaked unreadable characters into generated names.
+
 ### Added — Milestone 2: Time & Simulation Engine (V13, V29)
 
 The simulation now runs. Code lives in `apex_horizon/engine/simulation/` and is
