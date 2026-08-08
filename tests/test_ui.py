@@ -15,6 +15,7 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 import pygame
 
+from apex_horizon.engine.unlocks import CREATE_COMPANY
 from apex_horizon.engine.values import Calendar, Money, set_calendar
 from apex_horizon.ui import theme
 from apex_horizon.ui.app import SPEED_KEYS, GameApp
@@ -274,8 +275,20 @@ def test_naming_prompt_requires_a_name(app):
     assert popup.chosen == "found"
 
 
+def test_founding_is_refused_until_create_company_is_unlocked(app):
+    """V6.2: the mechanic is earned. The refusal must explain itself (V14.26)."""
+    app.context.player.cash = Money(60_000)
+    app.navigate("company")
+    app._prompt_found_company()
+
+    assert app.popups.current is None, "no naming prompt without the unlock"
+    assert app.context.company is None
+    assert any("Create Company" in item.text for item in app.notifications.items)
+
+
 def test_founding_a_company_through_the_interface(app):
     app.context.player.cash = Money(60_000)
+    app.context.player.unlocks.unlock(CREATE_COMPANY)
     app.navigate("company")
     app._prompt_found_company()
     for character in "Meridian Capital":
@@ -435,6 +448,7 @@ def test_every_unlocked_report_is_drawn(app):
     from apex_horizon.engine.analytics import AnalyticsTier
 
     app.context.player.cash = Money(200_000)
+    app.context.player.unlocks.unlock(CREATE_COMPANY)
     company, _ = app.context.player.found_company("Test Capital", 1)
     company.attach_market(app.context.market, app.context.allocator)
     company.register(app.context.engine)

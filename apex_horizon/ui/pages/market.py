@@ -11,7 +11,7 @@ import pygame
 
 from ... import engine as _engine  # noqa: F401  (keeps import order stable)
 from .. import theme
-from ..widgets import Card, Column, SearchBox, Table, draw_text, panel
+from ..widgets import Button, Card, Column, SearchBox, Table, draw_text, panel
 from .base import Page
 
 
@@ -122,6 +122,10 @@ class MarketPage(Page):
         self.table.draw(surface, rect, fonts, mouse, self.rows(), self.search.text)
 
 
+#: Tall enough for all seven causes V4.4 lists, so none is cut off.
+DETAIL_HEIGHT = 272
+
+
 class CompanyDetailPage(Page):
     """One listed company in detail (V4.15)."""
 
@@ -130,6 +134,28 @@ class CompanyDetailPage(Page):
     def __init__(self, context, market_page: MarketPage):
         super().__init__(context)
         self.market_page = market_page
+        self.buy_button = Button("Buy", primary=True)
+        self.sell_button = Button("Sell")
+        #: Set to ("buy"|"sell", company_id) when the player asks to trade.
+        self.trade_request: tuple[str, str] | None = None
+
+    def take_trade_request(self) -> tuple[str, str] | None:
+        request, self.trade_request = self.trade_request, None
+        return request
+
+    def handle_event(self, event) -> bool:
+        company = self.company
+        if company is None:
+            return super().handle_event(event)
+        if self.buy_button.enabled and self.buy_button.handle_event(event) \
+                and self.buy_button.take_click():
+            self.trade_request = ("buy", company.id)
+            return True
+        if self.sell_button.enabled and self.sell_button.handle_event(event) \
+                and self.sell_button.take_click():
+            self.trade_request = ("sell", company.id)
+            return True
+        return super().handle_event(event)
 
     @property
     def title(self) -> str:
@@ -167,12 +193,10 @@ class CompanyDetailPage(Page):
                  f"{listing.daily_change().format(signed=True)} today",
                  accent=_change_colour(listing.daily_change())),
             Card("Market cap", listing.market_cap.format(decimals=0), company.industry.value),
-            Card("Since last week", listing.change_over(7).format(signed=True),
-                 "Seven days of trading",
-                 accent=_change_colour(listing.change_over(7))),
-            Card("Since last year", listing.change_over(336).format(signed=True),
-                 "One year of trading",
-                 accent=_change_colour(listing.change_over(336))),
+            _period_card("Since last week", listing.change_over(7),
+                         "Seven days of trading", "Listed less than a week ago"),
+            _period_card("Since last year", listing.change_over(336),
+                         "One year of trading", "Listed less than a year ago"),
         ]
 
     def draw_content(self, surface, rect, fonts, mouse) -> None:
@@ -182,7 +206,7 @@ class CompanyDetailPage(Page):
                       (rect.left, rect.top + 20), theme.TEXT_MUTED)
             return
 
-        left = pygame.Rect(rect.left, rect.top, int(rect.width * 0.58), 250)
+        left = pygame.Rect(rect.left, rect.top, int(rect.width * 0.58), DETAIL_HEIGHT)
         panel(surface, left)
         draw_text(surface, fonts.subheading, company.name, (left.left + 20, left.top + 18))
         world = self.context.world
@@ -203,7 +227,7 @@ class CompanyDetailPage(Page):
             y += 26
 
         right = pygame.Rect(left.right + theme.GAP, rect.top,
-                            rect.width - left.width - theme.GAP, 250)
+                            rect.width - left.width - theme.GAP, DETAIL_HEIGHT)
         panel(surface, right)
         draw_text(surface, fonts.subheading, "Why the price moved",
                   (right.left + 20, right.top + 18))
@@ -218,6 +242,7 @@ class CompanyDetailPage(Page):
             ("Company performance", change.performance),
             ("Industry conditions", change.industry),
             ("Economic conditions", change.economy),
+            ("News", change.news),
             ("Market sentiment", change.sentiment),
             ("Supply and demand", change.supply_demand),
             ("Ordinary variation", change.variation),
@@ -228,6 +253,66 @@ class CompanyDetailPage(Page):
             draw_text(surface, fonts.mono_small, value.format(signed=True, decimals=3),
                       (right.right - 20, y), _change_colour(value), align="right")
             y += 21
+
+        trading = pygame.Rect(rect.left, left.bottom + theme.GAP, rect.width,
+                              max(0, min(150, rect.bottom - left.bottom - theme.GAP)))
+        if trading.height >= 90:
+            self._draw_trading(surface, trading, fonts, mouse, listing)
+
+    def _draw_trading(self, surface, rect, fonts, mouse, listing) -> None:
+        """Buying and selling with the player's own money (V1.19, V3.4).
+
+        This is personal trading, not the company's: it spends personal cash and
+        the shares are the player's own. The company invests through its
+        employees on the Investments page, which is a separate operation with
+        separate money (V1.4).
+        """
+        panel(surface, rect)
+        draw_text(surface, fonts.subheading, "Your position",
+                  (rect.left + 20, rect.top + 16))
+
+        portfolio = self.context.portfolio
+        player = self.context.player
+        if portfolio is None or player is None:
+            draw_text(surface, fonts.small, "Personal trading is unavailable.",
+                      (rect.left + 20, rect.top + 52), theme.TEXT_FAINT)
+            return
+
+        holding = portfolio.holding_for(listing.company_id)
+        shares = holding.shares if holding else 0
+        if holding is not None:
+            gain = holding.unrealised(listing.price)
+            facts = [
+                ("Shares held", f"{shares:,}"),
+                ("Value", holding.value_at(listing.price).format(decimals=0)),
+                ("Average cost", holding.average_price.format()),
+                ("Unrealised", gain.format(decimals=0, signed=True)),
+            ]
+        else:
+            facts = [
+                ("Shares held", "None"),
+                ("Personal cash", player.cash.format(decimals=0)),
+                ("You could buy", f"{portfolio.max_affordable(listing.company_id):,} shares"),
+            ]
+        x = rect.left + 20
+        for label, value in facts:
+            draw_text(surface, fonts.small, label, (x, rect.top + 52), theme.TEXT_MUTED)
+            draw_text(surface, fonts.body, value, (x, rect.top + 72), theme.TEXT)
+            x += 170
+
+        self.buy_button.enabled = portfolio.max_affordable(listing.company_id) > 0
+        self.sell_button.enabled = shares > 0
+        self.buy_button.draw(surface, pygame.Rect(rect.right - 200, rect.top + 56, 84, 34),
+                             fonts, mouse)
+        self.sell_button.draw(surface, pygame.Rect(rect.right - 104, rect.top + 56, 84, 34),
+                              fonts, mouse)
+
+
+def _period_card(title: str, change, note: str, missing: str) -> Card:
+    """A change over time, or an honest dash when it cannot be known yet."""
+    if change is None:
+        return Card(title, "—", missing)
+    return Card(title, change.format(signed=True), note, accent=_change_colour(change))
 
 
 def _wrap(surface, font, text, rect, colour):

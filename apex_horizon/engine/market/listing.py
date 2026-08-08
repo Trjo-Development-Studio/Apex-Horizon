@@ -118,9 +118,15 @@ class MarketListing:
             return None
         return self.history[-1 - days_ago]
 
-    def change_over(self, days: int) -> Percentage:
-        """Price change over the last ``days`` of trading."""
+    def change_over(self, days: int) -> Percentage | None:
+        """Price change over the last ``days`` of trading.
+
+        ``None`` when the listing has not traded that long. Reporting an
+        unknown change as 0% would be indistinguishable from a price that
+        genuinely has not moved, and would tell a player that a company newly
+        listed this month was flat over the past year.
+        """
         past = self.price_on(days)
         if past is None or past.is_zero:
-            return Percentage.zero()
+            return None
         return Percentage((self.price.amount - past.amount) / past.amount)

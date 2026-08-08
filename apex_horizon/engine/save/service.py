@@ -165,6 +165,9 @@ class SaveService:
 
         player = Player("Founder", config=self.config, allocator=allocator)
         player.restore(state.get("player", {}))
+        # Personal holdings need a market to be priced against; restoring the
+        # player happens first, so they are applied once the market exists.
+        player.attach_market(market)
 
         engine = SimulationEngine(seed=world.seed, config=self.config)
         engine.restore(state.get("engine", {}))

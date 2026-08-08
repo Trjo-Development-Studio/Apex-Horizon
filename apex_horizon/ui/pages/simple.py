@@ -11,15 +11,22 @@ import pygame
 
 from .. import theme
 from ..widgets import Button, Card, draw_text, panel, truncate
-from .base import EmptyStatePage, Page
+from .base import Page
 
 
 class InvestmentsPage(Page):
-    """What the company holds, and what its people are working on (V9.12)."""
+    """Everything the player has invested in — their own, and the company's.
+
+    The player is an individual investor before they are a CEO (V1.19), and may
+    remain one indefinitely (V1.20), so this page leads with the portfolio they
+    hold personally. The company's operation appears beneath it once one exists.
+    Keeping them visibly apart is what V1.4 and V3.4 require: two separate pools
+    of money that never merge.
+    """
 
     key = "investments"
     title = "Investments"
-    subtitle = "What your company holds, and what it is considering"
+    subtitle = "What you hold personally, and what your company holds"
 
     @property
     def investments(self):
@@ -27,34 +34,63 @@ class InvestmentsPage(Page):
         return getattr(company, "investments", None) if company else None
 
     def cards(self):
+        portfolio = self.context.portfolio
+        cards = []
+        if portfolio is not None:
+            stats = portfolio.statistics()
+            cards = [
+                Card("Your holdings", stats["Holdings value"].format(decimals=0),
+                     f"{stats['Companies held']} companies"),
+                Card("Your unrealised", stats["Unrealised"].format(decimals=0, signed=True),
+                     "On shares you still hold",
+                     accent=theme.value_colour(not stats["Unrealised"].is_negative)),
+                Card("Your realised", stats["Realised"].format(decimals=0, signed=True),
+                     f"{stats['Trades']} trades · {stats['Win rate']} profitable"
+                     if stats["Win rate"] != "—"
+                     else f"{stats['Trades']} trades · nothing sold yet",
+                     accent=theme.value_colour(not stats["Realised"].is_negative)),
+            ]
         system = self.investments
         if system is None:
-            return []
-        stats = system.statistics()
+            return cards
+        company_stats = system.statistics()
         return [
-            Card("Holdings", stats["Holdings value"].format(decimals=0),
-                 f"{stats['Open positions']} open positions"),
-            Card("Unrealised", stats["Unrealised"].format(decimals=0, signed=True),
-                 "On positions still held",
-                 accent=theme.value_colour(not stats["Unrealised"].is_negative)),
-            Card("Realised", stats["Realised"].format(decimals=0, signed=True),
-                 f"{stats['Closed']} closed · {stats['Win rate']} profitable",
-                 accent=theme.value_colour(not stats["Realised"].is_negative)),
-            Card("In the pipeline", str(stats["Awaiting review"] + stats["Awaiting execution"]),
-                 "Awaiting review or execution"),
+            *cards[:2],
+            Card("Company holdings", company_stats["Holdings value"].format(decimals=0),
+                 f"{company_stats['Open positions']} open positions"),
+            Card("Company realised",
+                 company_stats["Realised"].format(decimals=0, signed=True),
+                 f"{company_stats['Closed']} closed · {company_stats['Win rate']} profitable",
+                 accent=theme.value_colour(not company_stats["Realised"].is_negative)),
         ]
 
     def draw_content(self, surface, rect, fonts, mouse) -> None:
-        system = self.investments
-        if system is None:
-            panel(surface, pygame.Rect(rect.left, rect.top, rect.width, 160))
-            draw_text(surface, fonts.body,
-                      "Found a company and hire someone to begin investing.",
-                      (rect.left + 24, rect.top + 60), theme.TEXT_MUTED)
+        personal_height = min(240, max(140, rect.height // 2))
+        personal = pygame.Rect(rect.left, rect.top, rect.width, personal_height)
+        self._draw_personal(surface, personal, fonts)
+
+        remaining = pygame.Rect(rect.left, personal.bottom + theme.GAP, rect.width,
+                                max(0, rect.bottom - personal.bottom - theme.GAP))
+        if remaining.height < 120:
             return
 
+        system = self.investments
+        if system is None:
+            panel(surface, remaining)
+            draw_text(surface, fonts.subheading, "Your company",
+                      (remaining.left + 20, remaining.top + 16))
+            draw_text(surface, fonts.body,
+                      "Found a company and hire someone to invest at a larger scale.",
+                      (remaining.left + 20, remaining.top + 56), theme.TEXT_MUTED)
+            draw_text(surface, fonts.small,
+                      "Company money is separate from your own, and is invested by "
+                      "the people you employ.",
+                      (remaining.left + 20, remaining.top + 84), theme.TEXT_FAINT)
+            return
+
+        rect = remaining
         column = (rect.width - theme.GAP) // 2
-        held = pygame.Rect(rect.left, rect.top, column, 300)
+        held = pygame.Rect(rect.left, rect.top, column, rect.height)
         panel(surface, held)
         draw_text(surface, fonts.subheading, "Open positions", (held.left + 20, held.top + 16))
         y = held.top + 54
@@ -78,7 +114,7 @@ class InvestmentsPage(Page):
                       align="right")
             y += 24
 
-        pipeline = pygame.Rect(held.right + theme.GAP, rect.top, column, 300)
+        pipeline = pygame.Rect(held.right + theme.GAP, rect.top, column, rect.height)
         panel(surface, pipeline)
         draw_text(surface, fonts.subheading, "The pipeline",
                   (pipeline.left + 20, pipeline.top + 16))
@@ -101,13 +137,58 @@ class InvestmentsPage(Page):
                       (pipeline.right - 20, y), theme.TEXT_MUTED, align="right")
             y += 24
 
+    def _draw_personal(self, surface, rect, fonts) -> None:
+        """The player's own holdings, bought with their own money (V1.19)."""
+        panel(surface, rect)
+        draw_text(surface, fonts.subheading, "Your portfolio", (rect.left + 20, rect.top + 16))
+        draw_text(surface, fonts.small,
+                  "Bought with your personal cash. Trade from a company's page in the Market.",
+                  (rect.left + 20, rect.top + 42), theme.TEXT_MUTED)
 
-class UnlockTreePage(EmptyStatePage):
-    key = "unlocks"
-    title = "Unlock Tree"
-    subtitle = "How your company grows"
-    message = "The Unlock Tree is not built yet."
-    detail = "Progression from Basic Investing through to Investment Funds."
+        portfolio = self.context.portfolio
+        market = self.context.market
+        world = self.context.world
+        if portfolio is None or market is None or world is None:
+            draw_text(surface, fonts.small, "Personal investing is unavailable.",
+                      (rect.left + 20, rect.top + 78), theme.TEXT_FAINT)
+            return
+
+        holdings = sorted(portfolio.holdings.values(),
+                          key=lambda h: h.cost_basis.amount, reverse=True)
+        if not holdings:
+            draw_text(surface, fonts.body, "You do not own any shares yet.",
+                      (rect.left + 20, rect.top + 84), theme.TEXT_MUTED)
+            draw_text(surface, fonts.small,
+                      "Open a company from the Market and buy your first shares.",
+                      (rect.left + 20, rect.top + 110), theme.TEXT_FAINT)
+            return
+
+        draw_text(surface, fonts.small, "Company", (rect.left + 20, rect.top + 74),
+                  theme.TEXT_FAINT)
+        for label, x in (("Shares", 430), ("Value", 580), ("Unrealised", 730)):
+            draw_text(surface, fonts.small, label, (rect.left + x, rect.top + 74),
+                      theme.TEXT_FAINT, align="right")
+
+        y = rect.top + 98
+        for holding in holdings:
+            if y + 24 > rect.bottom - 8:
+                break
+            listing = market.listing_for(holding.company_id)
+            record = world.company_by_id(holding.company_id)
+            if listing is None or record is None:
+                continue
+            gain = holding.unrealised(listing.price)
+            draw_text(surface, fonts.small,
+                      truncate(fonts.small, record.name, 300), (rect.left + 20, y))
+            draw_text(surface, fonts.mono_small, f"{holding.shares:,}",
+                      (rect.left + 430, y), theme.TEXT, align="right")
+            draw_text(surface, fonts.mono_small,
+                      holding.value_at(listing.price).format(decimals=0),
+                      (rect.left + 580, y), theme.TEXT, align="right")
+            draw_text(surface, fonts.mono_small, gain.format(decimals=0, signed=True),
+                      (rect.left + 730, y), theme.value_colour(not gain.is_negative),
+                      align="right")
+            y += 24
 
 
 class SettingsPage(Page):

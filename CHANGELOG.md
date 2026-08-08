@@ -9,6 +9,54 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — the player and their company are separate entities (V1.4, V3.4)
+
+A correction to a mistaken reading that ran through several systems. The game
+treated company ownership as the starting state, so the first two stages of the
+intended progression did not exist at all — a player who began with $10,000 and
+needed $25,000 to found a company had no way to earn the difference. The
+progression is now enforced end to end, and documented in
+[`docs/player-and-progression.md`](docs/player-and-progression.md):
+
+> Start → Individual Investor → Build Personal Wealth → Unlock Create Company
+> → Pay $25,000 → Found Company → Build Company
+
+- **Personal investing** (V1.19, V1.20), which did not previously exist. The
+  player buys and sells shares with their own cash from the first day, with or
+  without a company — V1.20 makes remaining an individual investor a valid
+  playstyle, not a tutorial. Cost basis is tracked per holding, so selling part
+  of a position leaves the rest carrying its own share of what was paid, and
+  gains are measured against money actually spent.
+- **Personal orders reach the market** through the same recorded demand the
+  company uses (V4.8), so buying moves a price rather than drawing on an
+  infinite pool.
+- **Create Company is an unlock** (V6.2, V6.4). Founding is refused until it is
+  bought, and the refusal explains itself rather than presenting a dead button.
+  Unlocking grants permission only: founding remains a separate decision costing
+  $25,000, unchanged.
+- **The Unlock Tree** now exists as the directed acyclic graph V6.19 asks for,
+  with prerequisites as explicit edges and every price read from configuration.
+  Only Basic Investing (owned from the start, V6.4) and Create Company are
+  listed: V6.3 requires an unlock to change something, so the remaining branches
+  arrive with the systems they gate, and the page says so.
+- **Personal net worth** now counts personal holdings alongside cash and company
+  value (V1.6), while the two pools of money stay separate (V1.4).
+- The Investments page leads with the player's own portfolio and shows the
+  company's operation beneath it, so the separation is visible rather than
+  implied.
+
+### Fixed
+
+- `change_over` reported 0.00% when a listing had not traded long enough to
+  know, which is indistinguishable from a price that genuinely had not moved —
+  a company listed last month read as flat over the past year. It now reports
+  nothing, and the interface shows a dash. Industry averages count only the
+  listings that have the history, instead of being dragged toward zero by new
+  ones.
+- News was missing from the price breakdown on a company's page, despite being
+  added as a distinct cause (V4.4); the seventh row was also cut off by the
+  panel it was drawn in.
+
 ### Added — Milestone 11: News & Analytics (V10, V9)
 
 The world now reports on itself, and the game reports back to the player. Code

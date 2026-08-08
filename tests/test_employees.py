@@ -16,6 +16,7 @@ from apex_horizon.engine.employees import (
     skill_ceiling_for_tier,
 )
 from apex_horizon.engine.simulation import SimulationClock, SimulationEngine
+from apex_horizon.engine.unlocks import CREATE_COMPANY
 from apex_horizon.engine.values import Calendar, IdAllocator, Money, set_calendar
 from apex_horizon.engine.world import NameGenerator
 
@@ -36,6 +37,7 @@ def make_engine(seed: int = 1) -> SimulationEngine:
 @pytest.fixture
 def company():
     player = Player("Owner", cash=Money(400_000))
+    player.unlocks.unlock(CREATE_COMPANY)
     company, _ = player.found_company("Test Capital", day=1)
     return company
 

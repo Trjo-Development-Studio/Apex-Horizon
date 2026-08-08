@@ -23,6 +23,7 @@ two disagree, the Design Bible wins (V19.3).
 | [world-database.md](world-database.md) | Naming standards, database categories, and world generation (V32–36) |
 | [market.md](market.md) | Share prices, supply and demand, sentiment, and market evolution (V4) |
 | [economy.md](economy.md) | Economic states, inflation, industry response, and lending conditions (V7, V25) |
+| [player-and-progression.md](player-and-progression.md) | The player as an individual investor, personal investing, and the Unlock Tree (V1, V3.3-3.4, V6) |
 | [company-and-finances.md](company-and-finances.md) | The player's company, the ledger, loans, and bankruptcy (V3, V17) |
 | [investments.md](investments.md) | The research → approval → execution → sale workflow (V8) |
 | [news-and-analytics.md](news-and-analytics.md) | News generation, tiers, and the analytics reports and history (V10, V9) |
@@ -34,5 +35,4 @@ two disagree, the Design Bible wins (V19.3).
 ## Planned documents
 
 One document per major system, added as each is implemented (V15.14, V19.13):
-Unlock Tree, Financial Management, Acquisitions, Investment Funds, and AI
-Companies.
+Financial Management, Acquisitions, Investment Funds, and AI Companies.

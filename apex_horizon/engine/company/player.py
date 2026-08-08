@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from ..config import Config, get_config
 from ..logging_setup import get_logger
+from ..portfolio import PersonalPortfolio
+from ..unlocks import CREATE_COMPANY, UnlockTree
 from ..values import EntityKind, IdAllocator, Money
 from .company import PlayerCompany
 from .ledger import RevenueCategory
@@ -39,6 +41,14 @@ class Player:
         self.cash = cash if cash is not None else starting
         self.allocator = allocator or IdAllocator()
         self.company: PlayerCompany | None = None
+        #: Progression (V6). Create Company must be earned before a company can
+        #: be founded; Basic Investing is owned from the first day (V6.4).
+        self.unlocks = UnlockTree(config=self.config)
+        #: The player's own holdings, which exist with or without a company
+        #: (V1.20). Attached to the market by :meth:`attach_market`.
+        self.portfolio: PersonalPortfolio | None = None
+        #: Holdings read from a save before a market existed to price them.
+        self._portfolio_state: dict | None = None
         # Companies founded and lost, so a replacement is recognisably a fresh
         # start rather than a continuation (V2.12).
         self.former_companies: list[str] = []
@@ -57,6 +67,14 @@ class Player:
         if self.company is not None and not self.company.bankrupt:
             # V1.3: only one investment company at a time.
             return False, "You already run an investment company."
+        if not self.unlocks.has(CREATE_COMPANY):
+            # V6.2: new mechanics are earned, not immediately available. The
+            # Create Company unlock is permission to found a company; it does
+            # not found one, and the founding cost is charged separately.
+            return False, (
+                "Founding a company requires the Create Company unlock. "
+                "Build your personal wealth and buy it from the Unlock Tree."
+            )
         if self.cash < self.founding_cost:
             return False, (
                 f"Founding a company costs {self.founding_cost.format(decimals=0)}; "
@@ -130,15 +148,36 @@ class Player:
             return Money.zero()
         return self.company.value()
 
+    def holdings_value(self) -> Money:
+        """What the player's own shares are worth (V1.20)."""
+        return self.portfolio.value() if self.portfolio else Money.zero()
+
+    def attach_market(self, market) -> PersonalPortfolio:
+        """Give the player somewhere to trade their own money (V1.19).
+
+        Loading restores the player before the market exists, so any holdings
+        read from the save wait here until there is a market to price them
+        against.
+        """
+        if self.portfolio is None:
+            self.portfolio = PersonalPortfolio(self, market, config=self.config)
+        else:
+            self.portfolio.market = market
+        pending, self._portfolio_state = self._portfolio_state, None
+        if pending:
+            self.portfolio.restore(pending)
+        return self.portfolio
+
     def net_worth(self) -> Money:
-        """Personal net worth: personal cash plus the company the player owns.
+        """Personal net worth: cash, personal holdings, and the company owned.
 
         The Design Bible measures success partly by personal net worth (V1.6)
         while keeping the two pools of money separate (V1.4). Ownership of the
         company is what links them: the money stays inside the company, but its
-        value belongs to the player's overall worth.
+        value belongs to the player's overall worth. Shares the player bought
+        with their own money are theirs directly, and count the same way.
         """
-        return self.cash + self.company_equity()
+        return self.cash + self.holdings_value() + self.company_equity()
 
     @property
     def bankruptcy_threshold(self) -> Money:
@@ -164,12 +203,20 @@ class Player:
             "cash": str(self.cash.amount),
             "former_companies": list(self.former_companies),
             "company": self.company.state() if self.company else None,
+            "unlocks": self.unlocks.state(),
+            "portfolio": self.portfolio.state() if self.portfolio else {},
         }
 
     def restore(self, data: dict) -> None:
         self.name = data.get("name", self.name)
         self.cash = Money(data.get("cash", "0"))
         self.former_companies = list(data.get("former_companies", []))
+        self.unlocks.restore(data.get("unlocks", {}))
+        portfolio_state = data.get("portfolio", {})
+        if self.portfolio is not None:
+            self.portfolio.restore(portfolio_state)
+        else:
+            self._portfolio_state = portfolio_state
         company_state = data.get("company")
         if company_state:
             company = PlayerCompany(

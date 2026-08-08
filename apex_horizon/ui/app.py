@@ -26,6 +26,7 @@ from ..engine.market import MarketSystem
 from ..engine.news import NewsSystem, NewsTier
 from ..engine.save import SaveService
 from ..engine.simulation import PeriodBoundary, SimulationEngine
+from ..engine.unlocks import BY_KEY
 from ..engine.values import Money
 from ..engine.world import WorldGenerator, generate_world
 from . import theme
@@ -135,6 +136,9 @@ class GameApp:
         market.register(engine)
 
         player = Player("Founder", allocator=allocator)
+        # The player is an individual investor before they are a CEO (V1.19),
+        # so they can trade their own money from the first day.
+        player.attach_market(market)
 
         self.context.engine = engine
         self.context.world = world
@@ -253,6 +257,14 @@ class GameApp:
             self._handle_employees_page(page)
         if isinstance(page, EmployeeDetailPage):
             self._handle_employee_detail(page)
+        if isinstance(page, CompanyDetailPage):
+            trade = page.take_trade_request()
+            if trade:
+                self._prompt_trade(*trade)
+        if isinstance(page, UnlockTreePage):
+            key = page.take_unlock_request()
+            if key:
+                self._prompt_unlock(key)
         if isinstance(page, SettingsPage):
             speed = page.take_speed_request()
             if speed:
@@ -337,8 +349,17 @@ class GameApp:
         self.popups.open(popup, on_choice)
 
     def _prompt_found_company(self) -> None:
-        """Ask the player to name their company (V3.3)."""
+        """Ask the player to name their company (V3.3).
+
+        Founding is refused here rather than at the button so the player is told
+        *why* — needing the Create Company unlock (V6.2) reads as progression,
+        while a dead button reads as a broken screen (V14.26).
+        """
         player = self.context.player
+        allowed, reason = player.can_found_company()
+        if not allowed:
+            self.notifications.push(reason, pygame.time.get_ticks(), emphasis=True)
+            return
         popup = PromptPopup(
             title="Found your company",
             message=(
@@ -361,6 +382,94 @@ class GameApp:
                 # Founding is a major decision, so the moment before it is kept
                 # (V16.6) and the game is marked as having unsaved changes.
                 self.saves.mark_changed()
+
+        self.popups.open(popup, on_choice)
+
+    def _prompt_trade(self, action: str, company_id: str) -> None:
+        """Buy or sell shares with the player's own money (V1.19, V3.4)."""
+        portfolio = self.context.portfolio
+        record = self.context.world.company_by_id(company_id)
+        listing = self.context.market.listing_for(company_id)
+        if portfolio is None or record is None or listing is None:
+            return
+
+        buying = action == "buy"
+        if buying:
+            limit = portfolio.max_affordable(company_id)
+            message = (
+                f"{record.name} trades at {listing.price.format()}. "
+                f"You can afford {limit:,} shares."
+            )
+        else:
+            limit = portfolio.shares_of(company_id)
+            message = (
+                f"{record.name} trades at {listing.price.format()}. "
+                f"You hold {limit:,} shares."
+            )
+        popup = PromptPopup(
+            title=f"{'Buy' if buying else 'Sell'} {record.name}",
+            message=message,
+            placeholder="Number of shares",
+            actions=[
+                PopupAction("cancel", "Cancel"),
+                PopupAction(action, "Buy" if buying else "Sell", primary=True),
+            ],
+        )
+
+        def on_choice(choice: str) -> None:
+            if choice != action:
+                return
+            try:
+                shares = int(popup.text.strip().replace(",", ""))
+            except ValueError:
+                self.notifications.push("Enter a number of shares.",
+                                        pygame.time.get_ticks(), emphasis=True)
+                return
+            day = self.context.engine.date.day
+            ok, result = (portfolio.buy(company_id, shares, day) if buying
+                          else portfolio.sell(company_id, shares, day))
+            self.notifications.push(result, pygame.time.get_ticks(), emphasis=not ok)
+            if ok:
+                self.saves.mark_changed()
+
+        self.popups.open(popup, on_choice)
+
+    def _prompt_unlock(self, key: str) -> None:
+        """Buy an unlock with personal cash (V6.2)."""
+        player = self.context.player
+        tree = self.context.unlocks
+        unlock = BY_KEY.get(key)
+        if tree is None or unlock is None:
+            return
+        allowed, reason = tree.can_purchase(key, player.cash)
+        if not allowed:
+            self.notifications.push(reason, pygame.time.get_ticks(), emphasis=True)
+            return
+
+        cost = tree.cost_of(key)
+        popup = Popup(
+            title=f"Unlock {unlock.name}",
+            message=f"{unlock.description}\n\nThis costs {cost.format(decimals=0)}.",
+            actions=[
+                PopupAction("cancel", "Cancel"),
+                PopupAction("unlock", "Unlock", primary=True),
+            ],
+        )
+
+        def on_choice(choice: str) -> None:
+            if choice != "unlock":
+                return
+            # Re-check: time keeps running while a popup is open only for the
+            # simulation the player paused, so cash may have changed.
+            allowed, reason = tree.can_purchase(key, player.cash)
+            if not allowed:
+                self.notifications.push(reason, pygame.time.get_ticks(), emphasis=True)
+                return
+            player.cash = player.cash - tree.cost_of(key)
+            tree.unlock(key)
+            self.notifications.push(f"{unlock.name} unlocked.",
+                                    pygame.time.get_ticks(), emphasis=True)
+            self.saves.mark_changed()
 
         self.popups.open(popup, on_choice)
 

@@ -17,6 +17,7 @@ from apex_horizon.engine.simulation import (
     SimulationContext,
     SimulationEngine,
 )
+from apex_horizon.engine.unlocks import CREATE_COMPANY
 from apex_horizon.engine.values import Calendar, Money, set_calendar
 from apex_horizon.engine.world import generate_world
 
@@ -50,6 +51,7 @@ def build(seed: int = 2026):
 
     player = Player("Founder", allocator=allocator)
     player.cash = Money(200_000)
+    player.unlocks.unlock(CREATE_COMPANY)
     company, _ = player.found_company("Test Capital", 1)
     company.attach_market(market, allocator)
     company.register(engine)

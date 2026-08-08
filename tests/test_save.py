@@ -21,6 +21,7 @@ from apex_horizon.engine.save import (
 )
 from apex_horizon.engine.save import validation as validation_module
 from apex_horizon.engine.save.format import MAGIC
+from apex_horizon.engine.unlocks import CREATE_COMPANY
 from apex_horizon.engine.values import Calendar, Money, set_calendar
 from apex_horizon.ui.app import GameApp
 
@@ -300,6 +301,7 @@ def test_importing_a_bad_file_is_refused_before_overwriting(store, tmp_path):
 def test_a_real_game_round_trips(game):
     game.context.engine.run_days(120)
     game.context.player.cash = Money(90_000)
+    game.context.player.unlocks.unlock(CREATE_COMPANY)
     company, _ = game.context.player.found_company("Meridian Capital", 1)
     company.register(game.context.engine)
     game.context.engine.run_days(60)
@@ -507,3 +509,34 @@ def test_a_save_stays_small_after_long_play(game):
     size = game.saves.store.path_for(1).stat().st_size
     # V16.20: files should stay efficient even after years of simulation.
     assert size < 2_000_000
+
+
+def test_personal_holdings_and_unlocks_survive_a_save(game):
+    """V16.11: the player's own position is gameplay state like any other."""
+    portfolio = game.context.portfolio
+    listing = game.context.market.active_listings()[0]
+    portfolio.buy(listing.company_id, 8, game.context.engine.date.day)
+    game.context.player.unlocks.unlock(CREATE_COMPANY)
+    held = portfolio.value()
+
+    game.saves.save_to_slot(1)
+    game.saves.load_from_slot(1)
+
+    restored = game.context.portfolio
+    assert restored.shares_of(listing.company_id) == 8
+    assert restored.value() == held
+    assert game.context.unlocks.has(CREATE_COMPANY)
+
+
+def test_a_reloaded_player_can_still_trade(game):
+    """The portfolio must come back attached to the reloaded market."""
+    listing = game.context.market.active_listings()[0]
+    game.context.portfolio.buy(listing.company_id, 5, game.context.engine.date.day)
+    game.saves.save_to_slot(1)
+    game.saves.load_from_slot(1)
+
+    ok, message = game.context.portfolio.sell(
+        listing.company_id, 5, game.context.engine.date.day
+    )
+    assert ok, message
+    assert game.context.portfolio.shares_of(listing.company_id) == 0

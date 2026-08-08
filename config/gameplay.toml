@@ -185,6 +185,16 @@ stop_loss_aggressive = 0.22
 # Even without hitting either, a position is eventually closed.
 maximum_hold_days = 900
 
+[unlocks]
+# The Unlock Tree (V6). New mechanics are earned, never immediately available
+# (V6.2). The player always begins with Basic Investing (V6.4), which is what
+# makes the opening playable: an individual investor trading their own money.
+#
+# Prices live here rather than in code so they stay tunable (V15.10). Create
+# Company is only permission to found a company - founding it costs
+# `company.founding_cost` on top, and is a separate decision (V3.3).
+create_company_cost = 5000
+
 [analytics]
 # Analytics read the simulation back to the player (V9) and never feed into it
 # (V9.22). Depth is gated by tier (V9.4), unlocked through the Unlock Tree.

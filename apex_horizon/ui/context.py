@@ -35,6 +35,16 @@ class GameContext:
         return getattr(self.player, "company", None)
 
     @property
+    def portfolio(self):
+        """The player's own holdings, which exist from the first day (V1.19)."""
+        return getattr(self.player, "portfolio", None)
+
+    @property
+    def unlocks(self):
+        """What the player has earned so far (V6)."""
+        return getattr(self.player, "unlocks", None)
+
+    @property
     def has_company(self) -> bool:
         company = self.company
         return company is not None and not company.bankrupt

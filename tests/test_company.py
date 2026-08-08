@@ -16,6 +16,7 @@ from apex_horizon.engine.company import (
 )
 from apex_horizon.engine.economy import BankingSystem, EconomySystem
 from apex_horizon.engine.simulation import SimulationClock, SimulationEngine
+from apex_horizon.engine.unlocks import CREATE_COMPANY
 from apex_horizon.engine.values import Calendar, IdAllocator, Money, Percentage, set_calendar
 from apex_horizon.engine.world import generate_world
 
@@ -36,6 +37,7 @@ def make_engine(seed: int = 1) -> SimulationEngine:
 
 def founded_player(cash: int = 100_000) -> tuple[Player, PlayerCompany]:
     player = Player("Test Owner", cash=Money(cash))
+    player.unlocks.unlock(CREATE_COMPANY)
     company, _ = player.found_company("Test Capital", day=1)
     return player, company
 
@@ -101,18 +103,44 @@ def test_breakdowns_are_sorted_and_separated():
 # -- founding (V2.4, V3.3) -------------------------------------------------
 
 
-def test_starting_player_cannot_immediately_afford_a_company():
-    # V1.2 gives $10,000; the project manager set founding at $25,000, so the
-    # player must build capital first.
+def test_a_new_player_has_no_company_and_may_not_yet_found_one():
+    """The opening of the game: an individual investor, not a CEO (V1.19).
+
+    Two things stand between the player and a company, in this order: the
+    Create Company unlock (V6.4), and then the founding cost (V3.3).
+    """
     player = Player("New Owner")
     assert player.cash == Money(10_000)
+    assert player.company is None
+
+    allowed, reason = player.can_found_company()
+    assert not allowed
+    assert "Create Company" in reason, "the unlock is the first gate"
+
+
+def test_the_unlock_alone_does_not_make_a_company_affordable():
+    # V1.2 gives $10,000; the project manager set founding at $25,000, so even
+    # once Create Company is unlocked the player must build capital first.
+    player = Player("New Owner")
+    player.unlocks.unlock(CREATE_COMPANY)
+
     allowed, reason = player.can_found_company()
     assert not allowed
     assert "25,000" in reason
 
 
+def test_unlocking_create_company_does_not_create_a_company():
+    """The unlock is permission; founding is a separate decision (V3.3)."""
+    player = Player("New Owner", cash=Money(40_000))
+    player.unlocks.unlock(CREATE_COMPANY)
+
+    assert player.company is None
+    assert player.can_found_company()[0]
+
+
 def test_founding_deducts_the_cost_and_capitalises_the_company():
     player = Player("Owner", cash=Money(40_000))
+    player.unlocks.unlock(CREATE_COMPANY)
     company, message = player.found_company("Horizon Capital", day=1)
     assert company is not None
     assert player.cash == Money(15_000)

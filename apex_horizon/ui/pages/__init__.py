@@ -12,7 +12,8 @@ from .dashboard import DashboardPage
 from .employees import EmployeeDetailPage, EmployeesPage
 from .market import CompanyDetailPage, MarketPage
 from .news import NewsPage
-from .simple import InvestmentsPage, SettingsPage, UnlockTreePage
+from .simple import InvestmentsPage, SettingsPage
+from .unlocks import UnlockTreePage
 
 __all__ = [
     "AnalyticsPage",

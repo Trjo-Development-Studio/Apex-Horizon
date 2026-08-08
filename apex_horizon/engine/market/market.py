@@ -306,8 +306,13 @@ class MarketSystem:
         ]
         if not listings:
             return Percentage.zero()
-        total = sum((listing.change_over(days).fraction for listing in listings), start=0)
-        return Percentage(total / len(listings))
+        changes = [listing.change_over(days) for listing in listings]
+        known = [change.fraction for change in changes if change is not None]
+        if not known:
+            return Percentage.zero()
+        # Averaged over the listings that actually have the history, so a
+        # newly listed company does not drag the industry toward zero.
+        return Percentage(sum(known, start=0) / len(known))
 
     def top_movers(self, count: int = 5) -> tuple[list[MarketListing], list[MarketListing]]:
         """The day's biggest gainers and losers."""

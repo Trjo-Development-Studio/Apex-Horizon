@@ -12,6 +12,7 @@ from apex_horizon.engine.employees import Department
 from apex_horizon.engine.investments import Stage
 from apex_horizon.engine.market import MarketSystem
 from apex_horizon.engine.simulation import SimulationClock, SimulationEngine
+from apex_horizon.engine.unlocks import CREATE_COMPANY
 from apex_horizon.engine.values import Calendar, Money, set_calendar
 from apex_horizon.engine.world import generate_world
 
@@ -29,6 +30,7 @@ def build(seed: int = 7, *, hires: int = 2, capital: int = 120_000, skill: int |
     market = MarketSystem(world, economy=economy)
     market.populate(Random(seed))
     player = Player("Owner", cash=Money(capital + 30_000), allocator=allocator)
+    player.unlocks.unlock(CREATE_COMPANY)
     company, _ = player.found_company("Meridian Capital", 1)
     player.transfer_to_company(Money(capital), 1)
     investments = company.attach_market(market, allocator)
