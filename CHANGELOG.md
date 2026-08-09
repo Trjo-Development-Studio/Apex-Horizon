@@ -11,6 +11,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **New Game asks where the game should live.** The flow is now Start Menu →
+  New Game → choose a save slot → name the save → Create Game. The slot list
+  shows all five, each marked EMPTY or IN USE with the name, date and net worth
+  of what is already there; nothing is chosen for the player, and an occupied
+  slot is confirmed before it is replaced. The new game is written to its slot
+  straight away, so it appears in the menu from the moment it starts.
+- **A drawn Start Menu background.** A city at dusk with a single index line
+  rising over it, built procedurally from the game's own palette and a fixed
+  seed — the same city every launch, cached rather than redrawn each frame. The
+  skyline keeps to the bottom quarter and stays within a few values of the
+  background it replaced, so the title and buttons keep the contrast they had.
 - **An in-game developer console, opened with Ctrl+T.** V15.18 put developer
   commands in the launching terminal, which is no help to a packaged build or a
   desktop shortcut; the same commands now work inside the window. Both surfaces
@@ -48,6 +59,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **A save game now belongs to one slot for its whole life.** Autosaving used to
+  write a separate rolling `autosave` file, which appeared in the Load menu as a
+  sixth game the player had never started. Autosaving is now simply saving the
+  game you are playing: it writes the slot chosen when the game was created, as
+  do manual saves, Save & Exit and loading. The binding survives restarting,
+  loading and closing the program because a game lives in the file it came from.
+  Saving into a different slot moves the game there rather than leaving it
+  autosaving somewhere the player has stopped looking, and Settings names the
+  slot the game is saved in. A leftover `autosave.ahsave` from an older build is
+  ignored rather than listed.
+- **A save keeps the name the player gave it.** Saving no longer renames it
+  after whatever the company happens to be called.
 - **The game autosaves every ten real minutes** rather than every in-game month
   (project-manager decision). A month passes in twenty-eight seconds at normal
   speed and nine at triple, so the old rule saved constantly; the interval is

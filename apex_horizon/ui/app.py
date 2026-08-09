@@ -118,7 +118,8 @@ class GameApp:
         self.saves = SaveService(self.context)
         self.saves.on_autosave.append(self._on_autosave)
         self.context.saves = self.saves
-        self.current_slot: str = "1"
+        # Which slot the game lives in is the save system's business, not a
+        # second copy the two could disagree about.
 
         subscribe_error_notifier(self._on_engine_error)
 
@@ -127,6 +128,11 @@ class GameApp:
         # in play, which is what every test wants.
         self.menu = StartMenu(self.saves)
         self.in_menu = start_in_menu
+        if not start_in_menu:
+            # A game built directly never passed through the menu, so nothing
+            # chose a slot for it. Tests and tools want a complete game, so it
+            # gets the first slot; a player is always asked.
+            self.saves.assign_slot("1", "Apex Horizon")
 
         # Developer commands (V15.18), defined once and reachable two ways: the
         # terminal that launched the game, and Ctrl+T inside the window. The
@@ -137,6 +143,11 @@ class GameApp:
         self.console.start()
         self.dev_console = ConsoleOverlay(self.dev_commands)
         self._fast_forward_budget = get_config().get_float("debug.fast_forward_budget_ms") / 1000
+
+    @property
+    def current_slot(self) -> str | None:
+        """The slot this game was created in, and saves to for its whole life."""
+        return self.saves.slot
 
     def _on_autosave(self, message: str) -> None:
         """A brief, non-pausing confirmation that an autosave completed (V16.24)."""
@@ -656,11 +667,13 @@ class GameApp:
         self.popups.open(popup, on_choice)
 
     def _save_slot(self, slot: str) -> None:
-        """Write the game to a slot and report the outcome."""
-        result = self.saves.save_to_slot(
-            slot, name=self.context.company.name if self.context.company else "Apex Horizon"
-        )
-        self.current_slot = slot
+        """Write the game to a slot and report the outcome.
+
+        The name stays as the player typed it when the game was created; saving
+        does not quietly rename their save after whatever the company is called
+        this year.
+        """
+        result = self.saves.save_to_slot(slot)
         self.notifications.push(result.message, pygame.time.get_ticks(),
                                 emphasis=not result.ok)
 
@@ -679,7 +692,6 @@ class GameApp:
                 return
             outcome = self.saves.load_from_slot(slot)
             if outcome.ok:
-                self.current_slot = slot
                 self._rebind_after_load()
                 self.notifications.push(f"Loaded {info.label}.", pygame.time.get_ticks())
             elif outcome.needs_confirmation:
@@ -744,12 +756,11 @@ class GameApp:
         with an error so another attempt can be made, rather than losing the
         session.
         """
+        slot = self.saves.slot
+        where = self.saves.store.info(slot).label if slot else "its save slot"
         popup = Popup(
             title="Save & Exit",
-            message=(
-                f"Your game will be saved to {self.saves.store.info(self.current_slot).label} "
-                "before leaving."
-            ),
+            message=f"Your game will be saved to {where} before leaving.",
             actions=[PopupAction("stay", "Keep playing"),
                      PopupAction("exit", "Save & Exit", primary=True)],
         )
@@ -757,12 +768,9 @@ class GameApp:
         def on_choice(choice: str) -> None:
             if choice != "exit":
                 return
-            result = self.saves.save_to_slot(
-                self.current_slot,
-                name=self.context.company.name if self.context.company else "Apex Horizon",
-            )
+            result = self.saves.save()
             if result.ok:
-                self._return_to_menu(f"Saved to {self.saves.store.info(self.current_slot).label}.")
+                self._return_to_menu(f"Saved to {where}.")
             else:
                 self.popups.open(Popup(
                     title="Saving failed",
@@ -778,8 +786,8 @@ class GameApp:
         self.dev_console.hide()
         self.dev_commands.pending_days = 0
         self.in_menu = True
-        self.menu.showing_loads = False
-        self.menu.message = message
+        self.menu.close_slots()
+        self.menu.say(message)
         self.notifications.items.clear()
         logger.info("Returned to the Main Menu.")
 
@@ -794,11 +802,16 @@ class GameApp:
                 height = max(event.h, MINIMUM_SIZE[1])
                 self.surface = pygame.display.set_mode((width, height), pygame.RESIZABLE)
                 continue
+            # Naming a game and confirming an overwrite are decisions, and a
+            # decision is modal wherever it is asked (V14.15).
+            if self.popups.is_open:
+                self.popups.handle_event(event)
+                continue
             self.menu.handle_event(event)
 
         request = self.menu.take_request()
-        if request == NEW_GAME:
-            self._start_new_game()
+        if isinstance(request, tuple) and request[0] == NEW_GAME:
+            self._new_game_in_slot(request[1])
         elif request == SETTINGS:
             self.in_menu = False
             self.navigate("settings")
@@ -811,12 +824,60 @@ class GameApp:
         self.popups.draw(self.surface, self.fonts, pygame.mouse.get_pos())
         pygame.display.flip()
 
-    def _start_new_game(self) -> None:
-        """Begin a fresh world (V16.4: the menu leads back into gameplay)."""
+    # -- starting a game ---------------------------------------------------
+    def _new_game_in_slot(self, slot: str) -> None:
+        """Slot chosen; confirm an overwrite, then ask what to call the game."""
+        info = self.saves.store.info(slot)
+        if not info.exists:
+            self._prompt_new_game_name(slot)
+            return
+        # A slot with a game in it is somebody's playthrough, so it is never
+        # replaced without being asked (V16.10).
+        popup = Popup(
+            title=f"Overwrite {info.label}?",
+            message=(
+                f"{info.label} already holds {info.describe()}. Starting a new "
+                "game here will replace it permanently."
+            ),
+            actions=[PopupAction("cancel", "Cancel"),
+                     PopupAction("overwrite", "Overwrite", primary=True)],
+        )
+
+        def on_choice(choice: str) -> None:
+            if choice == "overwrite":
+                self._prompt_new_game_name(slot)
+
+        self.popups.open(popup, on_choice)
+
+    def _prompt_new_game_name(self, slot: str) -> None:
+        """Name the save before the world exists (V16.16)."""
+        label = self.saves.store.info(slot).label
+        popup = PromptPopup(
+            title=f"New game in {label}",
+            message=(
+                "Give this game a name. It is how you will recognise it in the "
+                "menu, and it stays with this slot."
+            ),
+            placeholder="Save name",
+            actions=[PopupAction("cancel", "Cancel"),
+                     PopupAction("create", "Create Game", primary=True)],
+        )
+
+        def on_choice(choice: str) -> None:
+            if choice == "create" and popup.text.strip():
+                self._start_new_game(slot, popup.text.strip())
+
+        self.popups.open(popup, on_choice)
+
+    def _start_new_game(self, slot: str, name: str) -> None:
+        """Begin a fresh world in the slot the player chose (V16.4)."""
         import secrets
 
         self._build_world(secrets.randbelow(2**31))
-        self.saves = SaveService(self.context)
+        # A new world, but the same shelf of save files: rebuilding the service
+        # must not send the game's saves somewhere other than where the menu is
+        # reading them from.
+        self.saves = SaveService(self.context, store=self.saves.store)
         self.saves.on_autosave = [self._on_autosave]
         self.context.saves = self.saves
         self.menu.saves = self.saves
@@ -832,25 +893,35 @@ class GameApp:
             page.context = self.context
         self.dev_commands.context = self.context
         self.dev_commands.pending_days = 0
+        # The game belongs to this slot from now on: every save, autosave and
+        # Save & Exit writes here, and nowhere else.
+        self.saves.assign_slot(slot, name)
+        result = self.saves.save()
         self.in_menu = False
+        self.menu.close_slots()
         self.menu.message = ""
         self.navigate("dashboard")
-        self.notifications.push("A new game has begun.", pygame.time.get_ticks())
+        self.notifications.push(
+            f"{name} begun in {self.saves.store.info(slot).label}." if result.ok
+            else f"Started, but saving failed: {result.message}",
+            pygame.time.get_ticks(), emphasis=not result.ok,
+        )
 
     def _load_from_menu(self, slot: str) -> None:
         """Open a saved game from the menu, reporting honestly if it fails."""
         outcome = self.saves.load_from_slot(slot)
         if outcome.ok:
             self._rebind_after_load()
-            self.current_slot = slot
             self.in_menu = False
+            self.menu.close_slots()
             self.menu.message = ""
-            self.notifications.push(f"Loaded {self.saves.store.info(slot).label}.",
-                                    pygame.time.get_ticks())
+            self.notifications.push(
+                f"Loaded {self.saves.metadata.name} from "
+                f"{self.saves.store.info(slot).label}.", pygame.time.get_ticks())
             return
         # V16.13-16.14: an unreadable save is reported, never silently opened.
-        self.menu.message = outcome.describe()
-        self.menu.showing_loads = False
+        self.menu.say(outcome.describe(), ok=False)
+        self.menu.close_slots()
 
     # -- frame -------------------------------------------------------------
     def tick(self) -> None:

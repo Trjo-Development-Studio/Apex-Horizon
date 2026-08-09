@@ -28,10 +28,22 @@ A test asserts the previous save survives a failed write.
 
 ## Slots (V16.7–V16.10)
 
-Five manual slots, each an entirely separate world (V16.12), plus **one rolling
-autosave** that each new autosave replaces. Every file carries its own summary —
-name, money, net worth, date, playtime — so a slot can be listed without loading
-its world (V16.9).
+Five slots, each an entirely separate world (V16.12). Every file carries its own
+summary — name, money, net worth, date, playtime — so a slot can be listed
+without loading its world (V16.9).
+
+**A game belongs to one slot for its whole life.** The player chooses it before
+the world exists, names the save there, and from then on every manual save,
+every autosave, Save & Exit and loading all use that one slot. V16.7 described a
+sixth *rolling autosave* file alongside the five; the project manager removed it
+(2026-08-09) because it showed up in the menu as a game the player had never
+started. Nothing writes `autosave.ahsave` any more, and a leftover one from an
+older build is simply ignored.
+
+The binding needs nothing stored to survive a restart: a game lives in the file
+it was loaded from, so loading slot 3 *is* being in slot 3. Exporting a save and
+importing it into slot 5 therefore makes slot 5 its home, which is the answer
+that stays true.
 
 A slot that cannot be summarised is shown as **damaged** rather than hidden: the
 player should know it is there.
@@ -80,8 +92,22 @@ Temporary interface state is deliberately not saved.
   not count toward it.
 - Immediately **before** a major irreversible decision (V16.6), so the moment
   before it is always available.
-- One rolling autosave; each replaces the last.
+- Into **the game's own slot**, replacing what was there. Autosaving is saving
+  the game you are playing without being asked, not a second game.
 - A brief "Autosaved" notification that never pauses the game.
+- A game with no slot yet — which only happens to one built directly by a test
+  or tool — does not autosave anywhere rather than choosing a slot itself.
+
+## Starting a game (V16.8, V16.9, V16.16)
+
+    Start Menu -> New Game -> choose a slot -> name the save -> Create Game
+
+The slot list shows all five, each marked **EMPTY** or **IN USE** with the name,
+date and net worth of whatever is already there. Nothing is chosen for the
+player, and choosing a slot that already holds a game asks before replacing it —
+a slot with a save in it is somebody's playthrough. The name the player types is
+what the menu shows from then on, and saving never quietly renames it after
+whatever the company happens to be called that year.
 
 ## Save & Exit (V16.3, V16.4)
 

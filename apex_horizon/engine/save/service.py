@@ -5,10 +5,17 @@ module is the one place that knows which systems exist and how to gather their
 state, so adding a system later means adding it here rather than touching the
 save format (V16.33).
 
-Autosaving follows V16.5 — every in-game month by default, adjustable — and
-V16.6, which additionally asks for an autosave immediately *before* a major
-irreversible decision, so the player always has the moment before it to return
-to. Only one rolling autosave is kept (V16.7).
+Autosaving follows V16.6, which asks for an autosave immediately *before* a
+major irreversible decision so the player always has the moment before it to
+return to, and V16.5's adjustable interval — measured in real minutes by the
+project manager's decision rather than in-game months.
+
+**A game belongs to one slot.** The player picks it when the game is created and
+it stays with that game for the rest of its life: manual saves, autosaves, Save
+& Exit and loading all use it. V16.7 described a separate rolling autosave file
+instead; the project manager removed it (2026-08-09) because it appeared in the
+menu as a sixth game that the player had never started. Autosaving is now simply
+saving the game you are playing, without being asked.
 """
 
 from __future__ import annotations
@@ -24,7 +31,7 @@ from ..logging_setup import get_logger
 from ..simulation import SimulationEngine
 from ..values import IdAllocator, now_iso
 from .format import SaveDocument, SaveMetadata, SaveSummary
-from .slots import AUTOSAVE_SLOT, SaveStore, SlotInfo
+from .slots import SaveStore, SlotInfo
 from .validation import LoadOutcome, read_save
 
 logger = get_logger(__name__)
@@ -50,6 +57,10 @@ class SaveService:
             manual_slots=self.config.get_int("save.manual_slots")
         )
         self.metadata = SaveMetadata(game_version=__version__)
+        #: The slot this game lives in, chosen when it was created. ``None``
+        #: until then, which is what stops a game saving itself somewhere the
+        #: player never asked for.
+        self.slot: str | None = None
         self.playtime_seconds = 0.0
         #: Set whenever the world changes, cleared on save (V14.19, V13.22).
         self.unsaved_changes = False
@@ -250,7 +261,12 @@ class SaveService:
 
     # -- saving ------------------------------------------------------------
     def save_to_slot(self, slot: str | int, name: str | None = None) -> SaveResult:
-        """Write the game to a slot, reporting success or failure (V16.4)."""
+        """Write the game to a slot, reporting success or failure (V16.4).
+
+        Saving into a *different* slot moves the game there: one game has one
+        slot, so the alternative would be a game that autosaves somewhere the
+        player can no longer see.
+        """
         if name:
             self.metadata.name = name
         try:
@@ -260,11 +276,30 @@ class SaveService:
             logger.exception("Saving to slot %s failed.", slot)
             return SaveResult(False, f"Saving failed: {exc}")
         self.unsaved_changes = False
+        self.slot = str(slot)
         return SaveResult(True, f"Saved to {self.store.info(slot).label}.", path)
 
+    # -- the slot a game belongs to ----------------------------------------
+    def assign_slot(self, slot: str | int, name: str | None = None) -> None:
+        """Bind this game to a slot, and optionally name it (V16.8, V16.16)."""
+        self.slot = str(slot)
+        if name:
+            self.metadata.name = name
+        logger.info("This game is now saved in slot %s.", self.slot)
+
+    def save(self, name: str | None = None) -> SaveResult:
+        """Save the game where it lives."""
+        if self.slot is None:
+            return SaveResult(False, "This game has not been given a save slot yet.")
+        return self.save_to_slot(self.slot, name)
+
     def autosave(self, reason: str = "") -> SaveResult:
-        """Write the rolling autosave, replacing the previous one (V16.7)."""
-        result = self.save_to_slot(AUTOSAVE_SLOT)
+        """Save the game in its own slot, without being asked (V16.5, V16.6)."""
+        if self.slot is None:
+            # Nothing to autosave into: a game with no slot was never created
+            # through the menu, which is only ever the case in a test.
+            return SaveResult(False, "This game has not been given a save slot yet.")
+        result = self.save_to_slot(self.slot)
         if result.ok:
             message = "Autosaved" if not reason else f"Autosaved before {reason}"
             for callback in list(self.on_autosave):
@@ -297,6 +332,8 @@ class SaveService:
         outcome = read_save(raw, allow_damaged=allow_damaged)
         if outcome.ok and outcome.document is not None:
             self.apply(outcome.document)
+            # The game lives where it was loaded from, for the rest of its life.
+            self.slot = str(slot)
         return outcome
 
     def slots(self) -> list[SlotInfo]:

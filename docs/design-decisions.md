@@ -212,6 +212,46 @@ as owner capital and `remove` leaves as financing, so the ledger and cash-flow
 statement stay truthful. What the console skips is the price, which is its
 purpose; faking the bookkeeping as well would make every financial page lie.
 
+## Save slots and the Start Menu (PM, 2026-08-09)
+
+**A save game belongs to one slot for its entire life**, chosen by the player
+when the game is created: manual saves, autosaves, Save & Exit and loading all
+use it.
+
+This removes the separate rolling autosave of **V16.7**. The Bible put the
+autosave in its own file alongside the five manual slots, which meant the Load
+menu listed a sixth entry the player had never started, holding a world that was
+usually a copy of one of the others. The intent of V16.7 — that autosaving never
+accumulates files — is unchanged; it is achieved by replacing the game's own
+save instead of a dedicated one. `autosave.ahsave` is no longer written, and a
+leftover one from an older build is ignored rather than listed.
+
+Nothing is stored to remember the binding: a game lives in the file it was
+loaded from, so it survives restarting, loading, advancing time and closing the
+program without any extra state that could disagree with the file on disk.
+
+**New Game asks for a slot and a name before the world exists.** The slot list
+shows every slot as empty or in use with what it holds, nothing is picked
+automatically, and an occupied slot is confirmed before it is replaced.
+
+Two consequences worth naming:
+
+- **Saving into a different slot moves the game there.** The alternative is a
+  game that keeps autosaving into a slot the player thinks they left behind.
+- **A game built directly in code gets slot 1.** Only tests and tools do that;
+  a player is always asked. Without it a directly built game would have no slot
+  and would never autosave.
+
+## The Start Menu background (PM, 2026-08-09)
+
+The menu now has a drawn backdrop — a city at dusk with a single index line
+rising over it — rather than flat colour. It is built procedurally from the
+palette in `theme.py` from a fixed seed, so it is the same city every launch and
+costs one cached surface rather than an asset. V1.15's clean, modern,
+minimalistic identity is unchanged: the skyline keeps to the bottom quarter and
+stays within a few values of the background it replaced, so the buttons and
+title have exactly the contrast they had before.
+
 ## Content and assets
 
 | Decision | Detail |

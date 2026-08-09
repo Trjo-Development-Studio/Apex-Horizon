@@ -16,8 +16,9 @@ uv sync                 # install dependencies
 uv run python main.py   # play
 ```
 
-The game opens on a Start Menu. A new game begins with **$10,000 and no
-company**: you are an individual investor, and buying your first shares is how
+The game opens on a Start Menu. Starting a game means choosing one of five save
+slots and naming it; that slot is where the game lives from then on, autosaves
+included. A new game begins with **$10,000 and no company**: you are an individual investor, and buying your first shares is how
 you earn the $25,000 a company costs to found. Remaining an investor forever is
 a legitimate way to play.
 
@@ -46,7 +47,7 @@ pauses whenever a decision is open.
 | **AI companies** | Twelve rival investment firms playing by exactly the same rules, hiring, investing and acquiring |
 | **Acquisitions** | Buy a company outright; it keeps operating in its own industry and pays its parent |
 | **Investment Funds** | Manage capital for outside investors, whose confidence follows your record |
-| **Saving** | Five slots plus a rolling autosave, validated, repaired and migrated; a reloaded world continues identically |
+| **Saving** | Five slots; a game picks one when it is created and keeps it, autosaves included. Validated, repaired and migrated; a reloaded world continues identically |
 
 ## Design Bible
 

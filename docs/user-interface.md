@@ -44,6 +44,24 @@ cards, search, main content — and the base `Page` class decides where those
 parts go rather than each page positioning itself (V14.28). That is what makes
 opening the fiftieth page feel exactly like opening the first (V14.25).
 
+## The Start Menu
+
+The first screen, and where Save & Exit returns to (V16.4). It is deliberately
+not another dashboard: a title, four actions, and the version.
+
+Behind it is a drawn backdrop (`ui/menu_background.py`) — a city at dusk with a
+single index line rising over it, built from the palette in `theme.py` and a
+fixed seed, so it is the same city every launch. It is rendered once per window
+size into a cached surface rather than redrawn each frame. The skyline keeps to
+the bottom quarter and stays within a few values of the background it replaced,
+because a menu background that costs the buttons their contrast is a worse menu
+than a plain one (V27.10).
+
+New Game leads to the save-slot list before anything is created: five slots,
+each marked EMPTY or IN USE with what it holds, none preselected, and an
+occupied one confirmed before it is replaced. Naming the save is a popup, which
+is modal on the menu exactly as it is in the game (V14.15).
+
 ## Behaviour standards (Volume 27)
 
 | Rule | Where |

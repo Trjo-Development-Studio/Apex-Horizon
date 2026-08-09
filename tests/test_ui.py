@@ -26,6 +26,7 @@ from apex_horizon.ui.chrome import (
     NotificationCentre,
 )
 from apex_horizon.ui.popups import Popup, PopupAction, PopupManager, PromptPopup
+from apex_horizon.ui.start_menu import NEW_GAME
 from apex_horizon.ui.widgets import Column, SearchBox, Table, truncate
 
 
@@ -43,6 +44,7 @@ def click(pos):
 
 
 def release(pos):
+    """Buttons fire on release, so pressing one takes both halves."""
     return pygame.event.Event(pygame.MOUSEBUTTONUP, button=1, pos=pos)
 
 
@@ -662,15 +664,109 @@ def test_a_directly_built_application_starts_in_play(app):
     assert not app.in_menu
 
 
-def test_new_game_begins_a_world(menu_app):
+def _new_game(menu_app, slot: str = "2", name: str = "My Empire") -> None:
+    """Start Menu -> New Game -> choose a slot -> name it -> create."""
+    from apex_horizon.ui.start_menu import NEW_GAME
+
+    menu_app.menu.request = (NEW_GAME, slot)
+    menu_app._menu_tick(0)
+    if menu_app.popups.current is not None and not isinstance(
+            menu_app.popups.current, PromptPopup):
+        _choose(menu_app, "overwrite")  # the slot already held a game
+    prompt = menu_app.popups.current
+    assert isinstance(prompt, PromptPopup), "the game must be named before it exists"
+    prompt.text = name
+    _choose(menu_app, "create")
+
+
+def test_new_game_asks_for_a_slot_before_starting_one(menu_app):
+    """PM: the player chooses where the game lives; nothing is picked for them."""
     from apex_horizon.ui.start_menu import NEW_GAME
 
     menu_app.menu.request = NEW_GAME
     menu_app._menu_tick(0)
 
+    assert menu_app.in_menu, "no world exists until a slot is chosen"
+    assert menu_app.saves.slot is None
+
+
+def test_choosing_an_empty_slot_asks_for_a_name(menu_app):
+    from apex_horizon.ui.start_menu import NEW_GAME
+
+    menu_app.menu.request = (NEW_GAME, "2")
+    menu_app._menu_tick(0)
+
+    assert isinstance(menu_app.popups.current, PromptPopup)
+    assert menu_app.in_menu, "still no world until the name is given"
+
+
+def test_new_game_begins_a_world_in_the_chosen_slot(menu_app):
+    _new_game(menu_app, slot="3", name="My Empire")
+
     assert not menu_app.in_menu
     assert menu_app.current_key == "dashboard"
     assert menu_app.context.market.active_listings()
+    assert menu_app.saves.slot == "3"
+    assert menu_app.saves.store.info("3").metadata.name == "My Empire"
+
+
+def test_the_new_game_is_written_to_its_slot_immediately(menu_app):
+    _new_game(menu_app, slot="4")
+
+    assert menu_app.saves.store.info("4").exists
+    assert not menu_app.saves.store.info("1").exists
+
+
+def test_an_occupied_slot_is_never_overwritten_without_asking(menu_app):
+    from apex_horizon.ui.start_menu import NEW_GAME
+
+    menu_app.saves.save_to_slot(2, "Someone else's game")
+
+    menu_app.menu.request = (NEW_GAME, "2")
+    menu_app._menu_tick(0)
+    assert menu_app.popups.current is not None
+    _choose(menu_app, "cancel")
+
+    assert menu_app.in_menu
+    assert menu_app.saves.store.info(2).metadata.name == "Someone else's game"
+
+
+def test_confirming_the_overwrite_replaces_the_slot(menu_app):
+    menu_app.saves.save_to_slot(2, "Someone else's game")
+
+    _new_game(menu_app, slot="2", name="Mine now")
+
+    assert not menu_app.in_menu
+    assert menu_app.saves.store.info(2).metadata.name == "Mine now"
+
+
+def test_the_autosave_writes_to_the_games_own_slot(menu_app):
+    """PM: autosaving must never create a slot the player did not choose."""
+    _new_game(menu_app, slot="5", name="Autosaved")
+    menu_app.context.engine.run_days(30)
+
+    menu_app.saves.record_playtime(menu_app.saves.autosave_interval_minutes * 60)
+
+    occupied = [info.slot for info in menu_app.saves.slots() if info.exists]
+    assert occupied == ["5"]
+    assert menu_app.saves.store.info("5").metadata.name == "Autosaved"
+
+
+def test_a_loaded_game_keeps_the_slot_it_came_from(menu_app):
+    _new_game(menu_app, slot="3", name="Continued")
+    menu_app.context.engine.run_days(10)
+    menu_app._prompt_exit()
+    _choose(menu_app, "exit")
+
+    menu_app._load_from_menu("3")
+
+    assert not menu_app.in_menu
+    assert menu_app.saves.slot == "3"
+    assert menu_app.saves.metadata.name == "Continued"
+
+    # And it keeps saving there, rather than drifting to another slot.
+    menu_app.saves.record_playtime(menu_app.saves.autosave_interval_minutes * 60)
+    assert [info.slot for info in menu_app.saves.slots() if info.exists] == ["3"]
 
 
 def test_load_game_is_offered_only_once_something_is_saved(menu_app):
@@ -702,10 +798,8 @@ def test_exit_game_ends_the_session(menu_app):
 
 def test_save_and_exit_saves_then_returns_to_the_menu(menu_app):
     """V16.4 steps 1-5."""
-    from apex_horizon.ui.start_menu import NEW_GAME
 
-    menu_app.menu.request = NEW_GAME
-    menu_app._menu_tick(0)
+    _new_game(menu_app, slot="1")
     menu_app.context.engine.run_days(20)
 
     menu_app._prompt_exit()
@@ -719,10 +813,8 @@ def test_save_and_exit_saves_then_returns_to_the_menu(menu_app):
 def test_a_failed_save_keeps_the_player_in_the_game(menu_app, monkeypatch):
     """V16.4 step 6: never pretend a save succeeded."""
     from apex_horizon.engine.save.service import SaveResult
-    from apex_horizon.ui.start_menu import NEW_GAME
 
-    menu_app.menu.request = NEW_GAME
-    menu_app._menu_tick(0)
+    _new_game(menu_app, slot="1")
 
     monkeypatch.setattr(menu_app.saves, "save_to_slot",
                         lambda *a, **k: SaveResult(False, "Saving failed: disk full."))
@@ -825,3 +917,123 @@ def test_notifications_are_drawn_on_the_right(app):
         )
 
     assert lit(right_half) > lit(left_half)
+
+
+def test_clicking_new_game_opens_the_slot_list(menu_app):
+    """The real path: a click, not a request set by hand."""
+    menu_app.menu.draw(menu_app.surface, menu_app.fonts, (0, 0))
+    button = menu_app.menu.buttons[NEW_GAME]
+
+    menu_app.menu.handle_event(click(button.rect.center))
+    menu_app.menu.handle_event(release(button.rect.center))
+
+    assert menu_app.menu.mode == NEW_GAME
+    assert menu_app.menu.take_request() is None, "choosing a slot comes first"
+
+
+def test_clicking_a_slot_asks_for_that_slot(menu_app):
+    menu_app.menu.mode = NEW_GAME
+    menu_app.menu.draw(menu_app.surface, menu_app.fonts, (0, 0))
+    rect, slot, usable = menu_app.menu._slot_rects[2]
+    assert usable
+
+    menu_app.menu.handle_event(click(rect.center))
+
+    assert menu_app.menu.take_request() == (NEW_GAME, slot)
+
+
+def test_the_slot_list_says_which_slots_are_taken(menu_app):
+    """V16.9 in one word, so the player is not choosing blind."""
+    menu_app.saves.save_to_slot(2, "Occupied")
+    menu_app.menu.mode = NEW_GAME
+
+    slots = menu_app.menu._listed_slots()
+
+    assert len(slots) == 5, "every slot is offered, empty or not"
+    assert [info.exists for info in slots] == [False, True, False, False, False]
+
+
+def test_a_save_confirmation_is_not_shown_as_an_error(menu_app):
+    _new_game(menu_app, slot="1")
+    menu_app._prompt_exit()
+    _choose(menu_app, "exit")
+
+    assert menu_app.menu.message
+    assert menu_app.menu.message_ok
+
+
+def test_the_slot_survives_closing_and_reopening_the_game(menu_app):
+    """PM: the association must outlive the process, not just the session."""
+    from apex_horizon.engine.save import SaveStore
+
+    _new_game(menu_app, slot="4", name="Reopened")
+    menu_app.context.engine.run_days(15)
+    menu_app._prompt_exit()
+    _choose(menu_app, "exit")
+    directory = menu_app.saves.store.directory
+
+    # A completely fresh application, as though the game had been restarted.
+    reopened = GameApp(size=(1100, 760), seed=99, start_in_menu=True)
+    try:
+        reopened.saves.store = SaveStore(directory, manual_slots=5)
+        reopened.menu.saves = reopened.saves
+        reopened._load_from_menu("4")
+
+        assert reopened.saves.slot == "4"
+        assert reopened.saves.metadata.name == "Reopened"
+        reopened.saves.record_playtime(reopened.saves.autosave_interval_minutes * 60)
+        assert [i.slot for i in reopened.saves.slots() if i.exists] == ["4"]
+    finally:
+        reopened.shutdown()
+
+
+# -- the Start Menu background ---------------------------------------------
+
+
+def test_the_menu_has_something_behind_it(menu_app):
+    """A drawn backdrop, not the flat fill the page background uses."""
+    from apex_horizon.ui.menu_background import MenuBackground
+
+    surface = pygame.Surface((900, 600))
+    MenuBackground().draw(surface)
+
+    colours = {surface.get_at((x, y))[:3]
+               for x in range(0, 900, 60) for y in range(0, 600, 40)}
+    assert len(colours) > 12, "a flat fill would give one or two"
+
+
+def test_it_is_the_same_city_every_launch(menu_app):
+    """V15.11's determinism, applied to scenery: no different skyline each run."""
+    from apex_horizon.ui.menu_background import MenuBackground
+
+    first, second = pygame.Surface((640, 480)), pygame.Surface((640, 480))
+    MenuBackground().draw(first)
+    MenuBackground().draw(second)
+
+    assert pygame.image.tobytes(first, "RGB") == pygame.image.tobytes(second, "RGB")
+
+
+def test_it_is_drawn_once_and_kept(menu_app):
+    from apex_horizon.ui.menu_background import MenuBackground
+
+    background = MenuBackground()
+    surface = pygame.Surface((640, 480))
+    background.draw(surface)
+    cached = background.surface_for((640, 480))
+
+    background.draw(surface)
+
+    assert background.surface_for((640, 480)) is cached
+    assert background.surface_for((800, 600)) is not cached, "a resize rebuilds it"
+
+
+def test_the_menu_keeps_its_contrast_over_the_background(menu_app):
+    """V27.10: a backdrop that costs the buttons their readability is worse."""
+    menu_app.menu.draw(menu_app.surface, menu_app.fonts, (0, 0))
+    button = menu_app.menu.buttons[NEW_GAME]
+
+    behind = menu_app.surface.get_at((20, 20))[:3]
+    on_button = menu_app.surface.get_at(button.rect.center)[:3]
+
+    assert sum(behind) < 160, "the backdrop stays dark behind light text"
+    assert sum(on_button) - sum(behind) > 200, "the primary button still stands out"

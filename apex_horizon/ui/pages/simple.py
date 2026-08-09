@@ -198,13 +198,13 @@ class InvestmentsPage(Page):
 
 
 def _autosave_line(saves) -> str:
-    """How often the game saves itself, in the time the player measures in."""
+    """How often the game saves itself, and where — both in one sentence."""
+    where = f"Slot {saves.slot}" if saves.slot else "no slot yet"
     minutes = saves.autosave_interval_minutes
     if minutes <= 0:
-        return "Autosaving is turned off."
-    if minutes == int(minutes):
-        return f"Autosaves every {int(minutes)} minutes of play."
-    return f"Autosaves every {minutes:g} minutes of play."
+        return f"This game is saved in {where}. Autosaving is turned off."
+    every = f"{int(minutes)}" if minutes == int(minutes) else f"{minutes:g}"
+    return f"This game is saved in {where}, every {every} minutes of play."
 
 
 class SettingsPage(Page):
@@ -317,11 +317,16 @@ class SettingsPage(Page):
             draw_text(surface, fonts.small, truncate(fonts.small, info.describe(), 240),
                       (rect.left + 110, y), colour)
 
-            if not info.is_autosave:
-                save_button = self._slot_button(info.slot, "save", "Save")
-                save_button.draw(surface, pygame.Rect(rect.right - 150, y - 6, 58, 24),
-                                 fonts, mouse)
-                self._slot_buttons.append((info.slot, "save", save_button))
+            if saves.slot == info.slot:
+                # The slot this game lives in, so the player can see at a glance
+                # where an autosave is going. It sits beside the buttons rather
+                # than beside the name, which has the row's width to itself.
+                draw_text(surface, fonts.tiny, "THIS GAME", (rect.right - 158, y + 2),
+                          theme.ACCENT, align="right")
+            save_button = self._slot_button(info.slot, "save", "Save")
+            save_button.draw(surface, pygame.Rect(rect.right - 150, y - 6, 58, 24),
+                             fonts, mouse)
+            self._slot_buttons.append((info.slot, "save", save_button))
             load_button = self._slot_button(info.slot, "load", "Load")
             load_button.enabled = info.exists
             load_button.draw(surface, pygame.Rect(rect.right - 84, y - 6, 58, 24), fonts, mouse)

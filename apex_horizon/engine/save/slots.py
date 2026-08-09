@@ -1,9 +1,14 @@
 """Save slots on disk.
 
 Design Bible V16.8 gives the player five manual slots, each an entirely separate
-world (V16.12), alongside a single rolling autosave that each new autosave
-replaces (V16.7). V16.9 lists what a slot must show without loading it, which is
+world (V16.12). V16.9 lists what a slot must show without loading it, which is
 why every file carries its own summary.
+
+V16.7 additionally described a *separate* rolling autosave file. The project
+manager removed it (2026-08-09): a save game is bound to one slot for its whole
+life, and autosaving writes to that slot rather than to a sixth entry that shows
+up in the menu looking like a different game. The autosave name survives only so
+a save directory written by an earlier build is still readable.
 
 Files are written atomically — to a temporary name, then moved into place — so
 an interruption mid-write can never destroy the save that already existed. That
@@ -26,6 +31,7 @@ from .format import SaveDocument, SaveMetadata, SaveSummary, decode, encode
 
 logger = get_logger(__name__)
 
+#: The file older builds wrote rolling autosaves to. Nothing writes it now.
 AUTOSAVE_SLOT = "autosave"
 SAVE_SUFFIX = ".ahsave"
 
@@ -43,6 +49,7 @@ class SlotInfo:
 
     @property
     def is_autosave(self) -> bool:
+        """True only for a leftover file from a build that kept one."""
         return self.slot == AUTOSAVE_SLOT
 
     @property
@@ -50,6 +57,13 @@ class SlotInfo:
         if self.is_autosave:
             return "Autosave"
         return f"Slot {self.slot}"
+
+    @property
+    def title(self) -> str:
+        """What to call this save in a list: its name, or the empty slot."""
+        if self.exists and not self.damaged and self.metadata is not None:
+            return self.metadata.name
+        return self.label
 
     def describe(self) -> str:
         if not self.exists:
@@ -75,7 +89,8 @@ class SaveStore:
         return self.directory / f"{name}{SAVE_SUFFIX}"
 
     def slot_names(self) -> list[str]:
-        return [str(index) for index in range(1, self.manual_slots + 1)] + [AUTOSAVE_SLOT]
+        """The slots a player can use. There is no separate autosave slot."""
+        return [str(index) for index in range(1, self.manual_slots + 1)]
 
     # -- reading -----------------------------------------------------------
     def info(self, slot: str | int) -> SlotInfo:

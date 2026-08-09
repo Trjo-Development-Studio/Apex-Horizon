@@ -221,10 +221,11 @@ def test_unreadable_bytes_cannot_be_salvaged():
 # -- slots (V16.7 - V16.9, V16.21, V16.22) --------------------------------
 
 
-def test_there_are_five_manual_slots_and_one_autosave(store):
+def test_there_are_five_slots_and_no_separate_autosave(store):
+    """PM decision: autosaving writes to the game's own slot, not a sixth one."""
     names = store.slot_names()
-    assert names == ["1", "2", "3", "4", "5", "autosave"]
-    assert len(store.list_slots()) == 6
+    assert names == ["1", "2", "3", "4", "5"]
+    assert len(store.list_slots()) == 5
 
 
 def test_an_empty_slot_describes_itself(store):
@@ -395,66 +396,93 @@ def test_the_summary_matches_the_game(game):
 def test_the_game_autosaves_on_real_time(game):
     """PM decision: the interval is the player's own time, not the world's."""
     messages: list[str] = []
+    game.saves.assign_slot(3, "Test Game")
     game.saves.on_autosave.append(messages.append)
     minutes = game.saves.autosave_interval_minutes
     assert minutes > 0
 
     # Time passing in the world alone must not trigger it.
     game.context.engine.run_days(400)
-    assert not game.saves.store.info("autosave").exists
+    assert not game.saves.store.info(3).exists
 
     game.saves.record_playtime(minutes * 60)
-    assert game.saves.store.info("autosave").exists
+    assert game.saves.store.info(3).exists
     assert messages and messages[0] == "Autosaved"
 
 
+def test_the_autosave_goes_to_the_slot_the_player_chose(game):
+    """PM: a save has one slot, and autosaving is a save of that game."""
+    game.saves.assign_slot(4, "Test Game")
+
+    game.saves.record_playtime(game.saves.autosave_interval_minutes * 60)
+
+    assert game.saves.store.info(4).exists
+    others = [info.slot for info in game.saves.slots() if info.exists]
+    assert others == ["4"], "no other slot may appear"
+    assert not (game.saves.store.directory / "autosave.ahsave").exists()
+
+
 def test_the_interval_is_not_reached_early(game):
+    game.saves.assign_slot(1, "Test Game")
+
     game.saves.record_playtime(game.saves.autosave_interval_minutes * 60 - 1)
-    assert not game.saves.store.info("autosave").exists
+
+    assert not game.saves.store.info(1).exists
 
 
-def test_only_one_rolling_autosave_is_kept(game):
+def test_each_autosave_replaces_the_last(game):
     minutes = game.saves.autosave_interval_minutes
+    game.saves.assign_slot(2, "Test Game")
     game.saves.record_playtime(minutes * 60)
-    first = game.saves.store.info("autosave").summary.day
+    first = game.saves.store.info(2).summary.day
+
     game.context.engine.run_days(60)
     game.saves.record_playtime(minutes * 60)
-    second = game.saves.store.info("autosave").summary
+
+    second = game.saves.store.info(2).summary
     # The same file, replaced rather than accumulating.
-    assert len(list(game.saves.store.directory.glob("autosave*"))) == 1
+    assert len(list(game.saves.store.directory.glob("*.ahsave"))) == 1
     assert second.day != first or second.month != 1
+
+
+def test_a_game_with_no_slot_does_not_invent_one(game):
+    game.saves.slot = None
+
+    result = game.saves.autosave()
+
+    assert not result.ok
+    assert not any(info.exists for info in game.saves.slots())
 
 
 def test_a_major_decision_autosaves_first(game):
     # V16.6: the moment before an irreversible decision is preserved.
+    game.saves.assign_slot(5, "Test Game")
+
     result = game.saves.autosave_before("founding a company")
+
     assert result.ok
-    assert game.saves.store.info("autosave").exists
+    assert game.saves.store.info(5).exists
 
 
 def test_autosave_frequency_can_be_changed(game):
     """V16.5: players may change how often the game saves itself."""
+    game.saves.assign_slot(1, "Test Game")
     game.saves.set_autosave_interval(1)
     assert game.saves.autosave_interval_minutes == 1
 
     game.saves.record_playtime(59)
-    assert not game.saves.store.info("autosave").exists
+    assert not game.saves.store.info(1).exists
     game.saves.record_playtime(2)
-    assert game.saves.store.info("autosave").exists
+    assert game.saves.store.info(1).exists
 
 
 def test_autosaving_can_be_turned_off(game):
+    game.saves.assign_slot(1, "Test Game")
     game.saves.set_autosave_interval(0)
 
     game.saves.record_playtime(60 * 60)
 
-    assert not game.saves.store.info("autosave").exists
-
-
-def test_autosaving_can_be_switched_off(game):
-    game.saves.set_autosave_interval(0)
-    game.context.engine.run_days(120)
-    assert not game.saves.store.info("autosave").exists
+    assert not game.saves.store.info(1).exists
 
 
 # -- failure handling (V16.4) ---------------------------------------------
