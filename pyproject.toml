@@ -28,6 +28,14 @@ dev = [
     "ruff>=0.6",
 ]
 
+[tool.pyright]
+# Editors run a type checker over the project, and it has to look in the same
+# place the game does or every pygame import is reported as missing.
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "standard"
+pythonVersion = "3.11"
+
 [tool.ruff]
 # Pinned explicitly so a future Ruff release cannot change the enabled rule set
 # underneath CI (Design Bible V19.11: warnings should not accumulate).

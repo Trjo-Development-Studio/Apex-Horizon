@@ -4,9 +4,69 @@
 investment simulation game where you start as a small private investor and grow
 into one of the world's largest financial empires.
 
-> **Status: in development.** This repository currently contains project
-> scaffolding only — no gameplay code yet. The game is being rebuilt from the
-> ground up against **Design Bible 2.0**.
+> **Status: 0.1, playable.** Every system in the planned roadmap is built and
+> covered by tests. Balance is still being tuned, and a few figures are
+> deliberately left for the project manager to set — see
+> [Known gaps](#known-gaps).
+
+## Playing
+
+```bash
+uv sync                 # install dependencies
+uv run python main.py   # play
+```
+
+The game opens on a Start Menu. A new game begins with **$10,000 and no
+company**: you are an individual investor, and buying your first shares is how
+you earn the $25,000 a company costs to found. Remaining an investor forever is
+a legitimate way to play.
+
+The simulation runs one in-game day per real second, adjustable to ×2 or ×3, and
+pauses whenever a decision is open.
+
+### The shape of a playthrough
+
+    Individual investor  →  build personal wealth  →  unlock Create Company
+                         →  found a company  →  hire, invest, grow
+                         →  acquire companies  →  manage funds for others
+
+## What is in the game
+
+| System | What it does |
+|---|---|
+| **Market** | A living market of listed companies whose prices move on performance, industry, the economy, news, sentiment, supply and demand — never at random, and always explainable |
+| **Economy** | Multi-year cycles of growth, slowdown, recession and recovery, with inflation and lending conditions that follow |
+| **Portfolio** | Your own holdings, bought with your own money, kept entirely separate from any company's |
+| **Company** | Found one, hire people, pay them, watch reputation and cash; it can go bankrupt, and you can start again |
+| **Employees** | Individuals with skills, departments, hidden characteristics, training, pay and morale — they run the investment operation, you run them |
+| **Investments** | Research finds an opportunity, management approves it, an investor executes it, and eventually sells it |
+| **Unlock Tree** | 32 unlocks across seven branches; every one changes something |
+| **News** | Generated from what actually happened, with bylines from the world's own press |
+| **Analytics & Statistics** | Five reporting views, plus permanent lifetime records that survive bankruptcy |
+| **AI companies** | Twelve rival investment firms playing by exactly the same rules, hiring, investing and acquiring |
+| **Acquisitions** | Buy a company outright; it keeps operating in its own industry and pays its parent |
+| **Investment Funds** | Manage capital for outside investors, whose confidence follows your record |
+| **Saving** | Five slots plus a rolling autosave, validated, repaired and migrated; a reloaded world continues identically |
+
+## Design Bible
+
+`docs/Apex Horizon 2.0 - Design Bible (Definitive Edition).pdf` is the source of
+truth for all gameplay. By project-manager decision it is kept in `docs/`
+locally but **not committed** (see `.gitignore`), so you will need your own copy
+to work on the game.
+
+Where the implementation departs from it, or where it was silent and a decision
+had to be made, that is recorded in
+[`docs/design-decisions.md`](docs/design-decisions.md) rather than left in the
+code.
+
+## Technical documentation
+
+One document per major system, in [`docs/`](docs/README.md) — architecture, data
+standards, the simulation clock, the world database, market, economy, company
+and finances, employees, investments, news and analytics, acquisitions,
+investment funds, AI companies, the save system, the interface, statistics and
+tooling.
 
 ## Relationship to the legacy version
 
@@ -15,42 +75,57 @@ The original prototype lives on as a separate, preserved project:
 > **Legacy version:** https://github.com/Trjo3012/Apex-Horizon-Legacy
 
 The legacy build is complete and playable, and is kept for reference. This
-repository is not a continuation of its codebase — it is a clean rebuild. Ideas
-and lessons carry over; code does not, unless deliberately ported.
-
-## Planned scope
-
-Apex Horizon is built around five pillars:
-
-- **Investing** — buying and selling shares, building a diversified portfolio, dividends, market trends, risk.
-- **Company Management** — founding and growing an investment company, hiring, salaries, efficiency, expansion.
-- **Progression** — unlocking new systems over time through a research tree.
-- **Analytics** — portfolio performance, company growth, charts, and historical data.
-- **Expansion** — acquiring companies, subsidiaries, passive income, a global financial empire.
-
-The game favours long-term progression and strategy over fast-paced play:
-simple to learn, difficult to master.
+repository is not a continuation of its codebase — it is a clean rebuild against
+Design Bible 2.0. Ideas and lessons carry over; code does not.
 
 ## Development
 
 The project uses [UV](https://docs.astral.sh/uv/) as its package and environment
-manager.
+manager, with Python and [pygame-ce](https://pyga.me/). Dependencies are kept
+minimal by design and none may be added without approval.
 
 ```bash
-uv sync --group dev     # install dev tooling (ruff, pytest)
-uv run ruff check .     # lint
-uv run pytest -q        # tests
+uv sync --group dev                                              # dev tooling
+uv run ruff check .                                              # lint
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run pytest -q     # 601 tests
 ```
 
-Runtime dependencies are intentionally not pinned yet — they will be added once
-Design Bible 2.0 settles the technical stack.
+Run all three before committing — they are exactly what CI runs.
+
+### Developer console
+
+Launch the game from a terminal and type commands into it while it runs:
+
+```
+> status                 # where the game currently stands
+> money 50000            # give the player cash
+> days 30                # advance time
+> unlock all             # grant every unlock
+> event up 5             # move every price
+> help                   # the full list
+```
+
+The console is inert when there is no terminal attached, so it never interferes
+with tests or CI.
+
+### Balance
+
+Every tunable value lives in [`config/gameplay.toml`](config/gameplay.toml), each
+citing the Design Bible section it comes from, so balance can be changed without
+touching simulation logic.
+
+## Known gaps
+
+- **Growth curve** — the target numbers for how fast a company should grow are a
+  project-manager decision and have not been set.
+- **Visual pass** — the Dashboard and a company's page have had the charts,
+  meters and status indicators V14.3 asks for; the Market and Analytics screens
+  have not yet had the same treatment.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs lint and tests on every push to `main`, on pull
-requests, and via manual dispatch. The lint and test steps activate
-automatically as soon as Python code and a `tests/` suite exist, so the scaffold
-stays green in the meantime.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs lint and tests on
+every push to `main`, on pull requests, and via manual dispatch.
 
 ## License
 

@@ -431,6 +431,11 @@ price_history_days = 730
 delisting_price_floor = 0.5
 delisting_grace_days = 28
 new_listing_weekly_chance = 0.28
+# Days a top gainer or loser is measured over. One in-game day passes every
+# real second, so a daily figure changes about once a second - correct, but it
+# reads as random because nothing stays on screen long enough to be checked.
+# A week is long enough to mean something and short enough to keep moving.
+top_mover_period_days = 7
 max_listings = 90
 
 [economy]

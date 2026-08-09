@@ -32,6 +32,7 @@ def build(seed: int = 7, *, hires: int = 2, capital: int = 120_000, skill: int |
     player = Player("Owner", cash=Money(capital + 30_000), allocator=allocator)
     player.unlocks.unlock(CREATE_COMPANY)
     company, _ = player.found_company("Meridian Capital", 1)
+    assert company is not None, "the builder must produce a company"
     company.employees.training_allowed = True
     player.transfer_to_company(Money(capital), 1)
     investments = company.attach_market(market, allocator)
@@ -52,6 +53,19 @@ def build(seed: int = 7, *, hires: int = 2, capital: int = 120_000, skill: int |
             employee.skills = dict.fromkeys(employee.skills, skill)
             employee.happiness = 0.85
     return company, investments, market, engine
+
+
+def system_of(company):
+    """The company's investment operation, created with its market."""
+    assert company.investments is not None
+    return company.investments
+
+
+def _listing(market, company_id):
+    """A listing the test just used, insisted upon rather than assumed."""
+    listing = market.listing_for(company_id)
+    assert listing is not None
+    return listing
 
 
 # -- the workflow runs end to end (V8.3) ----------------------------------
@@ -220,7 +234,7 @@ def test_skilled_research_selects_better_companies():
     _, investments, market, engine = build(hires=3, capital=200_000, skill=40)
     engine.run_days(336 * 3)
     picked = [
-        market.listing_for(p.company_id).performance
+        _listing(market, p.company_id).performance
         for p in investments.closed
         if market.listing_for(p.company_id)
     ]

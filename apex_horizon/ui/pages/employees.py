@@ -28,8 +28,8 @@ class EmployeesPage(Page):
     """The company's staff, and the people applying to join (V5.14, V18.19)."""
 
     key = "company:employees"
-    title = "Employee Management"
-    subtitle = "Your staff and the candidates available to you"
+    TITLE = "Employee Management"
+    SUBTITLE = "Your staff and the candidates available to you"
 
     def __init__(self, context):
         super().__init__(context)
@@ -98,7 +98,7 @@ class EmployeesPage(Page):
 
     # -- interaction -------------------------------------------------------
     def handle_event(self, event) -> bool:
-        if self.search.handle_event(event):
+        if self.search is not None and self.search.handle_event(event):
             self.table.page = 0
             return True
         if self.table.handle_event(event):
@@ -135,7 +135,7 @@ class EmployeesPage(Page):
 
         table_height = min(rect.height - 220, 400)
         self.table.draw(surface, pygame.Rect(rect.left, rect.top, rect.width, table_height),
-                        fonts, mouse, self.rows(), self.search.text)
+                        fonts, mouse, self.rows(), self.search.text if self.search else "")
         self._draw_applicants(surface,
                               pygame.Rect(rect.left, rect.top + table_height + theme.GAP,
                                           rect.width, 190),

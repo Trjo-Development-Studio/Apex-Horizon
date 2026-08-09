@@ -111,7 +111,7 @@ def test_invalid_days_are_rejected():
     with pytest.raises(ValueError):
         SimulationDate(0)
     with pytest.raises(TypeError):
-        SimulationDate("5")
+        SimulationDate("5")  # type: ignore[arg-type]  # deliberately wrong
     with pytest.raises(TypeError):
         SimulationDate(True)
 

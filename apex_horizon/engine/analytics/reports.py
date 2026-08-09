@@ -162,8 +162,10 @@ class AnalyticsService:
         report.add("Index", f"{market.market_index():,.0f}",
                    f"{len(market.active_listings())} companies listed")
 
-        if self._has(AnalyticsTier.DETAILED) and market.industry_trends:
-            trends = market.industry_trends
+        # Bound before either branch: the Complete block below reads it too, and
+        # would raise if the trends were ever empty when it ran.
+        trends = market.industry_trends
+        if self._has(AnalyticsTier.DETAILED) and trends:
             strongest = max(trends, key=lambda industry: trends[industry])
             weakest = min(trends, key=lambda industry: trends[industry])
             report.add("Strongest industry", strongest.value,

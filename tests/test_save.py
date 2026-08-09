@@ -160,6 +160,7 @@ def test_migration_upgrades_an_older_save(monkeypatch):
     document.metadata.save_format_version = 0
     outcome = read_save(encode(document))
     assert outcome.ok
+    assert outcome.document is not None
     assert outcome.document.state["migrated"] is True
     assert outcome.document.metadata.save_format_version == SAVE_FORMAT_VERSION
 
@@ -196,6 +197,7 @@ def test_a_damaged_save_can_be_loaded_on_request():
     outcome = read_save(_with_broken_checksum(), allow_damaged=True)
     assert outcome.ok
     assert "damaged" in outcome.describe()
+    assert outcome.document is not None
     assert outcome.document.metadata.name == "Meridian Capital"
 
 
@@ -453,10 +455,17 @@ def test_loading_a_missing_slot_is_reported(game):
 
 
 def test_save_and_exit_leaves_only_when_the_save_succeeds(game):
+    """V16.4 step 5: on success the player returns to the Main Menu.
+
+    Leaving a session is not leaving the program, so the application keeps
+    running — it is showing the menu rather than a world.
+    """
     game._prompt_exit()
     game.popups.current.chosen = "exit"
     game.popups.handle_event(_dummy_event())
-    assert game.running is False
+
+    assert game.in_menu is True
+    assert game.running is True
     assert game.saves.store.info("1").exists
 
 
@@ -466,8 +475,10 @@ def test_save_and_exit_keeps_playing_when_saving_fails(game, monkeypatch):
     game._prompt_exit()
     game.popups.current.chosen = "exit"
     game.popups.handle_event(_dummy_event())
-    # V16.4: a failed save returns the player to the running game.
+    # V16.4 step 6: a failed save returns the player to the running game, so
+    # another attempt can be made rather than the session being lost.
     assert game.running is True
+    assert game.in_menu is False
     assert game.popups.is_open
 
 

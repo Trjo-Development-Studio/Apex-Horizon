@@ -13,6 +13,8 @@ they still have enough personal wealth.
 
 from __future__ import annotations
 
+from typing import Any
+
 from ..config import Config, get_config
 from ..logging_setup import get_logger
 from ..portfolio import PersonalPortfolio
@@ -187,7 +189,7 @@ class Player:
         """The only game-ending condition (V1.13)."""
         return self.cash <= self.bankruptcy_threshold
 
-    def summary(self) -> dict[str, object]:
+    def summary(self) -> dict[str, Any]:
         return {
             "Name": self.name,
             "Personal Cash": self.cash,

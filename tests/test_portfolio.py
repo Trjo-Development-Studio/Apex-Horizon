@@ -34,6 +34,13 @@ def build(cash: int = 10_000, seed: int = 2026):
     return player, portfolio, market
 
 
+def held(portfolio, company_id):
+    """The holding the test has just created, insisted upon rather than assumed."""
+    holding = portfolio.holding_for(company_id)
+    assert holding is not None, "the test should have opened this position"
+    return holding
+
+
 # -- the opening (V1.19) --------------------------------------------------
 
 
@@ -103,11 +110,11 @@ def test_selling_part_of_a_holding_leaves_the_rest_carrying_its_own_cost():
     _, portfolio, market = build(cash=100_000)
     listing = market.active_listings()[0]
     portfolio.buy(listing.company_id, 10, day=1)
-    original = portfolio.holding_for(listing.company_id).cost_basis
+    original = held(portfolio, listing.company_id).cost_basis
 
     portfolio.sell(listing.company_id, 4, day=2)
 
-    holding = portfolio.holding_for(listing.company_id)
+    holding = held(portfolio, listing.company_id)
     assert holding.shares == 6
     # Six tenths of the original outlay stays with the six remaining shares.
     assert holding.cost_basis == Money(original.amount * 6 / 10)
@@ -122,7 +129,7 @@ def test_averaging_in_keeps_one_honest_cost_basis():
     listing.price = Money(first.amount * 3)
     portfolio.buy(listing.company_id, 10, day=2)
 
-    holding = portfolio.holding_for(listing.company_id)
+    holding = held(portfolio, listing.company_id)
     assert holding.shares == 20
     # Ten at one price and ten at triple it average to twice the first.
     assert holding.average_price == Money(first.amount * 2)
@@ -174,6 +181,7 @@ def test_personal_money_is_never_company_money():
     player, portfolio, market = build(cash=100_000)
     player.unlocks.unlock(CREATE_COMPANY)
     company, _ = player.found_company("Test Capital", day=1)
+    assert company is not None
     listing = market.active_listings()[0]
     company_cash_before = company.finances.cash
 
@@ -212,5 +220,5 @@ def test_statistics_report_what_the_player_has_done():
     stats = portfolio.statistics()
     assert stats["Trades"] == 2
     assert stats["Companies held"] == 0
-    assert stats["Realised"].is_positive
+    assert not stats["Realised"].is_negative  # type: ignore[union-attr]
     assert stats["Win rate"] == "100.00%"

@@ -28,6 +28,7 @@ def test_configure_logging_writes_to_file(tmp_path):
 
     get_logger("apex_horizon.test").error("example failure")
     logging.getLogger().handlers[-1].flush()
+    assert log_path is not None
     assert "example failure" in log_path.read_text(encoding="utf-8")
 
 

@@ -253,6 +253,7 @@ def test_history_is_bounded_so_saves_cannot_grow_without_limit():
     market, engine = build_market()
     listing = next(iter(market.listings.values()))
     cap = listing.history.maxlen
+    assert cap is not None
     engine.run_days(cap + 100)
     assert len(listing.history) == cap
 
@@ -510,7 +511,9 @@ def test_a_tie_is_broken_deterministically():
     for listing in tied:
         _fix_change(listing, "0.05")
 
-    answers = {market.top_gainer().company_id for _ in range(20)}
+    picks = [market.top_gainer() for _ in range(20)]
+    assert all(pick is not None for pick in picks)
+    answers = {pick.company_id for pick in picks if pick}
     assert len(answers) == 1
     # And it is a company that genuinely tied for the lead.
     assert answers.pop() in {listing.company_id for listing in tied}
@@ -530,4 +533,71 @@ def test_top_movers_never_consults_the_random_generator(monkeypatch):
     monkeypatch.setattr(engine.rng, "shuffle", explode)
 
     assert market.top_gainer() is not None
-    assert market.top_movers(3)
+    gainers, losers = market.top_movers(3)
+    assert len(gainers) == 3 and len(losers) == 3
+
+
+def test_top_movers_are_measured_over_the_configured_period():
+    """V4.15: a defined period, not whatever happened in the last second."""
+    market, _ = build_market()
+    assert market.top_mover_period > 1
+
+    listing = market.active_listings()[0]
+    period = market.top_mover_period
+
+    # Flat for a day, but a tenth lower than it was a week ago: the period is
+    # what decides, not the last session.
+    listing.history.clear()
+    for _ in range(period + 2):
+        listing.history.append(Money(100))
+    listing.history.append(Money(90))
+    listing.price = Money(90)
+
+    assert listing.daily_change().is_negative
+    assert market.change_over_period(listing) == listing.change_over(period)
+    assert float(market.change_over_period(listing).fraction) == pytest.approx(-0.10)
+
+
+def test_the_top_loser_is_the_largest_actual_fall():
+    market, _ = build_market()
+    listings = market.active_listings()[:4]
+    for other in market.active_listings():
+        _fix_change(other, "0")
+    for listing, change in zip(listings, ("0.021", "0.084", "-0.032", "-0.071"),
+                               strict=True):
+        _fix_change(listing, change)
+
+    assert market.top_gainer() is listings[1], "+8.4% wins"
+    assert market.top_loser() is listings[3], "-7.1% loses"
+
+
+def test_a_market_where_nothing_fell_has_no_top_loser():
+    market, _ = build_market()
+    for listing in market.active_listings():
+        _fix_change(listing, "0.02")
+
+    assert market.top_loser() is None
+
+
+def test_company_order_never_changes():
+    """A company holds its place however the market moves."""
+    market, engine = build_market()
+    before = [listing.company_id for listing in market.active_listings()]
+
+    engine.run_days(200)
+
+    after = [listing.company_id for listing in market.active_listings()]
+    assert after[: len(before)] == [c for c in before if c in set(after)][: len(before)]
+    # And repeated reads never differ.
+    assert [listing.company_id for listing in market.active_listings()] == after
+
+
+def test_company_order_survives_a_reload():
+    market, engine = build_market()
+    engine.run_days(120)
+    before = [listing.company_id for listing in market.active_listings()]
+
+    restored = MarketSystem(market.world)
+    restored.restore(market.state())
+
+    assert [listing.company_id for listing in restored.active_listings()] == before

@@ -28,8 +28,8 @@ class SubsidiariesPage(Page):
     """Every company the player's company owns (V12.9)."""
 
     key = "company:subsidiaries"
-    title = "Subsidiaries"
-    subtitle = "The companies your company owns outright"
+    TITLE = "Subsidiaries"
+    SUBTITLE = "The companies your company owns outright"
 
     def __init__(self, context):
         super().__init__(context)

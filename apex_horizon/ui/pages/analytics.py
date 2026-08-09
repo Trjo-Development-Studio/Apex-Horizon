@@ -27,8 +27,8 @@ class AnalyticsPage(Page):
     """The five analytics views V9 asks for, side by side."""
 
     key = "analytics"
-    title = "Analytics"
-    subtitle = "What the numbers say about your position"
+    TITLE = "Analytics"
+    SUBTITLE = "What the numbers say about your position"
 
     @property
     def analytics(self):

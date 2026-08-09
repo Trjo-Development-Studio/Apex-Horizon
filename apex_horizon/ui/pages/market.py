@@ -34,8 +34,8 @@ class MarketPage(Page):
     """Every listed company (V4.3, V4.15)."""
 
     key = "market"
-    title = "Market"
-    subtitle = "Every listed company in the world"
+    TITLE = "Market"
+    SUBTITLE = "Every listed company in the world"
 
     def __init__(self, context):
         super().__init__(context)
@@ -54,8 +54,12 @@ class MarketPage(Page):
             search_key="name",
             # Sorted by size on arrival: the largest companies are the ones a
             # player is most likely to be looking for first.
-            sort_key="cap",
-            sort_descending=True,
+            # No sort by default: the list keeps the order the world generated
+            # the companies in, so a company stays where the player last saw it
+            # rather than moving every time a price ticks. Sorting is applied
+            # only when the player asks for it by clicking a column (V27.3).
+            sort_key=None,
+            sort_descending=False,
         )
         self.selected_company_id: str | None = None
 
@@ -84,7 +88,7 @@ class MarketPage(Page):
         market, economy = self.context.market, self.context.economy
         if market is None:
             return []
-        _, losers = market.top_movers(1)
+        period = market.top_mover_period
         mood = "Bull market" if market.is_bull_market() else (
             "Bear market" if market.is_bear_market() else "Steady"
         )
@@ -98,23 +102,32 @@ class MarketPage(Page):
         best = market.top_gainer()
         if best is not None:
             company = self.context.world.company_by_id(best.company_id)
-            cards.append(Card("Top gainer", company.name if company else "—",
-                              best.daily_change().format(signed=True),
-                              accent=theme.POSITIVE, trend=True))
+            cards.append(Card(
+                "Top gainer", company.name if company else "—",
+                f"{market.change_over_period(best).format(signed=True)} "
+                f"over {period} days",
+                accent=theme.POSITIVE, trend=True))
         elif market.active_listings():
-            cards.append(Card("Top gainer", "None today",
-                              "Every company fell or held"))
-        if losers and losers[0].daily_change().is_negative:
-            company = self.context.world.company_by_id(losers[0].company_id)
-            cards.append(Card("Top faller", company.name if company else "—",
-                              losers[0].daily_change().format(signed=True),
-                              accent=theme.NEGATIVE, trend=False))
+            cards.append(Card("Top gainer", "None",
+                              f"Nothing rose over {period} days"))
+
+        worst = market.top_loser()
+        if worst is not None:
+            company = self.context.world.company_by_id(worst.company_id)
+            cards.append(Card(
+                "Top loser", company.name if company else "—",
+                f"{market.change_over_period(worst).format(signed=True)} "
+                f"over {period} days",
+                accent=theme.NEGATIVE, trend=False))
+        elif market.active_listings():
+            cards.append(Card("Top loser", "None",
+                              f"Nothing fell over {period} days"))
         if economy is not None and len(cards) < 4:
             cards.append(Card("Economy", str(economy.state), economy.describe()))
         return cards
 
     def handle_event(self, event) -> bool:
-        if self.search.handle_event(event):
+        if self.search is not None and self.search.handle_event(event):
             self.table.page = 0
             return True
         if self.table.handle_event(event):
@@ -126,7 +139,7 @@ class MarketPage(Page):
         return False
 
     def draw_content(self, surface, rect, fonts, mouse) -> None:
-        self.table.draw(surface, rect, fonts, mouse, self.rows(), self.search.text)
+        self.table.draw(surface, rect, fonts, mouse, self.rows(), self.search.text if self.search else "")
 
 
 #: Tall enough for all seven causes V4.4 lists, so none is cut off.

@@ -41,6 +41,8 @@ OVERLAY = (8, 9, 12)
 
 # -- metrics ----------------------------------------------------------------
 SIDEBAR_WIDTH = 68
+#: Width once the player expands it to show the names beside the icons.
+SIDEBAR_EXPANDED = 208
 TOPBAR_HEIGHT = 56
 PAGE_PADDING = 28
 CARD_HEIGHT = 84
@@ -49,7 +51,8 @@ HEADER_ROW_HEIGHT = 34
 CORNER = 6
 GAP = 16
 
-# Notifications live in the lower-left corner (V14.16, V27.7).
+# Notifications live in the lower-right corner (V14.16, V27.7), clear of the
+# sidebar, which has to stay usable while a message is showing.
 NOTIFICATION_WIDTH = 340
 NOTIFICATION_HEIGHT = 56
 NOTIFICATION_GAP = 8
@@ -115,4 +118,8 @@ def value_colour(is_positive: bool | None) -> tuple[int, int, int]:
 def mix(a: tuple[int, int, int], b: tuple[int, int, int], t: float) -> tuple[int, int, int]:
     """Blend two colours; ``t`` of 0 gives ``a`` and 1 gives ``b``."""
     t = max(0.0, min(1.0, t))
-    return tuple(round(a[i] + (b[i] - a[i]) * t) for i in range(3))
+    return (
+        round(a[0] + (b[0] - a[0]) * t),
+        round(a[1] + (b[1] - a[1]) * t),
+        round(a[2] + (b[2] - a[2]) * t),
+    )

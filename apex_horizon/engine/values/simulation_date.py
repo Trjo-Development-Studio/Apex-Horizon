@@ -14,6 +14,7 @@ deliberately separate from this counter, per V30.5; see :mod:`.timestamps`.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, overload
 
 from ..config import Config, get_config
 
@@ -100,6 +101,12 @@ class SimulationDate:
         if not isinstance(days, int) or isinstance(days, bool):
             return NotImplemented
         return self.advanced(days)
+
+    if TYPE_CHECKING:
+        @overload
+        def __sub__(self, other: SimulationDate) -> int: ...
+        @overload
+        def __sub__(self, other: int) -> SimulationDate: ...
 
     def __sub__(self, other: SimulationDate | int) -> SimulationDate | int:
         """Subtracting a date gives elapsed days; subtracting an int gives a date."""

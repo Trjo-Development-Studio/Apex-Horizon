@@ -194,9 +194,10 @@ class Employee:
     @property
     def current_task(self) -> str:
         """What this employee is doing now (V5.15)."""
-        if self.is_training:
-            return f"Training in {self.training.department} " \
-                   f"({self.training.days_remaining} days left)"
+        training = self.training
+        if training is not None and training.days_remaining > 0:
+            return f"Training in {training.department} " \
+                   f"({training.days_remaining} days left)"
         return TASK_BY_DEPARTMENT[self.primary]
 
     @property

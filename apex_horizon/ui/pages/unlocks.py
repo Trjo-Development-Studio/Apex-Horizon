@@ -74,8 +74,8 @@ class UnlockTreePage(Page):
     """The player's map of their own future (V6.14)."""
 
     key = "unlocks"
-    title = "Unlock Tree"
-    subtitle = "Everything your company can become"
+    TITLE = "Unlock Tree"
+    SUBTITLE = "Everything your company can become"
 
     def __init__(self, context):
         super().__init__(context)

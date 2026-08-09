@@ -53,6 +53,7 @@ from .pages import (
     UnlockTreePage,
 )
 from .popups import Popup, PopupAction, PopupManager, PromptPopup
+from .start_menu import EXIT, LOAD_GAME, NEW_GAME, SETTINGS, StartMenu
 from .widgets import draw_text
 
 logger = get_logger(__name__)
@@ -69,7 +70,8 @@ SPEED_KEYS = {pygame.K_1: 1, pygame.K_2: 2, pygame.K_3: 3}
 class GameApp:
     """The Apex Horizon application."""
 
-    def __init__(self, size: tuple[int, int] = WINDOW_SIZE, *, seed: int | None = None):
+    def __init__(self, size: tuple[int, int] = WINDOW_SIZE, *, seed: int | None = None,
+                 start_in_menu: bool = False):
         pygame.init()
         pygame.display.set_caption(WINDOW_TITLE)
         self.surface = pygame.display.set_mode(size, pygame.RESIZABLE)
@@ -119,6 +121,12 @@ class GameApp:
         self.current_slot: str = "1"
 
         subscribe_error_notifier(self._on_engine_error)
+
+        # V16.4 returns the player to a Main Menu on leaving, so there has to be
+        # one. The game opens on it; a directly constructed application starts
+        # in play, which is what every test wants.
+        self.menu = StartMenu(self.saves)
+        self.in_menu = start_in_menu
 
         # Developer commands from the launching terminal (V15.18). Inert when
         # there is no terminal to read, which is every test and CI run.
@@ -188,7 +196,8 @@ class GameApp:
         # callbacks systems already expose, so none of them knows it exists.
         self.context.statistics = LifetimeStatistics()
         player.unlocks.on_unlocked.append(self.context.statistics.record_unlock)
-        player.portfolio.on_trade.append(self.context.statistics.record_trade)
+        if player.portfolio is not None:
+            player.portfolio.on_trade.append(self.context.statistics.record_trade)
 
         # Tell the player when the economy turns; news proper arrives later.
         engine.register_boundary(PeriodBoundary.MONTH, self._announce_economy)
@@ -595,8 +604,10 @@ class GameApp:
         """Buy an unlock with personal cash (V6.2)."""
         player = self.context.player
         tree = self.context.unlocks
+        if tree is None:
+            return
         unlock = tree.by_key.get(key)
-        if tree is None or unlock is None:
+        if unlock is None:
             return
         allowed, reason = tree.can_purchase(key, player.cash)
         if not allowed:
@@ -736,7 +747,7 @@ class GameApp:
                 name=self.context.company.name if self.context.company else "Apex Horizon",
             )
             if result.ok:
-                self.running = False
+                self._return_to_menu(f"Saved to {self.saves.store.info(self.current_slot).label}.")
             else:
                 self.popups.open(Popup(
                     title="Saving failed",
@@ -746,8 +757,90 @@ class GameApp:
 
         self.popups.open(popup, on_choice)
 
+    # -- the start menu (V16.4) --------------------------------------------
+    def _return_to_menu(self, message: str = "") -> None:
+        """Leave the session for the Main Menu, having saved (V16.4 step 5)."""
+        self.in_menu = True
+        self.menu.showing_loads = False
+        self.menu.message = message
+        self.notifications.items.clear()
+        logger.info("Returned to the Main Menu.")
+
+    def _menu_tick(self, now_ms: int) -> None:
+        """One frame of the Main Menu: no simulation runs while it is open."""
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+                return
+            if event.type == pygame.VIDEORESIZE:
+                width = max(event.w, MINIMUM_SIZE[0])
+                height = max(event.h, MINIMUM_SIZE[1])
+                self.surface = pygame.display.set_mode((width, height), pygame.RESIZABLE)
+                continue
+            self.menu.handle_event(event)
+
+        request = self.menu.take_request()
+        if request == NEW_GAME:
+            self._start_new_game()
+        elif request == SETTINGS:
+            self.in_menu = False
+            self.navigate("settings")
+        elif request == EXIT:
+            self.running = False
+        elif isinstance(request, tuple) and request[0] == LOAD_GAME:
+            self._load_from_menu(request[1])
+
+        self.menu.draw(self.surface, self.fonts, pygame.mouse.get_pos())
+        self.popups.draw(self.surface, self.fonts, pygame.mouse.get_pos())
+        pygame.display.flip()
+
+    def _start_new_game(self) -> None:
+        """Begin a fresh world (V16.4: the menu leads back into gameplay)."""
+        import secrets
+
+        self._build_world(secrets.randbelow(2**31))
+        self.saves = SaveService(self.context)
+        self.saves.register(self.context.engine)
+        self.saves.on_autosave = [self._on_autosave]
+        self.context.saves = self.saves
+        self.menu.saves = self.saves
+        self.effects = UnlockEffects(self.context.player.unlocks)
+        self.effects.apply(self.context)
+        self.context.statistics = LifetimeStatistics()
+        self.context.player.unlocks.on_unlocked.append(
+            self.context.statistics.record_unlock)
+        if self.context.player.portfolio is not None:
+            self.context.player.portfolio.on_trade.append(
+                self.context.statistics.record_trade)
+        for page in self.pages.values():
+            page.context = self.context
+        self.console.context = self.context
+        self.in_menu = False
+        self.menu.message = ""
+        self.navigate("dashboard")
+        self.notifications.push("A new game has begun.", pygame.time.get_ticks())
+
+    def _load_from_menu(self, slot: str) -> None:
+        """Open a saved game from the menu, reporting honestly if it fails."""
+        outcome = self.saves.load_from_slot(slot)
+        if outcome.ok:
+            self._rebind_after_load()
+            self.current_slot = slot
+            self.in_menu = False
+            self.menu.message = ""
+            self.notifications.push(f"Loaded {self.saves.store.info(slot).label}.",
+                                    pygame.time.get_ticks())
+            return
+        # V16.13-16.14: an unreadable save is reported, never silently opened.
+        self.menu.message = outcome.describe()
+        self.menu.showing_loads = False
+
     # -- frame -------------------------------------------------------------
     def tick(self) -> None:
+        if self.in_menu:
+            self.clock.tick(TARGET_FPS)
+            self._menu_tick(pygame.time.get_ticks())
+            return
         delta_ms = self.clock.tick(TARGET_FPS)
         now = pygame.time.get_ticks()
         self.handle_events()
@@ -774,13 +867,16 @@ class GameApp:
         self.surface.fill(theme.BACKGROUND)
 
         self.sidebar.active = self.current_key.split(":")[0]
-        self.sidebar.draw(self.surface, self.fonts, mouse)
-        self._draw_topbar(mouse)
+        self.sidebar.draw(self.surface, self.fonts, mouse, now_ms)
+        # The page gives way to the sidebar rather than being covered by it, so
+        # expanding never hides what the player was reading.
+        sidebar_width = self.sidebar.width(now_ms)
+        self._draw_topbar(mouse, sidebar_width)
 
         content = pygame.Rect(
-            theme.SIDEBAR_WIDTH + theme.PAGE_PADDING,
+            sidebar_width + theme.PAGE_PADDING,
             theme.TOPBAR_HEIGHT + theme.PAGE_PADDING - 8,
-            self.surface.get_width() - theme.SIDEBAR_WIDTH - theme.PAGE_PADDING * 2,
+            self.surface.get_width() - sidebar_width - theme.PAGE_PADDING * 2,
             self.surface.get_height() - theme.TOPBAR_HEIGHT - theme.PAGE_PADDING,
         )
         self.page.draw(self.surface, content, self.fonts, mouse, self.breadcrumb)
@@ -793,9 +889,9 @@ class GameApp:
         self.popups.draw(self.surface, self.fonts, mouse)
         pygame.display.flip()
 
-    def _draw_topbar(self, mouse) -> None:
-        rect = pygame.Rect(theme.SIDEBAR_WIDTH, 0,
-                           self.surface.get_width() - theme.SIDEBAR_WIDTH, theme.TOPBAR_HEIGHT)
+    def _draw_topbar(self, mouse, sidebar_width: int = theme.SIDEBAR_WIDTH) -> None:
+        rect = pygame.Rect(sidebar_width, 0,
+                           self.surface.get_width() - sidebar_width, theme.TOPBAR_HEIGHT)
         pygame.draw.rect(self.surface, theme.SURFACE, rect)
         pygame.draw.line(self.surface, theme.BORDER,
                          (rect.left, rect.bottom), (rect.right, rect.bottom))
@@ -821,10 +917,11 @@ class GameApp:
     # -- lifecycle ---------------------------------------------------------
     def run(self) -> None:
         logger.info("Apex Horizon %s starting.", __version__)
-        self.notifications.push(
-            "Welcome to Apex Horizon. Found a company from the Company page.",
-            pygame.time.get_ticks(),
-        )
+        if not self.in_menu:
+            self.notifications.push(
+                "Welcome to Apex Horizon. Found a company from the Company page.",
+                pygame.time.get_ticks(),
+            )
         while self.running:
             self.tick()
         self.shutdown()
@@ -836,7 +933,8 @@ class GameApp:
 
 
 def run_game() -> None:
-    GameApp().run()
+    """Launch the game, which opens on the Main Menu (V16.4)."""
+    GameApp(start_in_menu=True).run()
 
 
 # Keeps the sidebar destinations discoverable from the application module.

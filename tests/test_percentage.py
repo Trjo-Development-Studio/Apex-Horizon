@@ -35,7 +35,7 @@ def test_arithmetic():
 
 def test_adding_non_percentage_is_rejected():
     with pytest.raises(TypeError):
-        Percentage.from_percent(5) + 1
+        Percentage.from_percent(5) + 1  # type: ignore  # deliberately wrong
 
 
 def test_applied_to_and_scale_factor():

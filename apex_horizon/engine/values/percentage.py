@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
+from typing import TYPE_CHECKING
 
 from .money import Numeric, to_decimal
 
@@ -25,6 +26,12 @@ class Percentage:
     """An immutable percentage stored as a fraction (5% is stored as 0.05)."""
 
     fraction: Decimal = Decimal(0)
+
+    if TYPE_CHECKING:
+        # As with Money: the stored fraction is a Decimal, but the constructor
+        # takes whatever to_decimal understands, which is how percentages are
+        # built from floats and strings throughout the game.
+        def __init__(self, fraction: Numeric = Decimal(0)) -> None: ...
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "fraction", to_decimal(self.fraction))

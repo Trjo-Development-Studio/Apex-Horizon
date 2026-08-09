@@ -53,6 +53,7 @@ def build(seed: int = 2026):
     player.cash = Money(200_000)
     player.unlocks.unlock(CREATE_COMPANY)
     company, _ = player.found_company("Test Capital", 1)
+    assert company is not None, "the builder must produce a company"
     company.attach_market(market, allocator)
     company.register(engine)
 
@@ -66,12 +67,20 @@ def context_for(engine: SimulationEngine) -> SimulationContext:
     )
 
 
+def report_of(service):
+    """The company report, insisted upon rather than assumed."""
+    report = service.company_report()
+    assert report is not None, "a company exists, so it has a report"
+    return report
+
+
 # -- tiers (V9.4) ---------------------------------------------------------
 def test_the_basic_tier_answers_only_what_is_happening():
     context, _ = build()
     service = AnalyticsService(context)
 
     company = service.company_report()
+    assert company is not None
     labels = [metric.label for metric in company.metrics]
     assert "Cash" in labels
     assert "Profit margin" not in labels, "margin belongs to the Detailed tier"
@@ -80,12 +89,12 @@ def test_the_basic_tier_answers_only_what_is_happening():
 def test_each_tier_adds_depth():
     context, _ = build()
     service = AnalyticsService(context)
-    basic = len(service.company_report().metrics)
+    basic = len(report_of(service).metrics)
 
     service.tier = AnalyticsTier.DETAILED
-    detailed = len(service.company_report().metrics)
+    detailed = len(report_of(service).metrics)
     service.tier = AnalyticsTier.ADVANCED
-    advanced = len(service.company_report().metrics)
+    advanced = len(report_of(service).metrics)
 
     assert basic < detailed < advanced
 

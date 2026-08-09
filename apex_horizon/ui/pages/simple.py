@@ -25,8 +25,8 @@ class InvestmentsPage(Page):
     """
 
     key = "investments"
-    title = "Investments"
-    subtitle = "What you hold personally, and what your company holds"
+    TITLE = "Investments"
+    SUBTITLE = "What you hold personally, and what your company holds"
 
     @property
     def investments(self):
@@ -201,8 +201,8 @@ class SettingsPage(Page):
     """Simulation speed, and leaving the game (V14.5, V16.3)."""
 
     key = "settings"
-    title = "Settings"
-    subtitle = "Preferences and session"
+    TITLE = "Settings"
+    SUBTITLE = "Preferences and session"
 
     def __init__(self, context):
         super().__init__(context)

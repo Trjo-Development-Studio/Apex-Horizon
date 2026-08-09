@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, overload
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle guard for type checkers only
     from .percentage import Percentage
@@ -59,6 +59,14 @@ class Money:
 
     amount: Decimal = Decimal(0)
 
+    if TYPE_CHECKING:
+        # The stored amount is always a Decimal, but the constructor accepts
+        # anything :func:`to_decimal` understands and converts it on the way in.
+        # Declaring only the field would tell a type checker that
+        # ``Money("25000")`` is wrong when it is the ordinary way to build one,
+        # so the constructor is described separately from what it stores.
+        def __init__(self, amount: Numeric | Money = Decimal(0)) -> None: ...
+
     def __post_init__(self) -> None:
         object.__setattr__(self, "amount", to_decimal(self.amount))
 
@@ -92,6 +100,15 @@ class Money:
         return Money(self.amount * to_decimal(factor))
 
     __rmul__ = __mul__
+
+    if TYPE_CHECKING:
+        # Which of the two it returns depends on what it is divided by, so the
+        # two cases are declared separately: a caller dividing by a number gets
+        # Money back and can go on using it as Money.
+        @overload
+        def __truediv__(self, divisor: Money) -> Decimal: ...
+        @overload
+        def __truediv__(self, divisor: Numeric) -> Money: ...
 
     def __truediv__(self, divisor: Numeric | Money) -> Money | Decimal:
         """Dividing by a number yields Money; dividing by Money yields a ratio."""

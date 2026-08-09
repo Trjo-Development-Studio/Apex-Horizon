@@ -132,7 +132,7 @@ class PopupManager:
         if self.current.chosen is not None:
             popup, self.current = self.current, None
             handler = self._handlers.pop(id(popup), None)
-            if handler is not None:
+            if handler is not None and popup.chosen is not None:
                 handler(popup.chosen)
             if self._queue:
                 self.current = self._queue.pop(0)

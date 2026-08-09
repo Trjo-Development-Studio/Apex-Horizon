@@ -9,6 +9,39 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **A Start Menu.** The game now opens on one, with New Game, Load Game,
+  Settings and Exit Game, and saved games listed with what V16.9 shows without
+  loading the world. It is a menu rather than another dashboard.
+- **Save & Exit follows V16.4 in full**: the simulation pauses, the save is
+  attempted and validated, and only on success does the player return to the
+  Main Menu. A failed save returns them to the running game with the error, so
+  progress is never lost and another attempt can be made. Leaving a session is
+  no longer leaving the program.
+- **The sidebar expands.** Clicking the Apex Horizon wordmark shows the names
+  beside the icons and clicking it again hides them; the choice is remembered
+  for the session and the page moves aside rather than being covered. Tooltips
+  stop once the names are showing, since they would only repeat them.
+
+### Changed
+
+- **Companies no longer move around.** Listings are ordered by company id, which
+  never changes, so a company holds the same position for the life of a save —
+  prices moving, one company overtaking another, and reloading cannot shuffle
+  the list. The Market list no longer sorts itself by size by default; it sorts
+  only when the player clicks a column (V27.3).
+- **Top gainer and loser are measured over a defined period**, seven days by
+  default, rather than over a single day. The calculation was always correct and
+  deterministic, but one in-game day passes every real second, so a daily figure
+  changed about once a second and read as random however it was computed. Both
+  now show the change and the period they cover, and there is a Top loser card
+  to match the gainer.
+- **Notifications appear in the lower right**, clear of the sidebar, which has
+  to stay usable while a message is showing.
+- **Settings sits above Save & Exit** at the foot of the sidebar, apart from the
+  systems above them.
+
 ### Fixed
 
 - **Personal cash is now shown on every screen**, as the first summary card on

@@ -36,6 +36,7 @@ def build(capital: int = 200_000_000, level: int = 3):
     player = Player("Owner", cash=Money(capital + 100_000), allocator=allocator)
     player.unlocks.unlock(CREATE_COMPANY)
     company, _ = player.found_company("Test Capital", 1)
+    assert company is not None, "the builder must produce a company"
     company.attach_market(market, allocator)
     company.register(engine)
     company.set_level(level)
@@ -49,6 +50,19 @@ def cheapest(market, world):
                key=lambda listing: listing.market_cap.amount).company_id
 
 
+def buy(company, target, day: int = 1):
+    """Acquire a company and insist it worked, so a failure is reported here."""
+    subsidiary, message = book(company).acquire(target, day=day)
+    assert subsidiary is not None, message
+    return subsidiary
+
+
+def book(company):
+    """The company's subsidiaries, which attaching a market always creates."""
+    assert company.subsidiaries is not None
+    return company.subsidiaries
+
+
 # -- buying a company (V12.4, V12.22, V12.23) -----------------------------
 
 
@@ -57,10 +71,11 @@ def test_acquiring_transfers_ownership_on_the_existing_company():
     _, company, market, world, _ = build()
     target = cheapest(market, world)
 
-    subsidiary, message = company.subsidiaries.acquire(target, day=1)
+    subsidiary, message = book(company).acquire(target, day=1)
 
     assert subsidiary is not None, message
     record = world.company_by_id(target)
+    assert record is not None
     assert record.owner_id == company.id
     assert record.is_subsidiary
 
@@ -69,10 +84,11 @@ def test_the_full_price_leaves_company_cash():
     """V12.22: paid in full from company cash, with no financing."""
     _, company, market, world, _ = build()
     target = cheapest(market, world)
-    price = company.subsidiaries.price_of(target)
+    price = book(company).price_of(target)
+    assert price is not None
     before = company.finances.cash
 
-    company.subsidiaries.acquire(target, day=1)
+    book(company).acquire(target, day=1)
 
     assert company.finances.cash == before - price
 
@@ -83,7 +99,7 @@ def test_personal_money_is_never_touched():
     target = cheapest(market, world)
     personal = player.cash
 
-    company.subsidiaries.acquire(target, day=1)
+    book(company).acquire(target, day=1)
 
     assert player.cash == personal
 
@@ -93,7 +109,7 @@ def test_buying_a_company_is_not_an_expense():
     _, company, market, world, _ = build()
     target = cheapest(market, world)
 
-    company.subsidiaries.acquire(target, day=1)
+    book(company).acquire(target, day=1)
 
     assert company.finances.ledger.lifetime.expenses.is_zero
 
@@ -103,12 +119,13 @@ def test_an_unaffordable_acquisition_fails_gracefully():
     _, company, market, world, _ = build(capital=1_000)
     target = cheapest(market, world)
 
-    subsidiary, reason = company.subsidiaries.acquire(target, day=1)
+    subsidiary, reason = book(company).acquire(target, day=1)
 
     assert subsidiary is None
     assert "would cost" in reason
     assert company.finances.cash.is_positive
-    assert not world.company_by_id(target).is_subsidiary
+    still_free = world.company_by_id(target)
+    assert still_free is not None and not still_free.is_subsidiary
 
 
 def test_acquisitions_require_a_grown_company():
@@ -116,7 +133,7 @@ def test_acquisitions_require_a_grown_company():
     _, company, market, world, _ = build(level=1)
     target = cheapest(market, world)
 
-    allowed, reason = company.subsidiaries.can_acquire(target)
+    allowed, reason = book(company).can_acquire(target)
 
     assert not allowed
     assert "Company Level" in reason
@@ -125,9 +142,9 @@ def test_acquisitions_require_a_grown_company():
 def test_a_company_cannot_be_owned_twice():
     _, company, market, world, _ = build()
     target = cheapest(market, world)
-    company.subsidiaries.acquire(target, day=1)
+    book(company).acquire(target, day=1)
 
-    allowed, reason = company.subsidiaries.can_acquire(target)
+    allowed, reason = book(company).can_acquire(target)
 
     assert not allowed
     assert "already" in reason
@@ -138,9 +155,10 @@ def test_an_acquired_company_stops_trading():
     _, company, market, world, _ = build()
     target = cheapest(market, world)
 
-    company.subsidiaries.acquire(target, day=1)
+    book(company).acquire(target, day=1)
 
-    assert market.listing_for(target).delisted
+    listing = market.listing_for(target)
+    assert listing is not None and listing.delisted
     assert target not in {listing.company_id for listing in market.active_listings()}
 
 
@@ -151,9 +169,11 @@ def test_a_subsidiary_keeps_its_own_industry():
     """V12.5: it does not merge into the parent."""
     _, company, market, world, _ = build()
     target = cheapest(market, world)
-    industry = world.company_by_id(target).industry.value
+    record = world.company_by_id(target)
+    assert record is not None
+    industry = record.industry.value
 
-    subsidiary, _ = company.subsidiaries.acquire(target, day=1)
+    subsidiary = buy(company, target)
 
     assert subsidiary.industry == industry
 
@@ -164,18 +184,18 @@ def test_subsidiaries_count_toward_company_value():
     target = cheapest(market, world)
     before = company.finances.assets()
 
-    company.subsidiaries.acquire(target, day=1)
+    book(company).acquire(target, day=1)
 
     # Cash became an asset of equal worth, so nothing was created or destroyed.
     assert company.finances.assets() == before
-    assert company.subsidiaries.total_value().is_positive
+    assert book(company).total_value().is_positive
 
 
 def test_a_subsidiary_pays_income_to_its_parent():
     """V12.5: ongoing operations are an additional stream of income."""
     _, company, market, world, engine = build()
     target = cheapest(market, world)
-    subsidiary, _ = company.subsidiaries.acquire(target, day=1)
+    subsidiary = buy(company, target)
 
     engine.run_days(336)
 
@@ -186,7 +206,7 @@ def test_a_subsidiary_pays_income_to_its_parent():
 def test_income_is_revenue_rather_than_financing():
     """The group genuinely earned it (V17.26)."""
     _, company, market, world, engine = build()
-    company.subsidiaries.acquire(cheapest(market, world), day=1)
+    book(company).acquire(cheapest(market, world), day=1)
 
     engine.run_days(90)
 
@@ -201,22 +221,22 @@ def test_income_is_revenue_rather_than_financing():
 
 def test_subsidiaries_survive_a_round_trip():
     _, company, market, world, engine = build()
-    company.subsidiaries.acquire(cheapest(market, world), day=1)
+    book(company).acquire(cheapest(market, world), day=1)
     engine.run_days(90)
-    before = [s.state() for s in company.subsidiaries]
+    before = [s.state() for s in book(company)]
 
-    company.subsidiaries.restore(company.subsidiaries.state())
+    book(company).restore(book(company).state())
 
-    assert [s.state() for s in company.subsidiaries] == before
+    assert [s.state() for s in book(company)] == before
 
 
 def test_a_group_reports_what_it_is_worth_and_has_paid():
     _, company, market, world, engine = build()
-    company.subsidiaries.acquire(cheapest(market, world), day=1)
+    book(company).acquire(cheapest(market, world), day=1)
     engine.run_days(200)
 
-    book = company.subsidiaries
-    assert len(book) == 1
-    assert book.total_value().is_positive
-    assert book.total_income().is_positive
-    assert book.by_id(next(iter(book)).company_id) is not None
+    owned = book(company)
+    assert len(owned) == 1
+    assert owned.total_value().is_positive
+    assert owned.total_income().is_positive
+    assert owned.by_id(next(iter(owned)).company_id) is not None

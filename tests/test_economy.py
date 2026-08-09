@@ -259,6 +259,7 @@ def test_maximum_loan_scales_with_company_value():
     _, _, banking, _ = build_banking()
     small = banking.best_offer(company_value=Money(100_000), reputation=0.9)
     large = banking.best_offer(company_value=Money(10_000_000), reputation=0.9)
+    assert large is not None and small is not None
     assert large.maximum_loan > small.maximum_loan
 
 

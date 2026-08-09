@@ -12,8 +12,10 @@ the system — the player's job is to manage well, and capital follows a record.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from decimal import Decimal
 from random import Random
+from typing import Any
 
 from ..config import Config, get_config
 from ..logging_setup import get_logger
@@ -48,7 +50,7 @@ class FundBook:
     def __len__(self) -> int:
         return len(self.funds)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[InvestmentFund]:
         return iter(self.funds)
 
     def by_id(self, fund_id: str) -> InvestmentFund | None:
@@ -67,7 +69,7 @@ class FundBook:
             total = total + fund.fees_paid
         return total
 
-    def statistics(self) -> dict[str, object]:
+    def statistics(self) -> dict[str, Any]:
         return {
             "Funds": len(self.funds),
             "Assets under management": self.assets_under_management(),

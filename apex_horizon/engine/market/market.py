@@ -269,8 +269,18 @@ class MarketSystem:
         return self.listings.get(company_id)
 
     def active_listings(self) -> list[MarketListing]:
-        """Every company still trading."""
-        return [listing for listing in self.listings.values() if not listing.delisted]
+        """Every company still trading, in a fixed order.
+
+        Ordered by company id, which never changes once a company exists, so a
+        company holds the same position for the life of a save: prices moving,
+        a company overtaking another, or the game being reloaded cannot shuffle
+        the list. Anything that wants a different order — biggest first, best
+        performer first — sorts a copy for itself.
+        """
+        return sorted(
+            (listing for listing in self.listings.values() if not listing.delisted),
+            key=lambda listing: listing.company_id,
+        )
 
     def delist(self, company_id: str, *, reason: str = "") -> bool:
         """Take a company off the market permanently.
@@ -333,32 +343,57 @@ class MarketSystem:
         # newly listed company does not drag the industry toward zero.
         return Percentage(sum(known, start=0) / len(known))
 
-    def top_movers(self, count: int = 5) -> tuple[list[MarketListing], list[MarketListing]]:
-        """The day's biggest gainers and losers, by actual price movement.
+    @property
+    def top_mover_period(self) -> int:
+        """Days a top gainer or loser is measured over (V4.15)."""
+        return max(1, self.config.get_int("market.top_mover_period_days"))
 
-        Ranked on the change against yesterday's close, never on the size of the
-        price itself and never at random. Ties are broken on company id so the
-        same market always produces the same answer, rather than relying on
+    def change_over_period(self, listing: MarketListing) -> Percentage:
+        """A listing's change across the period top movers are judged on.
+
+        Falls back to the day when a company has not traded for a full period
+        yet, so a newly listed company is still ranked on something real rather
+        than dropped or treated as flat.
+        """
+        change = listing.change_over(self.top_mover_period)
+        return change if change is not None else listing.daily_change()
+
+    def top_movers(self, count: int = 5) -> tuple[list[MarketListing], list[MarketListing]]:
+        """The biggest gainers and losers, by actual price movement.
+
+        Ranked on percentage change across the period, never on the size of the
+        price itself and never at random. Ties are broken on company id, so the
+        same market always produces the same answer rather than depending on
         whatever order the listings happen to be held in.
         """
         ranked = sorted(
             self.active_listings(),
-            key=lambda listing: (listing.daily_change().fraction, listing.company_id),
+            key=lambda listing: (
+                self.change_over_period(listing).fraction, listing.company_id
+            ),
         )
         return list(reversed(ranked[-count:])), ranked[:count]
 
     def top_gainer(self) -> MarketListing | None:
-        """The day's best performer, or ``None`` if nothing actually gained.
+        """The best performer, or ``None`` if nothing actually gained.
 
-        A market where everything fell has no top gainer. Reporting the least
-        bad loser under that heading tells the player something untrue, so this
-        says nothing instead and lets the interface word it.
+        A market where everything fell has no top gainer, and reporting the
+        least bad loser under that heading would tell the player something
+        untrue. This says nothing instead and lets the interface word it.
         """
         gainers, _ = self.top_movers(1)
         if not gainers:
             return None
         best = gainers[0]
-        return best if best.daily_change().is_positive else None
+        return best if self.change_over_period(best).is_positive else None
+
+    def top_loser(self) -> MarketListing | None:
+        """The worst performer, or ``None`` if nothing actually fell."""
+        _, losers = self.top_movers(1)
+        if not losers:
+            return None
+        worst = losers[0]
+        return worst if self.change_over_period(worst).is_negative else None
 
     def is_bull_market(self) -> bool:
         return self.sentiment > 0.2

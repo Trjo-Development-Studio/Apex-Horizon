@@ -39,8 +39,8 @@ class StatisticsPage(Page):
     """Every category of statistic V28 names."""
 
     key = "statistics"
-    title = "Statistics"
-    subtitle = "What this playthrough has amounted to"
+    TITLE = "Statistics"
+    SUBTITLE = "What this playthrough has amounted to"
 
     @property
     def lifetime(self):

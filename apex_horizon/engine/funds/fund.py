@@ -21,6 +21,7 @@ the company.
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Any
 
 from ..company.finances import CompanyFinances
 from ..config import Config, get_config
@@ -137,7 +138,7 @@ class InvestmentFund:
         return fee
 
     # -- statistics (V11.10) ----------------------------------------------
-    def statistics(self) -> dict[str, object]:
+    def statistics(self) -> dict[str, Any]:
         positions = self.investments.open_positions() if self.investments else []
         return {
             "Assets under management": self.assets_under_management(),

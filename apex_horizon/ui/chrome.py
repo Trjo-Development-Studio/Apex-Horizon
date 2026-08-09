@@ -15,7 +15,8 @@ from dataclasses import dataclass
 import pygame
 
 from . import icons, theme
-from .widgets import draw_text, draw_tooltip, panel
+from .charts import Animated
+from .widgets import draw_text, draw_tooltip, panel, truncate
 
 
 @dataclass(frozen=True)
@@ -45,12 +46,14 @@ NAV_ITEMS: tuple[NavItem, ...] = (
     NavItem("company", "Company", "company"),
     NavItem("unlocks", "Unlocks", "unlocks"),
     NavItem("news", "News", "news"),
-    NavItem("settings", "Settings", "settings"),
 )
 
-#: Leaving the game is an action rather than a destination, so it sits apart
-#: from the navigation entirely (V16.4).
+#: The foot of the sidebar: preferences, then leaving. Settings is a
+#: destination and Save & Exit is not, so they are ordered with the ordinary
+#: one first and separated from the systems above (V16.4).
+SETTINGS_ITEM = NavItem("settings", "Settings", "settings")
 EXIT_ACTION = NavItem("exit", "Save & Exit", "exit")
+FOOT_ITEMS: tuple[NavItem, ...] = (SETTINGS_ITEM, EXIT_ACTION)
 
 
 class Sidebar:
@@ -69,9 +72,17 @@ class Sidebar:
         self.requested: str | None = None
         #: Set when the player asks to leave, which is not a destination.
         self.exit_requested = False
+        #: Whether the names are showing beside the icons. Remembered for the
+        #: session, so the player sets it once rather than on every screen.
+        self.expanded = False
+        self._width = Animated(theme.SIDEBAR_WIDTH, duration_ms=160)
+        self._logo_rect = pygame.Rect(0, 0, 0, 0)
 
     def handle_event(self, event) -> bool:
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self._logo_rect.collidepoint(event.pos):
+                self.expanded = not self.expanded
+                return True
             for key, rect in self._rects.items():
                 if rect.collidepoint(event.pos):
                     if key == EXIT_ACTION.key:
@@ -81,6 +92,13 @@ class Sidebar:
                     return True
         return False
 
+    def width(self, now_ms: int) -> int:
+        """How wide the sidebar is drawing right now, mid-animation included."""
+        self._width.target(
+            theme.SIDEBAR_EXPANDED if self.expanded else theme.SIDEBAR_WIDTH, now_ms
+        )
+        return int(self._width.value(now_ms))
+
     def take_exit_request(self) -> bool:
         requested, self.exit_requested = self.exit_requested, False
         return requested
@@ -89,59 +107,85 @@ class Sidebar:
         request, self.requested = self.requested, None
         return request
 
-    def draw(self, surface, fonts, mouse) -> None:
+    def draw(self, surface, fonts, mouse, now_ms: int = 0) -> None:
         height = surface.get_height()
-        rect = pygame.Rect(0, 0, theme.SIDEBAR_WIDTH, height)
+        width = self.width(now_ms)
+        rect = pygame.Rect(0, 0, width, height)
         pygame.draw.rect(surface, theme.SURFACE, rect)
-        pygame.draw.line(surface, theme.BORDER,
-                         (theme.SIDEBAR_WIDTH, 0), (theme.SIDEBAR_WIDTH, height))
-
-        # A restrained wordmark: the initials, not a logo.
-        draw_text(surface, fonts.subheading, "AH", (theme.SIDEBAR_WIDTH // 2, 22),
-                  theme.ACCENT, align="center", baseline="middle")
+        pygame.draw.line(surface, theme.BORDER, (width, 0), (width, height))
 
         self._rects.clear()
         self.hovered = None
+        self._draw_logo(surface, fonts, mouse, width)
+
         top = 60
         for index, item in enumerate(NAV_ITEMS):
-            item_rect = pygame.Rect(8, top + index * 52, theme.SIDEBAR_WIDTH - 16, 44)
-            self._rects[item.key] = item_rect
-            active = item.key == self.active
-            hovered = item_rect.collidepoint(mouse)
-            if hovered:
-                self.hovered = item
-            if active:
-                pygame.draw.rect(surface, theme.SURFACE_RAISED, item_rect, border_radius=6)
-                pygame.draw.rect(surface, theme.ACCENT,
-                                 pygame.Rect(0, item_rect.top + 10, 3, 24), border_radius=2)
-            colour = theme.TEXT if active else (
-                theme.TEXT_MUTED if hovered else theme.TEXT_FAINT
-            )
-            icons.draw(surface, item.icon, colour, item_rect.center, 22)
+            item_rect = pygame.Rect(8, top + index * 52, width - 16, 44)
+            self._draw_item(surface, fonts, mouse, item, item_rect, width,
+                            active=item.key == self.active)
 
-        self._draw_exit(surface, fonts, mouse, height)
-
-    def _draw_exit(self, surface, fonts, mouse, height: int) -> None:
-        """Save & Exit, kept away from the destinations above it (V16.4).
-
-        Navigation takes the player somewhere; this ends the session. Putting it
-        in the same list would make leaving look like another place to visit, so
-        it sits at the foot of the sidebar behind a divider.
-        """
-        rect = pygame.Rect(8, height - 56, theme.SIDEBAR_WIDTH - 16, 44)
-        self._rects[EXIT_ACTION.key] = rect
+        # The foot: preferences, then leaving, behind a divider.
+        foot_top = height - 8 - len(FOOT_ITEMS) * 52
         pygame.draw.line(surface, theme.BORDER,
-                         (12, rect.top - 12), (theme.SIDEBAR_WIDTH - 12, rect.top - 12))
-        hovered = rect.collidepoint(mouse)
+                         (12, foot_top - 12), (width - 12, foot_top - 12))
+        for index, item in enumerate(FOOT_ITEMS):
+            item_rect = pygame.Rect(8, foot_top + index * 52, width - 16, 44)
+            self._draw_item(surface, fonts, mouse, item, item_rect, width,
+                            active=item.key == self.active)
+
+    def _draw_logo(self, surface, fonts, mouse, width: int) -> None:
+        """The wordmark, which is also the control that expands the sidebar.
+
+        Clicking it shows the names beside the icons and clicking it again
+        hides them, so the player can trade width for legibility whenever they
+        want without the setting living somewhere they have to go and find.
+        """
+        self._logo_rect = pygame.Rect(0, 0, width, 46)
+        hovered = self._logo_rect.collidepoint(mouse)
+        colour = theme.ACCENT if not hovered else theme.TEXT
+        if self.expanded and width > theme.SIDEBAR_WIDTH + 40:
+            draw_text(surface, fonts.subheading, "APEX HORIZON", (18, 22), colour,
+                      baseline="middle")
+        else:
+            draw_text(surface, fonts.subheading, "AH",
+                      (theme.SIDEBAR_WIDTH // 2, 22), colour,
+                      align="center", baseline="middle")
+
+    def _draw_item(self, surface, fonts, mouse, item, item_rect, width: int,
+                   *, active: bool) -> None:
+        self._rects[item.key] = item_rect
+        hovered = item_rect.collidepoint(mouse)
         if hovered:
-            self.hovered = EXIT_ACTION
-            pygame.draw.rect(surface, theme.SURFACE_RAISED, rect, border_radius=6)
-        icons.draw(surface, EXIT_ACTION.icon,
-                   theme.TEXT_MUTED if hovered else theme.TEXT_FAINT, rect.center, 22)
+            self.hovered = item
+        if active:
+            pygame.draw.rect(surface, theme.SURFACE_RAISED, item_rect, border_radius=6)
+            pygame.draw.rect(surface, theme.ACCENT,
+                             pygame.Rect(0, item_rect.top + 10, 3, 24), border_radius=2)
+        elif hovered:
+            pygame.draw.rect(surface, theme.SURFACE_RAISED, item_rect, border_radius=6)
+
+        colour = theme.TEXT if active else (
+            theme.TEXT_MUTED if hovered else theme.TEXT_FAINT
+        )
+        icon_x = theme.SIDEBAR_WIDTH // 2
+        icons.draw(surface, item.icon, colour, (icon_x, item_rect.centery), 22)
+
+        # The name appears beside the icon once there is room for it, and fades
+        # in with the width rather than snapping into place.
+        room = width - theme.SIDEBAR_WIDTH - 12
+        if room > 30:
+            draw_text(surface, fonts.small,
+                      truncate(fonts.small, item.label, room),
+                      (theme.SIDEBAR_WIDTH - 4, item_rect.centery), colour,
+                      baseline="middle")
 
     def draw_tooltip(self, surface, fonts) -> None:
-        """Drawn last so the label sits above the page beneath it."""
-        if self.hovered is None:
+        """Drawn last so the label sits above the page beneath it.
+
+        Only while collapsed: once the names are showing beside the icons a
+        tooltip would repeat what is already on screen.
+        """
+        if self.hovered is None or self.expanded:
             return
         rect = self._rects[self.hovered.key]
         draw_tooltip(surface, fonts, self.hovered.label, (rect.right + 10, rect.centery))
@@ -270,7 +314,7 @@ class Notification:
 
 
 class NotificationCentre:
-    """Messages that slide in at the lower left and slide away (V14.16, V27.7).
+    """Messages that slide in at the lower right and slide away (V14.16, V27.7).
 
     The stack is capped so that older, still-relevant messages are never pushed
     out of view before the player has had a chance to read them.
@@ -315,8 +359,11 @@ class NotificationCentre:
             progress = max(0.0, min(entering, leaving))
             offset = int((1.0 - progress) * (theme.NOTIFICATION_WIDTH + 24))
 
+            # Lower right, sliding in from the right edge. The lower left sat
+            # over the sidebar, which is the one part of the screen that must
+            # stay usable while a message is showing (V27.7).
             rect = pygame.Rect(
-                20 + theme.SIDEBAR_WIDTH - offset,
+                surface.get_width() - theme.NOTIFICATION_WIDTH - 20 + offset,
                 bottom - (index + 1) * (theme.NOTIFICATION_HEIGHT + theme.NOTIFICATION_GAP),
                 theme.NOTIFICATION_WIDTH,
                 theme.NOTIFICATION_HEIGHT,

@@ -35,7 +35,7 @@ icon recognition alone.
 │ e│ Search                                     │
 │ b│ Main content                               │
 │ a│                                            │
-│ r│  ┌──────────┐  notifications, lower-left   │
+│ r│  ┌──────────┐  notifications, lower-right   │
 └──┴────────────────────────────────────────────┘
 ```
 
@@ -55,7 +55,7 @@ opening the fiftieth page feel exactly like opening the first (V14.25).
 | A single click opens a row — never a double click | `Table.handle_event` |
 | Breadcrumbs are always clickable, so no page is a dead end | `Breadcrumb` |
 | Popups have a clear default and a clear cancel, and never stack decisions | `Popup`, `PopupManager` |
-| Notifications sit lower-left, readable, and never stack out of view | `NotificationCentre` |
+| Notifications sit lower-right, readable, and never stack out of view | `NotificationCentre` |
 | Animation only clarifies a state change, and never delays the next action | `theme.SLIDE_MS` |
 | Speed reachable by keyboard (1/2/3) as well as mouse | `app.SPEED_KEYS` |
 

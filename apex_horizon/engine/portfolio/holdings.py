@@ -26,6 +26,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Any
 
 from ..config import Config, get_config
 from ..logging_setup import get_logger
@@ -253,7 +254,7 @@ class PersonalPortfolio:
             callback(trade)
 
     # -- statistics --------------------------------------------------------
-    def statistics(self) -> dict[str, object]:
+    def statistics(self) -> dict[str, Any]:
         sales = [trade for trade in self.trades if not trade.is_purchase]
         wins = [trade for trade in sales if trade.realised.is_positive]
         return {

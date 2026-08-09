@@ -18,6 +18,7 @@ competition is not adversarial: they simply act, and sometimes they act first.
 from __future__ import annotations
 
 from random import Random
+from typing import Any
 
 from ..company import InvestmentCompany
 from ..config import Config, get_config
@@ -105,7 +106,7 @@ class AICompanies:
         return sorted(self.operating, key=lambda company: company.value().amount,
                       reverse=True)
 
-    def statistics(self) -> dict[str, object]:
+    def statistics(self) -> dict[str, Any]:
         operating = self.operating
         total = Money.zero()
         for company in operating:

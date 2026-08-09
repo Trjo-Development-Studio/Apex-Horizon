@@ -22,6 +22,7 @@ own industry (V12.5) and pays its owner an ongoing share of what it earns.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from decimal import Decimal
 
@@ -104,7 +105,7 @@ class SubsidiaryBook:
     def __len__(self) -> int:
         return len(self.subsidiaries)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Subsidiary]:
         return iter(self.subsidiaries)
 
     def by_id(self, company_id: str) -> Subsidiary | None:
@@ -181,6 +182,8 @@ class SubsidiaryBook:
 
         record = self.world.company_by_id(company_id)
         price = self.price_of(company_id)
+        if record is None or price is None:  # pragma: no cover - can_acquire checked
+            return None, "That company is no longer available."
 
         # Paying for a business is an exchange of cash for an asset, not an
         # expense: it must never look like a loss on the profit statement

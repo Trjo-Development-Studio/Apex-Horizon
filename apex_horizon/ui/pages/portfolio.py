@@ -35,8 +35,8 @@ class PortfolioPage(Page):
     """The player's holdings, the company's, and the analysis of both."""
 
     key = "portfolio"
-    title = "Portfolio"
-    subtitle = "Everything you and your company have invested"
+    TITLE = "Portfolio"
+    SUBTITLE = "Everything you and your company have invested"
 
     def __init__(self, context):
         super().__init__(context)
@@ -104,7 +104,7 @@ class PortfolioPage(Page):
     def _company_cards(self) -> list[Card]:
         company = self.context.company
         system = getattr(company, "investments", None) if company else None
-        if system is None:
+        if company is None or system is None:
             return []
         stats = system.statistics()
         unrealised = stats["Unrealised"]

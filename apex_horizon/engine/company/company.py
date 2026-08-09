@@ -14,6 +14,7 @@ once the day's activity is complete.
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from ..config import Config, get_config
 from ..logging_setup import get_logger
@@ -22,6 +23,11 @@ from ..values import EntityKind, IdAllocator, Money, Percentage
 from .finances import CompanyFinances
 from .ledger import ExpenseCategory, RevenueCategory
 from .loans import Loan, LoanBook
+
+if TYPE_CHECKING:  # pragma: no cover - imported for annotations only
+    from ..acquisitions import SubsidiaryBook
+    from ..funds import FundBook
+    from ..investments import InvestmentSystem
 
 logger = get_logger(__name__)
 
@@ -80,12 +86,12 @@ class InvestmentCompany:
         )
 
         #: Created when the company is connected to a market (V8.7).
-        self.investments = None
+        self.investments: InvestmentSystem | None = None
         #: Companies this one owns outright (V12.6). Created with the market,
         #: since acquiring one means buying it off that market.
-        self.subsidiaries = None
+        self.subsidiaries: SubsidiaryBook | None = None
         #: Funds this company manages for outside investors (V11.14).
-        self.funds = None
+        self.funds: FundBook | None = None
 
         self.finances.register_liability_provider("loans", self.loans.total_outstanding)
         self._last_daily_day: int | None = None
@@ -150,7 +156,7 @@ class InvestmentCompany:
                     terms.bank_name)
         return loan
 
-    def attach_market(self, market, allocator=None) -> None:
+    def attach_market(self, market, allocator=None) -> InvestmentSystem:
         """Give the company an investment operation on a market (V8.7)."""
         from ..investments import InvestmentSystem
 
@@ -265,7 +271,7 @@ class InvestmentCompany:
             callback(self)
 
     # -- statistics (V3.13) ------------------------------------------------
-    def statistics(self) -> dict[str, object]:
+    def statistics(self) -> dict[str, Any]:
         return {
             "Company Value": self.value(),
             "Cash": self.finances.cash,

@@ -19,7 +19,12 @@ from apex_horizon.engine.unlocks import BASIC_ANALYTICS, BASIC_NEWS, CREATE_COMP
 from apex_horizon.engine.values import Calendar, Money, set_calendar
 from apex_horizon.ui import theme
 from apex_horizon.ui.app import SPEED_KEYS, GameApp
-from apex_horizon.ui.chrome import NAV_ITEMS, Breadcrumb, NotificationCentre
+from apex_horizon.ui.chrome import (
+    FOOT_ITEMS,
+    NAV_ITEMS,
+    Breadcrumb,
+    NotificationCentre,
+)
 from apex_horizon.ui.popups import Popup, PopupAction, PopupManager, PromptPopup
 from apex_horizon.ui.widgets import Column, SearchBox, Table, truncate
 
@@ -85,8 +90,10 @@ def test_the_sidebar_lists_systems_rather_than_screens():
     system.
     """
     assert [item.label for item in NAV_ITEMS] == [
-        "Dashboard", "Market", "Portfolio", "Company", "Unlocks", "News", "Settings",
+        "Dashboard", "Market", "Portfolio", "Company", "Unlocks", "News",
     ]
+    # Settings and Save & Exit sit apart at the foot, in that order.
+    assert [item.label for item in FOOT_ITEMS] == ["Settings", "Save & Exit"]
 
 
 def test_every_system_volume_14_5_names_is_still_reachable(app):
@@ -621,3 +628,200 @@ def test_company_cash_stays_separate_from_the_players(app):
 
     assert shown == app.context.player.cash.format()
     assert shown != company.finances.cash.format()
+
+
+# -- the Start Menu (V16.4) -----------------------------------------------
+
+
+def _choose(app, key: str) -> None:
+    """Answer the open popup, the way clicking its button would."""
+    app.popups.current.chosen = key
+    app.popups.handle_event(pygame.event.Event(pygame.USEREVENT))
+
+
+@pytest.fixture
+def menu_app(tmp_path):
+    from apex_horizon.engine.save import SaveStore
+
+    set_calendar(Calendar(7, 4, 12))
+    application = GameApp(size=(1100, 760), seed=2026, start_in_menu=True)
+    application.saves.store = SaveStore(tmp_path, manual_slots=5)
+    application.menu.saves = application.saves
+    yield application
+    application.shutdown()
+    set_calendar(None)
+
+
+def test_the_game_opens_on_the_start_menu(menu_app):
+    assert menu_app.in_menu
+    menu_app.menu.draw(menu_app.surface, menu_app.fonts, (0, 0))
+
+
+def test_a_directly_built_application_starts_in_play(app):
+    """Tests and tools want a running game, not a menu."""
+    assert not app.in_menu
+
+
+def test_new_game_begins_a_world(menu_app):
+    from apex_horizon.ui.start_menu import NEW_GAME
+
+    menu_app.menu.request = NEW_GAME
+    menu_app._menu_tick(0)
+
+    assert not menu_app.in_menu
+    assert menu_app.current_key == "dashboard"
+    assert menu_app.context.market.active_listings()
+
+
+def test_load_game_is_offered_only_once_something_is_saved(menu_app):
+    assert menu_app.menu._saved_slots() == []
+
+    menu_app.saves.save_to_slot(1)
+
+    assert menu_app.menu._saved_slots()
+
+
+def test_settings_opens_from_the_menu(menu_app):
+    from apex_horizon.ui.start_menu import SETTINGS
+
+    menu_app.menu.request = SETTINGS
+    menu_app._menu_tick(0)
+
+    assert not menu_app.in_menu
+    assert menu_app.current_key == "settings"
+
+
+def test_exit_game_ends_the_session(menu_app):
+    from apex_horizon.ui.start_menu import EXIT
+
+    menu_app.menu.request = EXIT
+    menu_app._menu_tick(0)
+
+    assert not menu_app.running
+
+
+def test_save_and_exit_saves_then_returns_to_the_menu(menu_app):
+    """V16.4 steps 1-5."""
+    from apex_horizon.ui.start_menu import NEW_GAME
+
+    menu_app.menu.request = NEW_GAME
+    menu_app._menu_tick(0)
+    menu_app.context.engine.run_days(20)
+
+    menu_app._prompt_exit()
+    _choose(menu_app, "exit")
+
+    assert menu_app.in_menu, "the player returns to the Main Menu"
+    assert menu_app.running, "leaving a session is not leaving the game"
+    assert menu_app.saves.store.info(menu_app.current_slot).exists
+
+
+def test_a_failed_save_keeps_the_player_in_the_game(menu_app, monkeypatch):
+    """V16.4 step 6: never pretend a save succeeded."""
+    from apex_horizon.engine.save.service import SaveResult
+    from apex_horizon.ui.start_menu import NEW_GAME
+
+    menu_app.menu.request = NEW_GAME
+    menu_app._menu_tick(0)
+
+    monkeypatch.setattr(menu_app.saves, "save_to_slot",
+                        lambda *a, **k: SaveResult(False, "Saving failed: disk full."))
+    menu_app._prompt_exit()
+    _choose(menu_app, "exit")
+
+    assert not menu_app.in_menu, "a failed save must not leave the session"
+    assert menu_app.popups.is_open, "and must say so"
+
+
+def test_loading_a_damaged_save_reports_rather_than_opening_it(menu_app, monkeypatch):
+    from apex_horizon.engine.save.validation import LoadOutcome
+
+    monkeypatch.setattr(menu_app.saves, "load_from_slot",
+                        lambda *a, **k: LoadOutcome(None, ok=False,
+                                                    problems=["That save is damaged."]))
+    menu_app._load_from_menu("1")
+
+    assert menu_app.in_menu
+    assert "damaged" in menu_app.menu.message
+
+
+# -- the expandable sidebar -----------------------------------------------
+
+
+def test_the_sidebar_starts_collapsed_to_icons(app):
+    assert not app.sidebar.expanded
+    assert app.sidebar.width(0) == theme.SIDEBAR_WIDTH
+
+
+def test_clicking_the_logo_expands_and_collapses(app):
+    app.draw(0)  # lay the logo out so it has a hit area
+    logo = app.sidebar._logo_rect
+
+    app.sidebar.handle_event(click(logo.center))
+    assert app.sidebar.expanded
+    # The width eases open over a couple of frames rather than jumping.
+    app.sidebar.width(10_000)
+    assert app.sidebar.width(11_000) == theme.SIDEBAR_EXPANDED
+
+    app.sidebar.handle_event(click(logo.center))
+    assert not app.sidebar.expanded
+    app.sidebar.width(12_000)
+    assert app.sidebar.width(13_000) == theme.SIDEBAR_WIDTH
+
+
+def test_the_expanded_state_is_remembered_across_screens(app):
+    app.draw(0)
+    app.sidebar.handle_event(click(app.sidebar._logo_rect.center))
+
+    for item in NAV_ITEMS:
+        app.navigate(item.key)
+        app.draw(0)
+        assert app.sidebar.expanded, item.label
+
+
+def test_expanding_moves_the_page_rather_than_covering_it(app):
+    """The page must stay usable, not sit underneath the sidebar."""
+    app.draw(0)
+    app.sidebar.expanded = True
+    for step in range(20):
+        app.draw(1000 + step * 30)
+
+    assert app.sidebar.width(10_000) == theme.SIDEBAR_EXPANDED
+    # Every navigation item still has a hit area inside the wider sidebar.
+    for item in NAV_ITEMS:
+        assert app.sidebar._rects[item.key].right <= theme.SIDEBAR_EXPANDED
+
+
+def test_tooltips_stop_once_the_names_are_showing(app):
+    """A label beside the icon and a tooltip repeating it is noise."""
+    app.draw(0)
+    app.sidebar.expanded = True
+    app.sidebar.hovered = NAV_ITEMS[0]
+
+    # Drawing the tooltip while expanded must render nothing at all.
+    before = pygame.image.tobytes(app.surface, "RGB")
+    app.sidebar.draw_tooltip(app.surface, app.fonts)
+    assert pygame.image.tobytes(app.surface, "RGB") == before
+
+
+def test_notifications_are_drawn_on_the_right(app):
+    """V27.7: clear of the sidebar, which has to stay usable."""
+    app.notifications.push("A message worth reading", 0)
+    app.draw(theme.SLIDE_MS + 10)
+
+    # The sample skips the sidebar, which is filled whether or not a message is
+    # showing and would otherwise count as content on the left.
+    width = app.surface.get_width()
+    left_half = pygame.Rect(theme.SIDEBAR_EXPANDED, app.surface.get_height() - 120,
+                            width // 2 - theme.SIDEBAR_EXPANDED, 120)
+    right_half = pygame.Rect(width // 2, app.surface.get_height() - 120,
+                             width // 2, 120)
+
+    def lit(area):
+        return sum(
+            app.surface.get_at((x, y))[:3] != theme.BACKGROUND
+            for x in range(area.left, area.right, 4)
+            for y in range(area.top, area.bottom, 4)
+        )
+
+    assert lit(right_half) > lit(left_half)

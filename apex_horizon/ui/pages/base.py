@@ -30,10 +30,21 @@ class Page:
 
     #: Sidebar destination this page belongs to.
     key: str = ""
-    #: Title shown in the page header.
-    title: str = ""
+    #: Title shown in the page header. Most pages set the constant below; a
+    #: page whose title depends on what it is showing — one company, one
+    #: employee — overrides the property instead. Both are legitimate, which is
+    #: why the constant and the property are separate things.
+    TITLE: str = ""
     #: Short line under the title explaining what the page is for.
-    subtitle: str = ""
+    SUBTITLE: str = ""
+
+    @property
+    def title(self) -> str:
+        return self.TITLE
+
+    @property
+    def subtitle(self) -> str:
+        return self.SUBTITLE
 
     def __init__(self, context: GameContext):
         self.context = context

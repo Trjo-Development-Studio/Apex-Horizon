@@ -29,7 +29,7 @@ def test_bool_is_rejected():
 
 def test_unsupported_type_is_rejected():
     with pytest.raises(TypeError):
-        Money([1])
+        Money([1])  # type: ignore[arg-type]  # deliberately wrong
 
 
 def test_decimal_arithmetic_is_exact():
@@ -52,7 +52,7 @@ def test_addition_and_subtraction():
 
 def test_adding_non_money_is_rejected():
     with pytest.raises(TypeError):
-        Money(10) + 5
+        Money(10) + 5  # type: ignore  # deliberately wrong
 
 
 def test_multiplication_by_scalar_and_percentage():
@@ -63,7 +63,7 @@ def test_multiplication_by_scalar_and_percentage():
 
 def test_multiplying_money_by_money_is_rejected():
     with pytest.raises(TypeError):
-        Money(10) * Money(2)
+        Money(10) * Money(2)  # type: ignore  # deliberately wrong
 
 
 def test_division_by_scalar_and_by_money():

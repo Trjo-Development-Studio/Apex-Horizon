@@ -19,6 +19,7 @@ step eight (V29.10).
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Any
 
 from ..config import Config, get_config
 from ..employees import Department, Employee, RiskTolerance
@@ -397,7 +398,7 @@ class InvestmentSystem:
         self.opportunities = history + live
 
     # -- statistics (V9.12) ------------------------------------------------
-    def statistics(self) -> dict[str, object]:
+    def statistics(self) -> dict[str, Any]:
         closed = self.closed
         wins = sum(1 for p in closed if p.realised_gain.is_positive)
         return {

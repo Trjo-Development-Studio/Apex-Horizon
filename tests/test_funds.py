@@ -36,16 +36,30 @@ def build(unlocked: bool = True, staff: int = 3):
     player = Player("Owner", cash=Money(3_000_000), allocator=allocator)
     player.unlocks.unlock(CREATE_COMPANY)
     company, _ = player.found_company("Test Capital", 1)
+    assert company is not None, "the builder must produce a company"
     company.attach_market(market, allocator)
     company.register(engine)
     player.transfer_to_company(Money(500_000), 1)
-    company.funds.unlocked = unlocked
+    books(company).unlocked = unlocked
 
     roster = company.employees
     roster.refresh_applicants(engine.rng, names, allocator, 1)
     for applicant in roster.applicants[:staff]:
         roster.hire(applicant, 1)
     return player, company, market, engine
+
+
+def open_fund(company, name: str = "Alpha", day: int = 1):
+    """Open a fund and insist it exists, so a failure is reported here."""
+    fund, message = books(company).create(name, day=day)
+    assert fund is not None, message
+    return fund
+
+
+def books(company):
+    """The company's funds, which attaching a market always creates."""
+    assert company.funds is not None
+    return company.funds
 
 
 # -- the unlock (V11.3) ---------------------------------------------------
@@ -55,11 +69,11 @@ def test_funds_require_the_final_unlock():
     """V11.3, V6.8: the hardest gate in the game."""
     _, company, _, _ = build(unlocked=False)
 
-    allowed, reason = company.funds.can_create()
+    allowed, reason = books(company).can_create()
 
     assert not allowed
     assert "unlocked" in reason
-    assert company.funds.create("Anything", day=1)[0] is None
+    assert books(company).create("Anything", day=1)[0] is None
 
 
 # -- creating a fund (V11.6, V11.7) ---------------------------------------
@@ -68,9 +82,7 @@ def test_funds_require_the_final_unlock():
 def test_a_fund_opens_with_capital_from_external_investors():
     _, company, _, _ = build()
 
-    fund, message = company.funds.create("Horizon Growth", day=1)
-
-    assert fund is not None, message
+    fund = open_fund(company, "Horizon Growth")
     assert fund.name == "Horizon Growth"
     assert fund.assets_under_management().is_positive
     assert fund.contributed.is_positive
@@ -80,8 +92,8 @@ def test_funds_are_independent_of_one_another():
     """V11.7: each operates independently while belonging to the company."""
     _, company, _, _ = build()
 
-    first, _ = company.funds.create("Alpha", day=1)
-    second, _ = company.funds.create("Beta", day=1)
+    first = open_fund(company, "Alpha")
+    second = open_fund(company, "Beta")
 
     assert first is not None and second is not None
     assert first.id != second.id
@@ -90,9 +102,9 @@ def test_funds_are_independent_of_one_another():
 
 def test_two_funds_cannot_share_a_name():
     _, company, _, _ = build()
-    company.funds.create("Alpha", day=1)
+    books(company).create("Alpha", day=1)
 
-    fund, reason = company.funds.create("alpha", day=1)
+    fund, reason = books(company).create("alpha", day=1)
 
     assert fund is None
     assert "already" in reason
@@ -102,7 +114,7 @@ def test_a_new_fund_with_no_investments_is_a_valid_state():
     """V11.21 says so explicitly: an empty fund is not an error."""
     _, company, _, _ = build()
 
-    fund, _ = company.funds.create("Alpha", day=1)
+    fund = open_fund(company, "Alpha")
 
     assert fund.investments is not None
     assert fund.investments.open_positions() == []
@@ -117,7 +129,7 @@ def test_fund_money_is_never_company_money():
     _, company, _, _ = build()
     company_cash = company.finances.cash
 
-    fund, _ = company.funds.create("Alpha", day=1)
+    fund = open_fund(company, "Alpha")
 
     assert company.finances.cash == company_cash, "seeding a fund costs the company nothing"
     assert fund.finances is not company.finances
@@ -127,7 +139,7 @@ def test_fund_money_is_never_company_money():
 def test_investor_capital_is_financing_rather_than_revenue():
     """The fund was entrusted with it, it did not earn it (V17.26)."""
     _, company, _, _ = build()
-    fund, _ = company.funds.create("Alpha", day=1)
+    fund = open_fund(company, "Alpha")
 
     assert fund.finances.ledger.lifetime.revenue.is_zero
     assert fund.finances.ledger.cash_in.is_positive
@@ -136,7 +148,7 @@ def test_investor_capital_is_financing_rather_than_revenue():
 def test_a_fund_uses_the_companys_employees():
     """V11.14: employees manage company capital and fund capital alike."""
     _, company, _, _ = build()
-    fund, _ = company.funds.create("Alpha", day=1)
+    fund = open_fund(company, "Alpha")
 
     assert fund.employees is company.employees
 
@@ -146,7 +158,7 @@ def test_assets_under_management_are_not_counted_as_company_assets():
     _, company, _, _ = build()
     before = company.finances.assets()
 
-    company.funds.create("Alpha", day=1)
+    books(company).create("Alpha", day=1)
 
     assert company.finances.assets() == before
 
@@ -159,7 +171,7 @@ def test_a_fund_invests_through_the_same_workflow():
     from apex_horizon.engine.investments import InvestmentSystem
 
     _, company, _, engine = build()
-    fund, _ = company.funds.create("Alpha", day=1)
+    fund = open_fund(company, "Alpha")
     fund.register(engine)
 
     engine.run_days(240)
@@ -171,10 +183,10 @@ def test_a_fund_invests_through_the_same_workflow():
 def test_assets_under_management_add_up_across_funds():
     """V11.8."""
     _, company, _, _ = build()
-    first, _ = company.funds.create("Alpha", day=1)
-    second, _ = company.funds.create("Beta", day=1)
+    first = open_fund(company, "Alpha")
+    second = open_fund(company, "Beta")
 
-    total = company.funds.assets_under_management()
+    total = books(company).assets_under_management()
 
     assert total == first.assets_under_management() + second.assets_under_management()
 
@@ -182,7 +194,7 @@ def test_assets_under_management_add_up_across_funds():
 def test_the_company_is_paid_for_managing_a_fund():
     """V11.5: the company earns by managing, not by owning."""
     _, company, _, engine = build()
-    fund, _ = company.funds.create("Alpha", day=1)
+    fund = open_fund(company, "Alpha")
     fund.register(engine)
 
     engine.run_days(336)
@@ -197,18 +209,18 @@ def test_the_company_is_paid_for_managing_a_fund():
 def test_confidence_follows_performance():
     """V11.11: well-managed funds become more attractive."""
     _, company, _, engine = build()
-    fund, _ = company.funds.create("Alpha", day=1)
+    fund = open_fund(company, "Alpha")
     fund.register(engine)
     fund.confidence = 0.5
 
     # A fund that has made money for its investors earns their trust.
     fund.finances.cash = fund.contributed + fund.contributed
-    company.funds._update_confidence(fund)
+    books(company)._update_confidence(fund)
     grown = fund.confidence
 
     fund.confidence = 0.5
     fund.finances.cash = Money(fund.contributed.amount / 4)
-    company.funds._update_confidence(fund)
+    books(company)._update_confidence(fund)
 
     assert grown > 0.5 > fund.confidence
 
@@ -216,7 +228,7 @@ def test_confidence_follows_performance():
 def test_more_money_arrives_without_the_player_doing_anything():
     """V11.20: deposits follow the record, not an action."""
     _, company, _, engine = build()
-    fund, _ = company.funds.create("Alpha", day=1)
+    fund = open_fund(company, "Alpha")
     fund.register(engine)
     before = fund.contributed
 
@@ -230,15 +242,15 @@ def test_more_money_arrives_without_the_player_doing_anything():
 
 def test_funds_survive_a_round_trip():
     _, company, market, engine = build()
-    fund, _ = company.funds.create("Alpha", day=1)
+    fund = open_fund(company, "Alpha")
     fund.register(engine)
     engine.run_days(200)
-    before = company.funds.state()
+    before = books(company).state()
 
-    company.funds.restore(before, market=market)
+    books(company).restore(before, market=market)
 
-    assert len(company.funds) == 1
-    restored = company.funds.funds[0]
+    assert len(books(company)) == 1
+    restored = books(company).funds[0]
     assert restored.name == "Alpha"
     assert restored.contributed == fund.contributed
     assert restored.fees_paid == fund.fees_paid

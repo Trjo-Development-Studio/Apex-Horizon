@@ -19,8 +19,8 @@ class CompanyPage(Page):
     """The player's own company (V3.17)."""
 
     key = "company"
-    title = "Company"
-    subtitle = "Your investment company"
+    TITLE = "Company"
+    SUBTITLE = "Your investment company"
 
     def __init__(self, context):
         super().__init__(context)
@@ -198,8 +198,8 @@ class FinancePage(Page):
     """Financial reporting (V17.14)."""
 
     key = "finance"
-    title = "Financial Management"
-    subtitle = "Where the company's money comes from and goes"
+    TITLE = "Financial Management"
+    SUBTITLE = "Where the company's money comes from and goes"
 
     def cards(self):
         company = self.context.company

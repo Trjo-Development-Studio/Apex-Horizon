@@ -39,6 +39,7 @@ def company():
     player = Player("Owner", cash=Money(400_000))
     player.unlocks.unlock(CREATE_COMPANY)
     company, _ = player.found_company("Test Capital", day=1)
+    assert company is not None, "the builder must produce a company"
     # Training is opened by the Training branch (V6.7.4); these tests are about
     # what training does, not about earning it.
     company.employees.training_allowed = True

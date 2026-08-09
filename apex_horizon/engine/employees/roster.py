@@ -15,8 +15,9 @@ internals (V15.7).
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterator
 from random import Random
+from typing import Any
 
 from ..config import Config, get_config
 from ..logging_setup import get_logger
@@ -65,7 +66,7 @@ class EmployeeRoster:
     def __len__(self) -> int:
         return len(self.employees)
 
-    def __iter__(self) -> Iterable[Employee]:
+    def __iter__(self) -> Iterator[Employee]:
         return iter(self.employees)
 
     @property
@@ -312,7 +313,7 @@ class EmployeeRoster:
             employee.happiness = max(0.0, min(1.0, employee.happiness))
 
     # -- statistics (V9.10, V28.3) ----------------------------------------
-    def statistics(self) -> dict[str, object]:
+    def statistics(self) -> dict[str, Any]:
         if not self.employees:
             return {"Employees": f"0 of {self.capacity}"}
         average = sum(e.overall_skill for e in self.employees) / len(self.employees)

@@ -39,6 +39,7 @@ def founded_player(cash: int = 100_000) -> tuple[Player, InvestmentCompany]:
     player = Player("Test Owner", cash=Money(cash))
     player.unlocks.unlock(CREATE_COMPANY)
     company, _ = player.found_company("Test Capital", day=1)
+    assert company is not None, "the builder must produce a company"
     # Borrowing is opened by the Finance branch (V6.7.1); these tests are about
     # what loans do, not about earning them.
     company.borrowing_allowed = True
@@ -404,6 +405,7 @@ def test_loans_are_repaid_weekly_with_interest():
     company.register(engine)
 
     engine.run_days(7 * 4)
+    assert loan is not None
     assert loan.outstanding < Money(52_000)
     assert loan.interest_paid.is_positive
     assert "Loan repayments" in company.finances.ledger.by_category
@@ -418,6 +420,7 @@ def test_a_loan_is_eventually_repaid_in_full():
     engine = make_engine()
     company.register(engine)
 
+    assert loan is not None
     engine.run_days(7 * 110)
     assert loan.outstanding.is_zero
     assert loan.repaid_on_day is not None

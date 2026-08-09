@@ -130,7 +130,8 @@ def test_their_trading_reaches_the_market_as_ordinary_demand():
     engine.run_days(240)
 
     positions = sum(
-        len(company.investments.open_positions()) for company in ai.operating
+        len(company.investments.open_positions())
+        for company in ai.operating if company.investments
     )
     assert positions > 0, "AI companies invest through the V8.3 workflow"
 
@@ -140,7 +141,9 @@ def test_they_use_the_same_investment_workflow():
     ai, _, engine, _, _ = build()
     engine.run_days(200)
 
-    company = max(ai.operating, key=lambda c: len(c.investments.positions))
+    company = max(ai.operating,
+                  key=lambda c: len(c.investments.positions) if c.investments else 0)
+    assert company.investments is not None
     stats = company.investments.statistics()
     assert set(stats) >= {"Holdings value", "Open positions", "Realised"}
 

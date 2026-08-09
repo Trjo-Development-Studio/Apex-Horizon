@@ -136,6 +136,28 @@ V14.5 lists Investments and Financial Management as sidebar sections, so folding
 them into the systems they belong to departs from that list. Nothing became
 unreachable — a test asserts every system V14.5 names can still be opened.
 
+## Start Menu and navigation (PM, 2026-08-09)
+
+The game opens on a Start Menu, and Save & Exit returns to it rather than
+closing the program, which is what V16.4 describes. A failed save keeps the
+player in the running game with the error, per V16.4 step 6, rather than
+returning them to the menu — losing a session to a failed save would be the one
+outcome V16.4 exists to prevent.
+
+Settings moved out of the sidebar's main list to sit above Save & Exit at the
+foot. The sidebar can be expanded to show names beside the icons by clicking the
+wordmark; the state is remembered for the session.
+
+**Top movers are measured over a period**, seven days by default
+(`market.top_mover_period_days`). Measured over a single day the figure changed
+about once a real second, since the simulation runs a day a second — correct,
+but unreadable, and reported as feeling random. A week is long enough to mean
+something and short enough to keep moving.
+
+**Company order is fixed** by company id rather than by any changing figure, so
+a company holds its position for the life of a save. Lists sort only when the
+player asks (V27.3).
+
 ## Content and assets
 
 | Decision | Detail |

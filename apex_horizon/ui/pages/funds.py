@@ -30,8 +30,8 @@ class FundsPage(Page):
     """Every fund the company manages (V11.7)."""
 
     key = "company:funds"
-    title = "Investment Funds"
-    subtitle = "Capital the company manages for outside investors"
+    TITLE = "Investment Funds"
+    SUBTITLE = "Capital the company manages for outside investors"
 
     def __init__(self, context):
         super().__init__(context)

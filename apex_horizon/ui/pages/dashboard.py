@@ -28,8 +28,8 @@ class DashboardPage(Page):
     """An overview of the company and the world around it (V14.7)."""
 
     key = "dashboard"
-    title = "Dashboard"
-    subtitle = "Your company at a glance"
+    TITLE = "Dashboard"
+    SUBTITLE = "Your company at a glance"
 
     def cards(self):
         player, company, market = self.context.player, self.context.company, self.context.market
@@ -117,18 +117,20 @@ class DashboardPage(Page):
         if market is not None:
             lines.append(("Market index", f"{market.market_index():,.0f}"))
             lines.append(("Companies listed", f"{len(market.active_listings()):,}"))
-            # The name alone told the player nothing: without the figure there
-            # was no way to see it meant anything, and it changes every day.
-            best = market.top_gainer()
-            if best is not None and self.context.world:
-                record = self.context.world.company_by_id(best.company_id)
-                if record:
-                    lines.append((
-                        "Today's top gainer",
-                        f"{record.name}  {best.daily_change().format(signed=True)}",
-                    ))
-            elif market.active_listings():
-                lines.append(("Today's top gainer", "Nothing gained today"))
+            # Measured over a period rather than a single day: one in-game day
+            # passes every real second, so a daily figure changed about once a
+            # second and read as random however correctly it was calculated.
+            period = market.top_mover_period
+            for label, listing in (("Top gainer", market.top_gainer()),
+                                   ("Top loser", market.top_loser())):
+                if listing is not None and self.context.world:
+                    record = self.context.world.company_by_id(listing.company_id)
+                    if record:
+                        change = market.change_over_period(listing)
+                        lines.append((f"{label}, {period} days",
+                                      f"{record.name}  {change.format(signed=True)}"))
+                elif market.active_listings():
+                    lines.append((f"{label}, {period} days", "None"))
         for label, value in lines:
             draw_text(surface, fonts.small, label, (world.left + 20, y), theme.TEXT_MUTED)
             draw_text(surface, fonts.small, truncate(fonts.small, value, column - 190),

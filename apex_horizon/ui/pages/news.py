@@ -35,8 +35,8 @@ class NewsPage(Page):
     """Everything the world has reported, newest first (V10.15)."""
 
     key = "news"
-    title = "News"
-    subtitle = "What is happening in the financial world"
+    TITLE = "News"
+    SUBTITLE = "What is happening in the financial world"
 
     def __init__(self, context):
         super().__init__(context)

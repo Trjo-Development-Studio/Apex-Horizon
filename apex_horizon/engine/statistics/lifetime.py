@@ -25,6 +25,8 @@ statistic is (V15.7).
 
 from __future__ import annotations
 
+from typing import Any
+
 from ..config import Config, get_config
 from ..logging_setup import get_logger
 from ..values import Money
@@ -106,7 +108,7 @@ class LifetimeStatistics:
     def net_lifetime_profit(self) -> Money:
         return self.total_profit - self.total_losses
 
-    def summary(self) -> dict[str, object]:
+    def summary(self) -> dict[str, Any]:
         """Everything worth showing, in the order a player would ask it."""
         return {
             "Companies founded": self.companies_founded,

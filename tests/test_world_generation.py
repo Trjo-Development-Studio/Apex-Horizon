@@ -70,7 +70,9 @@ def test_every_company_has_an_identifier_industry_ceo_and_home():
         kind, number = parse_id(company.id)
         assert kind == "company" and number > 0
         assert company.industry in ALL_INDUSTRIES
+        assert company.ceo_id is not None
         assert world.person_by_id(company.ceo_id) is not None
+        assert company.headquarters_id is not None
         assert world.city_by_id(company.headquarters_id) is not None
         assert not company.is_subsidiary
 
