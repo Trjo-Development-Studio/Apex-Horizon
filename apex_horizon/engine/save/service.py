@@ -21,7 +21,7 @@ from random import Random
 from ... import __version__
 from ..config import Config, get_config
 from ..logging_setup import get_logger
-from ..simulation import PeriodBoundary, SimulationContext, SimulationEngine
+from ..simulation import SimulationEngine
 from ..values import IdAllocator, now_iso
 from .format import SaveDocument, SaveMetadata, SaveSummary
 from .slots import AUTOSAVE_SLOT, SaveStore, SlotInfo
@@ -53,18 +53,33 @@ class SaveService:
         self.playtime_seconds = 0.0
         #: Set whenever the world changes, cleared on save (V14.19, V13.22).
         self.unsaved_changes = False
-        self._autosave_months = self.config.get_int("save.autosave_interval_months")
-        self._months_since_autosave = 0
+        self._autosave_minutes = self.config.get_float("save.autosave_interval_minutes")
+        self._seconds_since_autosave = 0.0
         #: Called with a message whenever an autosave completes (V16.24).
         self.on_autosave: list[Callable[[str], None]] = []
 
     # -- lifecycle ---------------------------------------------------------
-    def register(self, engine: SimulationEngine) -> None:
-        """Attach the monthly autosave (V16.5, V13.10)."""
-        engine.register_boundary(PeriodBoundary.MONTH, self._monthly_autosave)
-
     def record_playtime(self, seconds: float) -> None:
-        self.playtime_seconds += max(0.0, seconds)
+        """Count real time played, and autosave once enough of it has passed.
+
+        Autosaving runs on the clock on the player's wall, not the one in the
+        world. V16.5 has it happen every in-game month, but a month passes in
+        twenty-eight seconds at normal speed and nine at triple, so the game
+        spent its time writing saves nobody needed. What the interval was always
+        for is how much of the player's *own* time a crash could cost them, and
+        that is measured in real minutes (project-manager decision, 2026-08-09).
+
+        The caller does not count time while a decision is open, so a game left
+        sitting on a popup does not save itself over and over.
+        """
+        elapsed = max(0.0, seconds)
+        self.playtime_seconds += elapsed
+        if self._autosave_minutes <= 0:
+            return
+        self._seconds_since_autosave += elapsed
+        if self._seconds_since_autosave >= self._autosave_minutes * 60:
+            self._seconds_since_autosave = 0.0
+            self.autosave()
 
     def mark_changed(self) -> None:
         self.unsaved_changes = True
@@ -186,7 +201,6 @@ class SaveService:
             player.company.attach_market(market, allocator)
             player.company.restore(state.get("player", {}).get("company", {}))
             player.company.register(engine)
-        self.register(engine)
 
         context.engine = engine
         context.world = world
@@ -220,7 +234,7 @@ class SaveService:
 
         self.metadata = document.metadata
         self.playtime_seconds = document.metadata.playtime_seconds
-        self._months_since_autosave = 0
+        self._seconds_since_autosave = 0.0
         self.unsaved_changes = False
 
     def _restore_analytics(self, data: dict, engine: SimulationEngine) -> None:
@@ -262,22 +276,15 @@ class SaveService:
         """Autosave immediately before a major irreversible decision (V16.6)."""
         return self.autosave(reason=decision)
 
-    def _monthly_autosave(self, context: SimulationContext) -> None:
-        self._months_since_autosave += 1
-        if self._autosave_months <= 0:
-            return
-        if self._months_since_autosave >= self._autosave_months:
-            self._months_since_autosave = 0
-            self.autosave()
-
     @property
-    def autosave_interval_months(self) -> int:
-        return self._autosave_months
+    def autosave_interval_minutes(self) -> float:
+        """Real minutes between autosaves; zero turns them off."""
+        return self._autosave_minutes
 
-    def set_autosave_interval(self, months: int) -> None:
+    def set_autosave_interval(self, minutes: float) -> None:
         """Change how often the game autosaves; players may adjust this (V16.5)."""
-        self._autosave_months = max(0, months)
-        self._months_since_autosave = 0
+        self._autosave_minutes = max(0.0, minutes)
+        self._seconds_since_autosave = 0.0
 
     # -- loading -----------------------------------------------------------
     def load_from_slot(self, slot: str | int, *, allow_damaged: bool = False) -> LoadOutcome:

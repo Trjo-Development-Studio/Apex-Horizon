@@ -115,7 +115,6 @@ class GameApp:
         self.current_key = "dashboard"
 
         self.saves = SaveService(self.context)
-        self.saves.register(self.context.engine)
         self.saves.on_autosave.append(self._on_autosave)
         self.context.saves = self.saves
         self.current_slot: str = "1"
@@ -800,7 +799,6 @@ class GameApp:
 
         self._build_world(secrets.randbelow(2**31))
         self.saves = SaveService(self.context)
-        self.saves.register(self.context.engine)
         self.saves.on_autosave = [self._on_autosave]
         self.context.saves = self.saves
         self.menu.saves = self.saves

@@ -392,19 +392,33 @@ def test_the_summary_matches_the_game(game):
 # -- autosaving (V16.5 - V16.7, V16.24) -----------------------------------
 
 
-def test_the_game_autosaves_every_month(game):
+def test_the_game_autosaves_on_real_time(game):
+    """PM decision: the interval is the player's own time, not the world's."""
     messages: list[str] = []
     game.saves.on_autosave.append(messages.append)
+    minutes = game.saves.autosave_interval_minutes
+    assert minutes > 0
+
+    # Time passing in the world alone must not trigger it.
+    game.context.engine.run_days(400)
     assert not game.saves.store.info("autosave").exists
-    game.context.engine.run_days(30)
+
+    game.saves.record_playtime(minutes * 60)
     assert game.saves.store.info("autosave").exists
     assert messages and messages[0] == "Autosaved"
 
 
+def test_the_interval_is_not_reached_early(game):
+    game.saves.record_playtime(game.saves.autosave_interval_minutes * 60 - 1)
+    assert not game.saves.store.info("autosave").exists
+
+
 def test_only_one_rolling_autosave_is_kept(game):
-    game.context.engine.run_days(30)
+    minutes = game.saves.autosave_interval_minutes
+    game.saves.record_playtime(minutes * 60)
     first = game.saves.store.info("autosave").summary.day
     game.context.engine.run_days(60)
+    game.saves.record_playtime(minutes * 60)
     second = game.saves.store.info("autosave").summary
     # The same file, replaced rather than accumulating.
     assert len(list(game.saves.store.directory.glob("autosave*"))) == 1
@@ -419,12 +433,22 @@ def test_a_major_decision_autosaves_first(game):
 
 
 def test_autosave_frequency_can_be_changed(game):
-    game.saves.set_autosave_interval(3)
-    assert game.saves.autosave_interval_months == 3
-    game.context.engine.run_days(30)
+    """V16.5: players may change how often the game saves itself."""
+    game.saves.set_autosave_interval(1)
+    assert game.saves.autosave_interval_minutes == 1
+
+    game.saves.record_playtime(59)
     assert not game.saves.store.info("autosave").exists
-    game.context.engine.run_days(60)
+    game.saves.record_playtime(2)
     assert game.saves.store.info("autosave").exists
+
+
+def test_autosaving_can_be_turned_off(game):
+    game.saves.set_autosave_interval(0)
+
+    game.saves.record_playtime(60 * 60)
+
+    assert not game.saves.store.info("autosave").exists
 
 
 def test_autosaving_can_be_switched_off(game):

@@ -512,8 +512,12 @@ yearly_chance = 0.35
 [save]
 # V16.8 — five manual save slots, each an independent world.
 manual_slots = 5
-# V16.5 / V13.10 — autosave every in-game month by default; player-adjustable.
-autosave_interval_months = 1
+# PM decision (2026-08-09): autosave on real time rather than game time. V16.5
+# says every in-game month, but a month passes in twenty-eight seconds at normal
+# speed and nine at triple, so the game was saving constantly. What the setting
+# is really for is how much of the player's own time an interruption could cost,
+# which is a figure in real minutes. Zero turns autosaving off.
+autosave_interval_minutes = 10
 # V16.7 — a single rolling autosave; each new autosave replaces the previous.
 rolling_autosave_slots = 1
 

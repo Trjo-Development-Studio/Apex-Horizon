@@ -158,6 +158,24 @@ something and short enough to keep moving.
 a company holds its position for the life of a save. Lists sort only when the
 player asks (V27.3).
 
+## Autosave frequency (PM, 2026-08-09)
+
+**Autosaving is measured in real minutes, not in-game months** — every ten
+minutes of play by default, adjustable in Settings and switchable off.
+
+V16.5 says the game autosaves every in-game month. The Bible was written before
+the clock had a speed: at one day a real second a month is twenty-eight seconds,
+and nine at triple speed, so a player was getting a hundred-odd saves an hour.
+The *intent* of V16.5 is unchanged — the player never loses much progress — but
+the quantity that intent is about is the player's own time, which is what a real
+interval measures. The rest of V16.5–V16.7 stands: still adjustable, still
+switchable off, still one rolling autosave, still a save before every
+irreversible decision (V16.6).
+
+The counter only advances while the game is actually being played; time spent
+on an open decision does not count, so a game left sitting on a popup will not
+save itself repeatedly.
+
 ## Content and assets
 
 | Decision | Detail |

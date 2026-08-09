@@ -72,7 +72,12 @@ Temporary interface state is deliberately not saved.
 
 ## Autosaving (V16.5–V16.7, V16.24)
 
-- Every in-game month by default, adjustable in Settings, and switchable off.
+- Every ten **real** minutes of play by default, adjustable in Settings, and
+  switchable off (`save.autosave_interval_minutes`). V16.5 says every in-game
+  month; a month lasts twenty-eight seconds at normal speed, so the project
+  manager set a real-time interval instead — see
+  [design decisions](design-decisions.md). Time spent on an open decision does
+  not count toward it.
 - Immediately **before** a major irreversible decision (V16.6), so the moment
   before it is always available.
 - One rolling autosave; each replaces the last.

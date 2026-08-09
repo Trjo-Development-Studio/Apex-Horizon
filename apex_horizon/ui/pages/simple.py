@@ -197,6 +197,16 @@ class InvestmentsPage(Page):
             y += 24
 
 
+def _autosave_line(saves) -> str:
+    """How often the game saves itself, in the time the player measures in."""
+    minutes = saves.autosave_interval_minutes
+    if minutes <= 0:
+        return "Autosaving is turned off."
+    if minutes == int(minutes):
+        return f"Autosaves every {int(minutes)} minutes of play."
+    return f"Autosaves every {minutes:g} minutes of play."
+
+
 class SettingsPage(Page):
     """Simulation speed, and leaving the game (V14.5, V16.3)."""
 
@@ -294,7 +304,7 @@ class SettingsPage(Page):
             return
 
         draw_text(surface, fonts.small,
-                  f"Autosaves every {saves.autosave_interval_months} in-game month(s).",
+                  _autosave_line(saves),
                   (rect.left + 20, rect.top + 52), theme.TEXT_MUTED)
 
         self._slot_buttons.clear()

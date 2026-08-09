@@ -26,6 +26,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **The game autosaves every ten real minutes** rather than every in-game month
+  (project-manager decision). A month passes in twenty-eight seconds at normal
+  speed and nine at triple, so the old rule saved constantly; the interval is
+  now measured in the time the player actually spends, is adjustable in Settings
+  (`save.autosave_interval_minutes`), and can be switched off. Time spent on an
+  open decision does not count toward it, and V16.6's save before every
+  irreversible decision is unchanged.
 - **Companies no longer move around.** Listings are ordered by company id, which
   never changes, so a company holds the same position for the life of a save —
   prices moving, one company overtaking another, and reloading cannot shuffle
