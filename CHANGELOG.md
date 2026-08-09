@@ -136,6 +136,70 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Tables now fit a page to the space the panel actually has, rather than always
   drawing twelve rows. A fixed count ran past the bottom of the panel on a short
   window, which reads as a broken list rather than a full one.
+- **A bankrupt company can no longer operate.** `GameContext.has_company`
+  (already the correct check in a few places) is now used everywhere a page
+  needs to know whether there is a business currently running, rather than
+  only whether a company object exists — a bankrupt company still exists, by
+  design, as a historical record (V1.3), so `company is not None` was never
+  the right test for "is it open for business". Dashboard, Company, Financial
+  Management, Employees, Subsidiaries and Investment Funds all now show the
+  bankruptcy for what it is instead of stale live figures, and
+  `EmployeeRoster.hire()` itself refuses a bankrupt company, matching the
+  refusal `SubsidiaryBook.can_acquire()` and `FundBook.can_create()` already
+  gave theirs — the state check was missing, not just the button. The Company
+  page's bankruptcy notice no longer overlaps the Employee Management button;
+  it is now part of the page's normal empty state rather than a caption
+  drawn over the top of it.
+- **Notifications can no longer cover Hire buttons, table rows or dashboard
+  figures.** The stack still slides in at the bottom right (unchanged,
+  unhidden, un-shortened), but the page beneath it now gives up exactly the
+  room the current stack needs (`NotificationCentre.safe_height`), and every
+  affected page's layout is adaptive rather than fixed-height: Employee
+  Management prioritises its Candidates panel and, rather than silently
+  hiding the staff table when there is no room for it, reclaims a small
+  amount of Candidates' own space — unless Candidates is already at its own
+  compact floor — so there is always enough room to say the table is hidden
+  instead of leaving an unexplained gap where it used to be. The Dashboard's
+  two side panels clamp to the space they are actually given. A reservation
+  sized to the worst case at all times was tried first and rejected — it
+  permanently left the Employee Management staff table with no room at all
+  at the minimum window size, even with nothing showing.
+- **A table too short to hold its forced single row no longer draws its page
+  count and page controls on top of it.** `_rows_that_fit` always shows at
+  least one row rather than none, which the pagination footer — positioned
+  from the bottom of the panel — could end up overlapping on a short window.
+  The footer now goes unshown rather than overlapping when there is no room
+  for both.
+- **The News page's lead story and archive no longer overlap themselves or
+  spill past their own panels under a short window.** The lead story used to
+  keep a fixed height regardless of how much room the page actually had,
+  which could leave the archive with space for a single row, or shrink the
+  lead itself far enough that its byline was drawn on top of its own body
+  text; the archive's own "Archive" heading and hint line had no such guard
+  either, and could be drawn spilling past the bottom of a panel shrunk to a
+  couple of dozen pixels. The archive now keeps priority the same way
+  Employee Management's Candidates panel does, the lead story drops its body
+  and byline, in that order, and the archive's heading goes unshown below its
+  own minimum — none ever laid over something else.
+- **Analytics and Statistics no longer carry a dead `key`.** Both are tabs
+  inside Portfolio — composed by calling `draw_content` directly rather than
+  through the shared `Page.draw` — and were never registered as sidebar
+  destinations, so the `key`, title and subtitle they inherited from `Page`
+  looked like a real, reachable page while doing nothing if anything ever
+  navigated to them. Removed rather than registered, matching how the rest of
+  Portfolio's tabs already work.
+
+### Known gap
+
+- A company can appear more than once in one investment fund's position list.
+  This is **not confirmed as a bug** — it may be genuinely separate purchases,
+  which is legitimate for a position list to show — and was deliberately left
+  alone rather than changed on the strength of looking cluttered (V19.4). See
+  `docs/design-decisions.md`.
+- Long automated playthroughs were observed getting slower, but this has **not
+  been profiled**, so the cause is unknown and nothing was changed on the
+  strength of the observation. A dedicated profiling pass is needed before any
+  optimisation. See `docs/design-decisions.md`.
 
 The top gainer itself was **not** randomly selected: it was already ranked on
 the largest actual daily change, and a test now pins that, including one that

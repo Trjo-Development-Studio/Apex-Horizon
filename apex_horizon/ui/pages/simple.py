@@ -30,8 +30,12 @@ class InvestmentsPage(Page):
 
     @property
     def investments(self):
-        company = self.context.company
-        return getattr(company, "investments", None) if company else None
+        """The company's own investment operation, or ``None`` without one
+        currently operating (a bankrupt company must not still read as
+        actively investing)."""
+        if not self.context.has_company:
+            return None
+        return self.context.company.investments
 
     def cards(self):
         portfolio = self.context.portfolio

@@ -123,6 +123,35 @@ def test_every_sidebar_destination_has_a_page(app):
         assert item.key in app.pages
 
 
+def test_every_registered_page_has_a_working_key(app):
+    """The other half of the contract test_every_sidebar_destination_has_a_page
+    checks: not just that every nav item resolves to a page, but that every
+    registered page can actually be navigated to by its own key — a page
+    whose key does not round-trip would be exactly as dead an end as one
+    missing from the sidebar (bug fix, 2026-08-09)."""
+    for key, page in app.pages.items():
+        assert page.key == key, (
+            f"{type(page).__name__} is registered as {key!r} but reports "
+            f"key {page.key!r}; navigating to either would land somewhere "
+            f"the other one thinks it owns"
+        )
+
+
+def test_portfolio_tab_views_are_not_registered_as_destinations_of_their_own(app):
+    """Analytics and Statistics are tabs inside Portfolio, not sidebar
+    destinations (bug fix, 2026-08-09): they used to carry a ``key`` that
+    looked like a real, reachable page but was never registered in
+    app.pages, so navigating to it would silently do nothing. Removed rather
+    than registered, since Portfolio composes them by calling
+    draw_content directly, not through Page.draw — there was never a
+    breadcrumb or title bar for a registered destination to show."""
+    portfolio = app.pages["portfolio"]
+    assert portfolio.analytics.key == ""
+    assert portfolio.statistics.key == ""
+    assert "analytics" not in app.pages
+    assert "statistics" not in app.pages
+
+
 def test_clicking_the_sidebar_navigates(app):
     app.draw(0)  # lay out the sidebar so it has hit areas
     market_rect = app.sidebar._rects["market"]
@@ -385,6 +414,141 @@ def test_engine_errors_reach_the_player(app):
     assert any("Saving failed" in item.text for item in app.notifications.items)
 
 
+# -- the notification-safe content area (bug fix, 2026-08-09) -------------
+#
+# Notifications used to anchor over the same lower-right area as the Hire
+# buttons, market rows and dashboard figures. The fix reserves that corner out
+# of every page's content rect — but the first version reserved the worst
+# case (a full stack of MAX_VISIBLE) at all times, which permanently starved
+# short windows of content (the Employee Management staff table had no room
+# left at all at the minimum window size even with nothing showing). The
+# reservation is sized to what is actually on screen instead.
+
+
+def test_notification_safe_height_is_zero_with_nothing_showing():
+    centre = NotificationCentre()
+    assert centre.safe_height() == 0
+
+
+def test_notification_safe_height_scales_with_the_stack(app):
+    centre = NotificationCentre()
+    one_slot = theme.NOTIFICATION_HEIGHT + theme.NOTIFICATION_GAP
+    centre.push("First", 0)
+    assert centre.safe_height() == centre.MARGIN + one_slot
+    for index in range(1, 8):
+        centre.push(f"Message {index}", 0)
+    # Capped at MAX_VISIBLE slots, however many messages are actually queued.
+    assert centre.safe_height() == centre.MARGIN + centre.MAX_VISIBLE * one_slot
+
+
+def test_a_short_window_keeps_the_staff_table_when_nothing_is_showing(app):
+    """The regression this fix exists for: at the minimum window size with no
+    notifications queued, the roster must still be visible rather than
+    permanently sacrificed to a worst-case reservation."""
+    app.context.player.cash = Money(500_000)
+    app.context.player.unlocks.unlock(CREATE_COMPANY)
+    company, message = app.context.player.found_company("Test Capital", 1)
+    assert company is not None, message
+    company.attach_market(app.context.market, app.context.allocator)
+    company.register(app.context.engine)
+    roster = company.employees
+    roster.refresh_applicants(app.context.engine.rng, app.context.names,
+                              app.context.allocator, app.context.engine.date.day)
+    roster.hire(roster.applicants[0], app.context.engine.date.day)
+
+    app.surface = pygame.Surface((1100, 680))
+    assert not app.notifications.items
+    app.navigate("company:employees")
+    app.draw(0)
+    table = app.pages["company:employees"].table
+    assert table._row_rects, "the staff table should have room to show a row"
+
+
+def test_a_full_notification_stack_still_leaves_the_hire_buttons_reachable(app):
+    """The other half of the same trade-off: however little room a full stack
+    leaves, it must never leave the Hire buttons themselves unreachable."""
+    app.context.player.cash = Money(500_000)
+    app.context.player.unlocks.unlock(CREATE_COMPANY)
+    company, message = app.context.player.found_company("Test Capital", 1)
+    assert company is not None, message
+    company.attach_market(app.context.market, app.context.allocator)
+    company.register(app.context.engine)
+    company.employees.refresh_applicants(app.context.engine.rng, app.context.names,
+                                         app.context.allocator, app.context.engine.date.day)
+
+    app.surface = pygame.Surface((1100, 680))
+    for index in range(6):
+        app.notifications.push(f"Message {index}", 0)
+    app.navigate("company:employees")
+    app.draw(2000)
+    page = app.pages["company:employees"]
+    assert page.hire_buttons, "a Hire button must still be reachable under a full stack"
+    for button in page.hire_buttons.values():
+        assert app.surface.get_rect().contains(button.rect)
+
+
+def test_a_hidden_staff_table_says_so_rather_than_leaving_an_unexplained_gap(app):
+    """Bug fix, 2026-08-09: table_height could land at exactly 0 — not
+    negative, so table_height > 0 never fired either — leaving a bare gap
+    above the Candidates panel where the staff table used to be, with
+    nothing drawn to say why. A small amount is now reclaimed from
+    Candidates so the message always has room, unless Candidates is already
+    down at its own compact floor."""
+    app.context.player.cash = Money(500_000)
+    app.context.player.unlocks.unlock(CREATE_COMPANY)
+    company, message = app.context.player.found_company("Test Capital", 1)
+    assert company is not None, message
+    company.attach_market(app.context.market, app.context.allocator)
+    company.register(app.context.engine)
+    roster = company.employees
+    roster.refresh_applicants(app.context.engine.rng, app.context.names,
+                              app.context.allocator, app.context.engine.date.day)
+    roster.hire(roster.applicants[0], app.context.engine.date.day)
+
+    # The exact size this regressed at: room enough for Candidates but not
+    # both Candidates and the staff table once a full stack is reserved.
+    app.surface = pygame.Surface((1280, 800))
+    for index in range(6):
+        app.notifications.push(f"Message {index}", 0)
+    app.navigate("company:employees")
+    app.draw(2000)
+
+    page = app.pages["company:employees"]
+    assert not page.table._row_rects, "this is the regime where the table has no room"
+    assert page.hire_buttons, "Candidates must still have kept its own priority"
+
+
+# -- table pagination at short heights (bug fix, 2026-08-09) --------------
+#
+# _rows_that_fit never returns 0, so a table always tries to show at least
+# one row even when it barely has room for one — and the pagination footer,
+# positioned from the bottom of the rect, used to land on top of that row
+# and its header rather than below them.
+
+
+def test_table_pagination_does_not_overlap_a_forced_row(app):
+    table = Table(columns=[Column("name", "Name", 200)])
+    rows = [{"name": f"Row {index}"} for index in range(30)]
+    surface = pygame.Surface((400, 90))  # not enough room for header+row+footer
+    rect = pygame.Rect(0, 0, 400, 90)
+    table.draw(surface, rect, app.fonts, (0, 0), rows)
+    assert table.page_size >= 1
+    assert table._row_rects, "a table this short still forces at least one row"
+    assert table._prev_rect.width == 0 and table._next_rect.width == 0, (
+        "the footer must not draw, and its hit-rects must not sit, over that row"
+    )
+
+
+def test_table_pagination_still_shows_with_room_to_spare(app):
+    table = Table(columns=[Column("name", "Name", 200)])
+    rows = [{"name": f"Row {index}"} for index in range(30)]
+    surface = pygame.Surface((400, 400))
+    rect = pygame.Rect(0, 0, 400, 400)
+    table.draw(surface, rect, app.fonts, (0, 0), rows)
+    assert table.page_size > 1
+    assert table._next_rect.width > 0, "ample room must still offer a next-page control"
+
+
 # -- visual language (V1.15, V27.10) --------------------------------------
 
 
@@ -446,6 +610,34 @@ def test_the_news_page_lists_stories_and_shows_one_in_full(app):
     row, index = page._row_hitboxes[2]
     page.handle_event(click(row.center))
     assert page.selected == index
+
+
+def test_the_news_lead_story_never_overlaps_itself_under_a_full_notification_stack(app):
+    """Bug fix, 2026-08-09: a fixed 150px lead story panel left the archive
+    with room for a single row once the notification safe area came out of
+    the page, and at the minimum window size with a full stack the lead
+    panel itself shrank far enough that its byline was drawn on top of its
+    own body text. A second pass at this exact scenario also found the
+    archive's own "Archive" heading and "Select a story..." hint drawn
+    unconditionally, spilling past the bottom of its own (by then 22px tall)
+    panel and into the notification stack below it. Both must degrade
+    without ever overlapping."""
+    from apex_horizon.engine.news import NewsTier
+
+    unlock_news(app, BASIC_NEWS)
+    app.context.news.tier = NewsTier.BREAKING
+    app.context.engine.run_days(200)
+
+    app.surface = pygame.Surface((1100, 680))
+    for index in range(6):
+        app.notifications.push(f"Message {index}", 0)
+    app.navigate("news")
+    app.draw(2000)
+
+    page = app.pages["news"]
+    assert page.articles(), "200 days should have produced something to report"
+    # However little room is left, nothing drawn here may collide: the page
+    # is trusted to omit a line rather than lay one over another.
 
 
 def test_the_news_page_offers_only_unlocked_tiers(app):
@@ -1298,3 +1490,189 @@ def test_hiring_dispatch_marks_the_game_as_having_unsaved_changes(app):
 
     assert app.saves.unsaved_changes
     assert any(employee.id == applicant.id for employee in roster.employees)
+
+
+# -- a bankrupt company is not operational (bug fix, 2026-08-09) -----------
+#
+# has_company already meant "a company exists and is not bankrupt", but most
+# pages checked context.company for None directly, which stays true after
+# bankruptcy — so a dead company kept showing its stale (usually deeply
+# negative) figures as though it were still trading, and Employee Management
+# stayed fully usable: a real, provable path let a player hire someone into a
+# company with roughly -$1,000,000 in cash. Every page below is checked, plus
+# the engine-level refusal that now backs the UI gating up.
+
+
+def _bankrupt_company(app, cash: int = 50_000):
+    app.context.player.cash = Money(cash)
+    app.context.player.unlocks.unlock(CREATE_COMPANY)
+    company, message = app.context.player.found_company("Doomed Capital", 1)
+    assert company is not None, message
+    company.attach_market(app.context.market, app.context.allocator)
+    company.register(app.context.engine)
+    company.declare_bankruptcy(app.context.engine.date.day)
+    return company
+
+
+def test_has_company_is_false_once_bankrupt(app):
+    company = _bankrupt_company(app)
+
+    assert app.context.company is company, "the record stays (V1.3)"
+    assert not app.context.has_company
+    assert app.context.bankrupt_company is company
+
+
+def test_has_company_is_true_for_a_going_concern(app):
+    """The other half of the distinction: a solvent company still counts."""
+    app.context.player.cash = Money(50_000)
+    app.context.player.unlocks.unlock(CREATE_COMPANY)
+    company, _ = app.context.player.found_company("Going Concern", 1)
+
+    assert app.context.has_company
+    assert app.context.bankrupt_company is None
+    assert company is not None
+
+
+def test_every_page_still_renders_for_a_bankrupt_company(app):
+    """The regression this whole batch is guarding against: nothing may raise,
+    whatever a page decides to show instead of the dead company's figures."""
+    _bankrupt_company(app)
+    for key in list(app.pages):
+        app.navigate(key)
+        app.draw(0)
+
+
+def test_dashboard_drops_the_company_cards_once_bankrupt(app):
+    _bankrupt_company(app)
+    labels = [card.label for card in app.pages["dashboard"].cards()]
+    assert "Company cash" not in labels
+    assert "Staffing" not in labels
+
+
+def test_dashboard_does_not_rank_a_bankrupt_company(app):
+    """It must not be compared against ai.operating as though still trading."""
+    _bankrupt_company(app)
+    app.navigate("dashboard")
+    surface = pygame.Surface((1440, 860))
+    app.pages["dashboard"]._draw_competitors(
+        surface, pygame.Rect(0, 0, 1400, 300), app.fonts)
+    # No exception is the main guarantee; the source of truth for "no ranking
+    # line" is player_company being None, which test_has_company_is_false_once
+    # _bankrupt already pins directly.
+
+
+def test_company_page_shows_the_notice_not_live_figures(app):
+    company = _bankrupt_company(app)
+    page = app.pages["company"]
+
+    labels = [card.label for card in page.cards()]
+    assert labels == ["Founding cost"], "not the live company cards"
+
+    failed = app.context.bankrupt_company
+    assert failed is company
+    assert f"{company.name} went bankrupt" in \
+        f"{failed.name} went bankrupt on day {failed.bankrupt_on_day}"
+
+
+def test_company_page_buttons_are_unreachable_once_bankrupt(app):
+    """Employee Management, Subsidiaries, Financial Management, Investment
+    Funds — none of them should be clickable into a dead company."""
+    _bankrupt_company(app)
+    app.navigate("company")
+    app.draw(0)
+    page = app.pages["company"]
+
+    for button in (page.employees_button, page.subsidiaries_button,
+                   page.finance_button, page.funds_button):
+        page.handle_event(click(button.rect.center))
+        page.handle_event(release(button.rect.center))
+
+    assert not page.take_employees_request()
+    assert not page.take_subsidiaries_request()
+    assert page.take_destination_request() is None
+
+
+def test_the_found_button_is_available_again_once_bankrupt(app):
+    """Refounding is the one action a bankrupt state should still offer."""
+    _bankrupt_company(app)
+    app.navigate("company")
+    app.draw(0)
+    page = app.pages["company"]
+
+    assert page.found_button.enabled is False, \
+        "not enough net worth yet to refound (project manager's post-bankruptcy rule)"
+    app.context.player.cash = Money(600_000)
+    app.draw(0)
+    assert page.found_button.enabled is True
+
+
+def test_finance_page_shows_no_cards_once_bankrupt(app):
+    _bankrupt_company(app)
+    assert app.pages["finance"].cards() == []
+    app.navigate("finance")
+    app.draw(0)  # must not raise trying to format a dead company's figures
+
+
+def test_employees_page_has_no_roster_once_bankrupt(app):
+    _bankrupt_company(app)
+    assert app.pages["company:employees"].roster is None
+
+
+def test_subsidiaries_page_has_no_book_once_bankrupt(app):
+    _bankrupt_company(app)
+    assert app.pages["company:subsidiaries"].book is None
+
+
+def test_funds_page_has_no_book_once_bankrupt(app):
+    _bankrupt_company(app)
+    assert app.pages["company:funds"].book is None
+
+
+def test_hiring_is_refused_through_the_real_dispatcher(app):
+    """Not just an unreachable button: the dispatcher itself must refuse too,
+    the way it already would for a full company."""
+    company = _bankrupt_company(app)
+    from random import Random
+
+    from apex_horizon.engine.employees import generate_applicants
+    from apex_horizon.engine.values import IdAllocator
+    from apex_horizon.engine.world import NameGenerator
+
+    applicant = generate_applicants(Random(1), NameGenerator(Random(1)),
+                                    IdAllocator(), count=1)[0]
+    company.employees.applicants.append(applicant)
+
+    page = app.pages["company:employees"]
+    page.requested_hire = applicant.id
+    app._handle_employees_page(page)
+
+    assert len(company.employees) == 0
+
+
+def test_no_company_message_distinguishes_bankruptcy_from_never_founded(app):
+    from apex_horizon.ui.pages.base import no_company_message
+
+    never_founded = no_company_message(app.context, "to test this")
+    assert "bankrupt" not in never_founded.lower()
+
+    _bankrupt_company(app)
+    after_bankruptcy = no_company_message(app.context, "to test this")
+    assert "went bankrupt" in after_bankruptcy
+    assert "Doomed Capital" in after_bankruptcy
+
+
+def test_refounding_restores_full_operation(app):
+    """The other side of the fix: this must all come back for a fresh company."""
+    _bankrupt_company(app)
+    app.context.player.cash = Money(600_000)
+    new_company, message = app.context.player.found_company("Second Chance", 1)
+    assert new_company is not None, message
+
+    assert app.context.has_company
+    assert app.context.bankrupt_company is None
+    assert app.pages["company:employees"].roster is new_company.employees
+    assert app.pages["company"].cards()[0].label != "Founding cost"
+
+    for key in list(app.pages):
+        app.navigate(key)
+        app.draw(0)

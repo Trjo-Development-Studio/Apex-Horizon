@@ -333,10 +333,23 @@ class Table:
                           align=column.align, baseline="middle")
                 cell_x += column.width
 
-        self._draw_pagination(surface, rect, fonts, mouse, len(visible), pages)
+        self._draw_pagination(surface, rect, fonts, mouse, len(visible), pages, len(page_rows),
+                              line_y)
 
-    def _draw_pagination(self, surface, rect, fonts, mouse, total: int, pages: int) -> None:
+    def _draw_pagination(self, surface, rect, fonts, mouse, total: int, pages: int,
+                         rows_drawn: int = 0, content_top: int | None = None) -> None:
         bar_y = rect.bottom - 30
+        # _rows_that_fit always leaves room for at least one row (V27.7), which
+        # can still be more row than a very short panel has space for once the
+        # notification safe-area comes out of that panel's rect too. Rather
+        # than let the footer print on top of that row, it goes unshown: a
+        # missing page count is a far smaller defect than text laid over text.
+        if content_top is not None:
+            content_bottom = content_top + 4 + rows_drawn * theme.ROW_HEIGHT
+            if bar_y < content_bottom + 8:
+                self._prev_rect = pygame.Rect(0, 0, 0, 0)
+                self._next_rect = pygame.Rect(0, 0, 0, 0)
+                return
         draw_text(surface, fonts.small,
                   f"{total} item{'s' if total != 1 else ''}",
                   (rect.left + 16, bar_y), theme.TEXT_FAINT, baseline="middle")

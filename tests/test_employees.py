@@ -343,6 +343,25 @@ def test_bankruptcy_releases_staff_and_cancels_training(staffed):
     assert any("Company closed" in e.text for e in employee.timeline)
 
 
+def test_a_bankrupt_company_cannot_hire(staffed):
+    """Bug fix, 2026-08-09: the game-state check itself, not just the UI.
+
+    Matches the refusal ``SubsidiaryBook.can_acquire`` and ``FundBook.can_create``
+    already give a bankrupt company, rather than letting a dead company still
+    grow its (soon to be immediately released) staff.
+    """
+    company, roster, _ = staffed
+    company.declare_bankruptcy(day=20)
+    applicant = generate_applicants(Random(9), NameGenerator(Random(9)),
+                                    IdAllocator(), count=1)[0]
+
+    ok, message = roster.hire(applicant, 21)
+
+    assert not ok
+    assert "bankrupt" in message.lower()
+    assert len(roster) == 0
+
+
 # -- statistics and persistence -------------------------------------------
 
 

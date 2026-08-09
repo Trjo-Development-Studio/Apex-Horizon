@@ -24,11 +24,14 @@ ROW_HEIGHT = 44
 
 
 class AnalyticsPage(Page):
-    """The five analytics views V9 asks for, side by side."""
+    """The five analytics views V9 asks for, side by side.
 
-    key = "analytics"
-    TITLE = "Analytics"
-    SUBTITLE = "What the numbers say about your position"
+    Not a sidebar destination of its own: Portfolio owns navigation to it as
+    one of its tabs and calls :meth:`draw_content` directly rather than
+    :meth:`Page.draw`, so this never gets a ``key`` to navigate to, a title
+    bar, or a breadcrumb of its own (bug fix, 2026-08-09 — the leftover `key`
+    used to look like a real, reachable destination when it was not).
+    """
 
     @property
     def analytics(self):

@@ -36,11 +36,14 @@ def _format(value) -> str:
 
 
 class StatisticsPage(Page):
-    """Every category of statistic V28 names."""
+    """Every category of statistic V28 names.
 
-    key = "statistics"
-    TITLE = "Statistics"
-    SUBTITLE = "What this playthrough has amounted to"
+    Not a sidebar destination of its own: Portfolio owns navigation to it as
+    one of its tabs and calls :meth:`draw_content` directly rather than
+    :meth:`Page.draw`, so this never gets a ``key`` to navigate to, a title
+    bar, or a breadcrumb of its own (bug fix, 2026-08-09 — the leftover `key`
+    used to look like a real, reachable destination when it was not).
+    """
 
     @property
     def lifetime(self):
@@ -78,8 +81,11 @@ class StatisticsPage(Page):
                 [(label, _format(value)) for label, value in lifetime.summary().items()],
             ))
 
-        if company is not None:
-            # V28.2, first introduced in V3.13.
+        if context.has_company:
+            # V28.2, first introduced in V3.13. Not shown for a bankrupt
+            # company: "how the business stands today" has no honest answer
+            # for one that no longer operates, and the Lifetime section above
+            # already keeps its permanent record regardless (V28.7).
             finances = company.finances
             rows = [
                 ("Company value", _format(company.value())),

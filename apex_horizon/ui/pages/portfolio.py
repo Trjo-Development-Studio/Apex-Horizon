@@ -102,9 +102,11 @@ class PortfolioPage(Page):
         ]
 
     def _company_cards(self) -> list[Card]:
+        if not self.context.has_company:
+            return []
         company = self.context.company
-        system = getattr(company, "investments", None) if company else None
-        if company is None or system is None:
+        system = company.investments
+        if system is None:
             return []
         stats = system.statistics()
         unrealised = stats["Unrealised"]

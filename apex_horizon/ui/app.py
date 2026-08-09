@@ -33,7 +33,14 @@ from ..engine.unlocks import UnlockEffects
 from ..engine.values import Money
 from ..engine.world import WorldGenerator, generate_world
 from . import assets, theme
-from .chrome import NAV_ITEMS, Breadcrumb, NotificationCentre, SaveIndicator, Sidebar, TimeControls
+from .chrome import (
+    NAV_ITEMS,
+    Breadcrumb,
+    NotificationCentre,
+    SaveIndicator,
+    Sidebar,
+    TimeControls,
+)
 from .console import ConsoleOverlay, opens_console
 from .context import GameContext
 from .pages import (
@@ -971,11 +978,19 @@ class GameApp:
         sidebar_width = self.sidebar.width(now_ms)
         self._draw_topbar(mouse, sidebar_width)
 
+        # The notification stack's corner is reserved out of every page's own
+        # content area (bug fix, 2026-08-09), rather than each page having to
+        # remember to leave room for it: a Hire button, a table's last row, a
+        # dashboard figure must never end up underneath it. Sized to the stack
+        # actually on screen rather than the worst case at all times, so a
+        # short window is not permanently missing content for notifications
+        # that are not there (see NotificationCentre.safe_height).
         content = pygame.Rect(
             sidebar_width + theme.PAGE_PADDING,
             theme.TOPBAR_HEIGHT + theme.PAGE_PADDING - 8,
             self.surface.get_width() - sidebar_width - theme.PAGE_PADDING * 2,
-            self.surface.get_height() - theme.TOPBAR_HEIGHT - theme.PAGE_PADDING,
+            (self.surface.get_height() - theme.TOPBAR_HEIGHT - theme.PAGE_PADDING
+             - self.notifications.safe_height()),
         )
         self.page.draw(self.surface, content, self.fonts, mouse, self.breadcrumb)
 

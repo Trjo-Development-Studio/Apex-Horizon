@@ -15,9 +15,29 @@ from ...engine.employees import ALL_DEPARTMENTS, Department
 from ...engine.values import Money
 from .. import theme
 from ..widgets import Button, Card, Column, Dropdown, SearchBox, Table, draw_text, panel
-from .base import Page
+from .base import Page, no_company_message
 
 DEPARTMENT_NAMES = [str(department) for department in ALL_DEPARTMENTS]
+
+#: Height the Candidates panel needs for its heading, the explanatory line
+#: beneath it, and one row — the least it can be while a player can still see
+#: and use a Hire button. Below this it drops the explanatory line and starts
+#: rows sooner instead, rather than losing a row it has room for.
+_MIN_CANDIDATES_HEIGHT = 110
+
+#: Height the staff table needs for its header row plus one data row. Giving
+#: it anything less would still ask Table.draw to paint a header and a row,
+#: only for the candidates panel drawn straight after it to paint its own
+#: background right over them — a hidden table is worse than an honestly
+#: short one, so below this the table is skipped in favour of saying so.
+_MIN_TABLE_HEIGHT = 80
+
+#: The least room needed to say the table is hidden rather than draw it — one
+#: line of text and its padding. Below _MIN_TABLE_HEIGHT but above this, a
+#: small amount is reclaimed from Candidates so the gap where the table used
+#: to be is never left with nothing in it to explain why (bug fix,
+#: 2026-08-09).
+_MIN_TABLE_MESSAGE_HEIGHT = 32
 
 
 def _department(name: str) -> Department:
@@ -58,8 +78,16 @@ class EmployeesPage(Page):
     # -- data --------------------------------------------------------------
     @property
     def roster(self):
-        company = self.context.company
-        return company.employees if company else None
+        """The company's staff, or ``None`` without an operating company.
+
+        A bankrupt company already released everyone (its own reaction to
+        going bankrupt), and must not be hired back into — so this reads
+        :attr:`~apex_horizon.ui.context.GameContext.has_company` rather than
+        just checking that a company object exists.
+        """
+        if not self.context.has_company:
+            return None
+        return self.context.company.employees
 
     def rows(self) -> list[dict]:
         roster = self.roster
@@ -129,29 +157,71 @@ class EmployeesPage(Page):
         roster = self.roster
         if roster is None:
             panel(surface, pygame.Rect(rect.left, rect.top, rect.width, 150))
-            draw_text(surface, fonts.body, "Found a company before hiring anyone.",
+            draw_text(surface, fonts.body,
+                      no_company_message(self.context, "before hiring anyone"),
                       (rect.left + 24, rect.top + 60), theme.TEXT_MUTED)
             return
 
-        table_height = min(rect.height - 220, 400)
-        self.table.draw(surface, pygame.Rect(rect.left, rect.top, rect.width, table_height),
-                        fonts, mouse, self.rows(), self.search.text if self.search else "")
+        # The candidates panel is sized first, up to its usual height, and the
+        # table gets whatever is left — never the other way around. Hiring is
+        # what a player comes to this page to do, so on a short window (a
+        # stack of notifications now reserves real space at the bottom,
+        # V27.7) it is the staff table that gives way, never the Hire
+        # buttons. Neither is ever allowed to add up to more than rect itself
+        # holds: a guaranteed minimum that overflowed the bottom would just
+        # put the buttons back under the notifications it exists to avoid.
+        candidates_height = max(0, min(190, rect.height))
+        gap = theme.GAP if candidates_height < rect.height else 0
+        table_height = max(0, rect.height - candidates_height - gap)
+        if table_height < _MIN_TABLE_MESSAGE_HEIGHT:
+            # There is a little room, just not enough to say so in — reclaim a
+            # small amount from Candidates, which still has plenty to spare
+            # above its own compact floor, rather than leave an unexplained
+            # gap where the table used to be (bug fix, 2026-08-09).
+            short_by = _MIN_TABLE_MESSAGE_HEIGHT - table_height
+            if candidates_height - short_by >= _MIN_CANDIDATES_HEIGHT:
+                candidates_height -= short_by
+                table_height += short_by
+        if table_height >= _MIN_TABLE_HEIGHT:
+            self.table.draw(surface, pygame.Rect(rect.left, rect.top, rect.width, table_height),
+                            fonts, mouse, self.rows(), self.search.text if self.search else "")
+        elif table_height > 0:
+            table_rect = pygame.Rect(rect.left, rect.top, rect.width, table_height)
+            panel(surface, table_rect)
+            if table_height >= 24:
+                draw_text(surface, fonts.small, "Expand the window to see your staff.",
+                          (table_rect.left + 16, table_rect.top + 16), theme.TEXT_FAINT)
+        applicants_top = rect.top + table_height + gap
         self._draw_applicants(surface,
-                              pygame.Rect(rect.left, rect.top + table_height + theme.GAP,
-                                          rect.width, 190),
+                              pygame.Rect(rect.left, applicants_top, rect.width, candidates_height),
                               fonts, mouse, roster)
 
     def _draw_applicants(self, surface, rect, fonts, mouse, roster) -> None:
-        """Candidates available to hire (V5.3, V18.14)."""
+        """Candidates available to hire (V5.3, V18.14).
+
+        Shows as many as the panel actually has room for rather than always
+        assuming four fit: a fixed count would either overflow a short panel
+        past its own background (right back into whatever is below it) or
+        leave a tall one mostly empty (V27.10 keeps controls where they are
+        drawn, not spilling past the box that is supposed to contain them).
+        The explanatory line beneath the heading is the first thing dropped,
+        since the heading and the Hire buttons matter more than it does.
+        """
         panel(surface, rect)
+        if rect.height < 40:
+            return
         draw_text(surface, fonts.subheading, "Candidates", (rect.left + 20, rect.top + 16))
-        draw_text(surface, fonts.small,
-                  "Better candidates appear as your company's reputation grows.",
-                  (rect.left + 20, rect.top + 42), theme.TEXT_MUTED)
+        compact = rect.height < _MIN_CANDIDATES_HEIGHT
+        if not compact:
+            draw_text(surface, fonts.small,
+                      "Better candidates appear as your company's reputation grows.",
+                      (rect.left + 20, rect.top + 42), theme.TEXT_MUTED)
         self.recruit_button.draw(surface, pygame.Rect(rect.right - 176, rect.top + 16, 156, 32),
                                  fonts, mouse)
 
-        shown = roster.applicants[:4]
+        rows_top = rect.top + (44 if compact else 74)
+        max_rows = max(0, (rect.bottom - rows_top) // 30)
+        shown = roster.applicants[:min(4, max_rows)]
         # Buttons are kept across frames rather than recreated, so a click that
         # started on one frame and released on the next is not lost: a fresh
         # Button() would forget the press it saw a moment ago (V27.9).
@@ -161,11 +231,13 @@ class EmployeesPage(Page):
             if applicant_id in visible_ids
         }
         if not shown:
-            draw_text(surface, fonts.small, "No candidates right now.",
-                      (rect.left + 20, rect.top + 80), theme.TEXT_FAINT)
+            message = ("No candidates right now." if not roster.applicants
+                       else "Expand the window to see them.")
+            draw_text(surface, fonts.small, message, (rect.left + 20, rows_top + 6),
+                      theme.TEXT_FAINT)
             return
 
-        y = rect.top + 74
+        y = rows_top
         for applicant in shown:
             draw_text(surface, fonts.small, applicant.name, (rect.left + 20, y), theme.TEXT)
             draw_text(surface, fonts.small,

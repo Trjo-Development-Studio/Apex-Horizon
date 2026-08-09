@@ -32,7 +32,8 @@ class DashboardPage(Page):
     SUBTITLE = "Your company at a glance"
 
     def cards(self):
-        player, company, market = self.context.player, self.context.company, self.context.market
+        player, market = self.context.player, self.context.market
+        company = self.context.company if self.context.has_company else None
         cards = []
         if player is not None:
             cards.append(Card("Net worth", player.net_worth().format(decimals=0),
@@ -65,21 +66,42 @@ class DashboardPage(Page):
 
     def draw_content(self, surface, rect, fonts, mouse) -> None:
         column = (rect.width - theme.GAP) // 2
+        # Clamped to whatever the page actually has rather than a fixed 250:
+        # the notification stack now reserves real space at the bottom
+        # (V27.7), and a fixed-height panel does not shrink with the rest of
+        # the page just because the space it was given did.
+        panel_height = max(0, min(250, rect.height))
 
-        activity = pygame.Rect(rect.left, rect.top, column, 250)
+        activity = pygame.Rect(rect.left, rect.top, column, panel_height)
         panel(surface, activity)
         draw_text(surface, fonts.subheading, "Recent activity",
                   (activity.left + 20, activity.top + 18))
         entries = []
-        company = self.context.company
+        company = self.context.company if self.context.has_company else None
         if company is not None:
             entries = list(reversed(company.finances.ledger.recent(7)))
         y = activity.top + 56
-        if not entries:
-            draw_text(surface, fonts.small,
-                      "Activity will appear here once your company is trading.",
-                      (activity.left + 20, y), theme.TEXT_FAINT)
-        for entry in entries:
+        room_for_body = y <= activity.bottom - 20
+        if not entries and room_for_body:
+            failed = self.context.bankrupt_company
+            if failed is not None:
+                # The Dashboard is the first thing a returning player sees, so
+                # this is where a bankruptcy has to be unmissable rather than a
+                # small note somewhere the player has to go looking for it.
+                draw_text(surface, fonts.small,
+                          f"{failed.name} went bankrupt on day {failed.bankrupt_on_day}.",
+                          (activity.left + 20, y), theme.NEGATIVE)
+                y += 22
+                draw_text(surface, fonts.small,
+                          "Found a new company from the Company page when you're ready.",
+                          (activity.left + 20, y), theme.TEXT_FAINT)
+            else:
+                draw_text(surface, fonts.small,
+                          "Activity will appear here once your company is trading.",
+                          (activity.left + 20, y), theme.TEXT_FAINT)
+        for entry in entries if room_for_body else []:
+            if y + 25 > activity.bottom - 8:
+                break
             incoming = entry.kind.value.endswith("in") or entry.kind.value == "revenue"
             draw_text(surface, fonts.small,
                       truncate(fonts.small, entry.description or entry.category, column - 150),
@@ -90,10 +112,12 @@ class DashboardPage(Page):
                       theme.POSITIVE if incoming else theme.TEXT, align="right")
             y += 25
 
-        world = pygame.Rect(activity.right + theme.GAP, rect.top, column, 250)
+        world = pygame.Rect(activity.right + theme.GAP, rect.top, column, panel_height)
         panel(surface, world)
         draw_text(surface, fonts.subheading, "The world",
                   (world.left + 20, world.top + 18))
+        if panel_height < 60:
+            return
         economy, market = self.context.economy, self.context.market
 
         # States read as chips; quantities stay as figures. Separating the two
@@ -132,13 +156,15 @@ class DashboardPage(Page):
                 elif market.active_listings():
                     lines.append((f"{label}, {period} days", "None"))
         for label, value in lines:
+            if y + 26 > world.bottom - 8:
+                break
             draw_text(surface, fonts.small, label, (world.left + 20, y), theme.TEXT_MUTED)
             draw_text(surface, fonts.small, truncate(fonts.small, value, column - 190),
                       (world.right - 20, y), theme.TEXT, align="right")
             y += 26
 
-        company = self.context.company
-        if company is not None:
+        company = self.context.company if self.context.has_company else None
+        if company is not None and y + 34 <= world.bottom - 4:
             # Reputation is a proportion, so it is drawn as one (V14.7 asks the
             # default view to lean on indicators rather than graphs).
             draw_text(surface, fonts.small, "Company reputation",
@@ -177,7 +203,7 @@ class DashboardPage(Page):
                   f"{stats['People employed']} people employed",
                   (rect.left + 20, rect.top + 44), theme.TEXT_MUTED)
 
-        player_company = self.context.company
+        player_company = self.context.company if self.context.has_company else None
         headers = (("Value", 520), ("Staff", 620), ("Level", 710))
         for label, offset in headers:
             draw_text(surface, fonts.small, label, (rect.left + offset, rect.top + 76),

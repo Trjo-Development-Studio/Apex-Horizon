@@ -281,6 +281,37 @@ This is the one deliberate exception to V1.15's "icons are drawn, not loaded"
 rule (`docs/user-interface.md`): the project's real identity is not the kind of
 mark a handful of simple shapes can stand in for.
 
+## Deferred from the 2026-08-09 QA pass
+
+An end-to-end pass across every page, save/load, and edge cases (bankruptcy,
+capacity, an empty market, a long time-skip) turned up five findings. Three were
+fixed the same day: bankrupt companies were still operable in the UI, the
+notification stack could cover Hire buttons and other controls, and the
+Analytics/Statistics pages carried dead standalone navigation keys that were
+never registered as destinations. Two were deliberately left alone rather than
+guessed at:
+
+**Repeated positions in a fund's holdings.** The same company can appear
+several times in one investment fund's position list. This has **not been
+confirmed as a bug** — it may reflect genuinely separate purchases the fund
+made at different times, which is a legitimate thing for a position list to
+show, or it may be a case that should consolidate into one row. Nothing in the
+investment/fund logic was changed on the strength of it merely looking
+cluttered; that call needs a design decision, not a fix made without one
+(V19.4: never silently change gameplay).
+
+**Simulation cost possibly growing across simulated years.** Long automated
+playthroughs were observed getting slower, but this was **not profiled**, so
+the cause — and whether it is even real rather than an artifact of the specific
+test run — is unknown. Before any optimisation, a dedicated profiling pass
+needs to measure, separately: idle world simulation over a long period; one
+active company over a long period; multiple active companies; the effect of
+employee count; the effect of investment/fund position count; and whether cost
+actually grows with simulated years, or is flat and something else in the test
+made it look otherwise. Optimising any subsystem before that measurement exists
+would be guessing at the cost of correctness risk for a problem that has not
+been located, let alone confirmed.
+
 ## Content and assets
 
 | Decision | Detail |

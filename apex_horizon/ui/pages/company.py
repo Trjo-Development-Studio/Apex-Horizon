@@ -12,7 +12,7 @@ import pygame
 from ...engine.unlocks import CREATE_COMPANY
 from .. import theme
 from ..widgets import Button, Card, draw_text, panel
-from .base import Page
+from .base import Page, no_company_message
 
 
 class CompanyPage(Page):
@@ -37,14 +37,14 @@ class CompanyPage(Page):
         self.employees_requested = False
 
     def cards(self):
-        company = self.context.company
         player = self.context.player
-        if company is None:
+        if not self.context.has_company:
             return [
                 Card("Founding cost",
                      player.founding_cost.format(decimals=0) if player else "—",
                      "One-off cost to incorporate"),
             ]
+        company = self.context.company
         finances = company.finances
         return [
             Card("Company value", company.value().format(decimals=0),
@@ -61,17 +61,17 @@ class CompanyPage(Page):
         ]
 
     def handle_event(self, event) -> bool:
-        if (self.context.company is None and self.found_button.enabled
+        if (not self.context.has_company and self.found_button.enabled
                 and self.found_button.handle_event(event)
                 and self.found_button.take_click()):
             self.found_requested = True
             return True
-        if (self.context.company is not None
+        if (self.context.has_company
                 and self.employees_button.handle_event(event)
                 and self.employees_button.take_click()):
             self.employees_requested = True
             return True
-        if (self.context.company is not None
+        if (self.context.has_company
                 and self.subsidiaries_button.handle_event(event)
                 and self.subsidiaries_button.take_click()):
             self.subsidiaries_requested = True
@@ -80,7 +80,7 @@ class CompanyPage(Page):
             (self.finance_button, "finance"),
             (self.funds_button, "company:funds"),
         ):
-            if (self.context.company is not None and button.handle_event(event)
+            if (self.context.has_company and button.handle_event(event)
                     and button.take_click()):
                 self.requested_destination = destination
                 return True
@@ -103,10 +103,13 @@ class CompanyPage(Page):
         return requested
 
     def draw_content(self, surface, rect, fonts, mouse) -> None:
-        company = self.context.company
-        if company is None:
+        if not self.context.has_company:
+            # Covers both a company never founded and one that has gone
+            # bankrupt (V1.3): neither is operating, so neither reaches the
+            # live rendering below, and _draw_no_company says which it is.
             self._draw_no_company(surface, rect, fonts, mouse)
             return
+        company = self.context.company
 
         left = pygame.Rect(rect.left, rect.top, int(rect.width * 0.48), 292)
         panel(surface, left)
@@ -140,26 +143,38 @@ class CompanyPage(Page):
         self.employees_button.draw(
             surface, pygame.Rect(right.left + 20, right.bottom - 52, 200, 34), fonts, mouse)
 
-        if company.bankrupt:
-            draw_text(surface, fonts.small, "This company is bankrupt.",
-                      (right.left + 20, right.bottom - 40), theme.NEGATIVE)
-
     def _draw_no_company(self, surface, rect, fonts, mouse) -> None:
         """The road to a company, shown as steps rather than a locked door.
 
         Reaching a company takes a long time by design, so this state has to
         read as a plan the player is working through rather than a refusal
         (V14.26). Each step says plainly where the player stands on it.
+
+        Doubles as the bankruptcy notice: a company that has failed reaches
+        this same panel rather than the live one above, headed by what
+        happened to it (V1.3) instead of the first-time headline, so the
+        message can never end up drawn on top of controls that are no longer
+        there to overlap.
         """
         player = self.context.player
+        failed = self.context.bankrupt_company
         box = pygame.Rect(rect.left, rect.top, rect.width, 250)
         panel(surface, box)
-        draw_text(surface, fonts.subheading, "You have not founded a company yet",
-                  (box.left + 24, box.top + 24))
-        draw_text(surface, fonts.small,
-                  "You are an individual investor. Build your personal wealth by "
-                  "trading, then take these steps when you are ready.",
-                  (box.left + 24, box.top + 52), theme.TEXT_MUTED)
+        if failed is not None:
+            draw_text(surface, fonts.subheading,
+                      f"{failed.name} went bankrupt on day {failed.bankrupt_on_day}",
+                      (box.left + 24, box.top + 24), theme.NEGATIVE)
+            draw_text(surface, fonts.small,
+                      "It has stopped operating and its staff were released. Build "
+                      "back up and found a new one when you are ready.",
+                      (box.left + 24, box.top + 52), theme.TEXT_MUTED)
+        else:
+            draw_text(surface, fonts.subheading, "You have not founded a company yet",
+                      (box.left + 24, box.top + 24))
+            draw_text(surface, fonts.small,
+                      "You are an individual investor. Build your personal wealth by "
+                      "trading, then take these steps when you are ready.",
+                      (box.left + 24, box.top + 52), theme.TEXT_MUTED)
 
         allowed, reason = player.can_found_company() if player else (False, "")
         for index, (label, done, detail) in enumerate(self._founding_steps(player)):
@@ -202,10 +217,9 @@ class FinancePage(Page):
     SUBTITLE = "Where the company's money comes from and goes"
 
     def cards(self):
-        company = self.context.company
-        if company is None:
+        if not self.context.has_company:
             return []
-        finances = company.finances
+        finances = self.context.company.finances
         return [
             Card("Net worth", finances.net_worth().format(decimals=0),
                  "Assets less liabilities"),
@@ -218,14 +232,14 @@ class FinancePage(Page):
         ]
 
     def draw_content(self, surface, rect, fonts, mouse) -> None:
-        company = self.context.company
-        if company is None:
+        if not self.context.has_company:
             panel(surface, pygame.Rect(rect.left, rect.top, rect.width, 160))
             draw_text(surface, fonts.body,
-                      "Found a company to begin tracking finances.",
+                      no_company_message(self.context, "to begin tracking finances"),
                       (rect.left + 24, rect.top + 60), theme.TEXT_MUTED)
             return
 
+        company = self.context.company
         finances = company.finances
         width = (rect.width - theme.GAP * 2) // 3
 

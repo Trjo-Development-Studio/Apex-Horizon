@@ -17,7 +17,7 @@ import pygame
 from ...engine.values import Money
 from .. import theme
 from ..widgets import Card, Column, SearchBox, Table, draw_text, panel, truncate
-from .base import Page
+from .base import Page, no_company_message
 
 
 def _return_colour(value) -> tuple[int, int, int]:
@@ -55,8 +55,16 @@ class SubsidiariesPage(Page):
 
     @property
     def book(self):
-        company = self.context.company
-        return getattr(company, "subsidiaries", None) if company else None
+        """The subsidiaries this company owns, or ``None`` without one operating.
+
+        A bankrupt company must not read as still able to buy or manage a
+        group, so this checks
+        :attr:`~apex_horizon.ui.context.GameContext.has_company` rather than
+        just that a company object exists.
+        """
+        if not self.context.has_company:
+            return None
+        return self.context.company.subsidiaries
 
     def breadcrumb(self):
         return [("Company", "company"), ("Subsidiaries", self.key)]
@@ -106,7 +114,7 @@ class SubsidiariesPage(Page):
         book = self.book
         if book is None:
             panel(surface, pygame.Rect(rect.left, rect.top, rect.width, 160))
-            draw_text(surface, fonts.body, "Found a company to build a group.",
+            draw_text(surface, fonts.body, no_company_message(self.context, "to build a group"),
                       (rect.left + 24, rect.top + 60), theme.TEXT_MUTED)
             return
         if not len(book):

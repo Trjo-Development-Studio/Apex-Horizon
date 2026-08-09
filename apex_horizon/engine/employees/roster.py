@@ -107,7 +107,16 @@ class EmployeeRoster:
         A company at capacity cannot hire even an excellent candidate; V18.29
         asks for that limit to be made clear rather than surfacing as a
         confusing failure.
+
+        This is the state check itself, not just what the UI happens to show:
+        the Employees page already stops offering candidates once the company
+        is bankrupt, but the game must refuse the hire here too, the same way
+        :meth:`~apex_horizon.engine.acquisitions.subsidiaries.SubsidiaryBook.can_acquire`
+        and :meth:`~apex_horizon.engine.funds.book.FundBook.can_create` already
+        refuse their own actions for a bankrupt company.
         """
+        if self.company.bankrupt:
+            return False, "A bankrupt company cannot hire anyone."
         if self.is_full:
             return False, (
                 f"Your company can hold {self.capacity} employees. "

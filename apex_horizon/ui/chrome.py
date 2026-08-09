@@ -340,6 +340,8 @@ class NotificationCentre:
     """
 
     MAX_VISIBLE = 4
+    #: Gap kept between the stack and the edges of the window.
+    MARGIN = 20
 
     def __init__(self) -> None:
         self.items: list[Notification] = []
@@ -362,7 +364,7 @@ class NotificationCentre:
 
     def draw(self, surface, fonts, now_ms: int) -> None:
         visible = self.items[-self.MAX_VISIBLE:]
-        bottom = surface.get_height() - 20
+        bottom = surface.get_height() - self.MARGIN
         for index, item in enumerate(reversed(visible)):
             age = now_ms - item.created_ms
             if age < 0:
@@ -382,7 +384,7 @@ class NotificationCentre:
             # over the sidebar, which is the one part of the screen that must
             # stay usable while a message is showing (V27.7).
             rect = pygame.Rect(
-                surface.get_width() - theme.NOTIFICATION_WIDTH - 20 + offset,
+                surface.get_width() - theme.NOTIFICATION_WIDTH - self.MARGIN + offset,
                 bottom - (index + 1) * (theme.NOTIFICATION_HEIGHT + theme.NOTIFICATION_GAP),
                 theme.NOTIFICATION_WIDTH,
                 theme.NOTIFICATION_HEIGHT,
@@ -399,3 +401,24 @@ class NotificationCentre:
             draw_text(surface, fonts.small,
                       truncate(fonts.small, item.text, rect.width - 32),
                       (rect.left + 16, rect.centery), theme.TEXT, baseline="middle")
+
+    def safe_height(self) -> int:
+        """How much of the page beneath the stack it actually needs right now.
+
+        Reserved out of every page's content area (GameApp.draw) so nothing a
+        page lays out — a Hire button, a table's last row, a dashboard figure
+        — can end up underneath the notifications (bug fix, 2026-08-09).
+        Sized to the stack that is actually showing, capped at MAX_VISIBLE,
+        rather than to the worst case at all times: a fixed maximum
+        reservation costs a short window real content it cannot spare (the
+        Employee Management staff table has no room left at all at the
+        minimum window size under a permanent full-stack reservation, even
+        when nothing is showing), and every page's layout is already
+        rect-driven and adaptive, so it tolerates the content area changing
+        size as a notification appears or expires the same way it already
+        tolerates a resize.
+        """
+        count = min(len(self.items), self.MAX_VISIBLE)
+        if count == 0:
+            return 0
+        return self.MARGIN + count * (theme.NOTIFICATION_HEIGHT + theme.NOTIFICATION_GAP)

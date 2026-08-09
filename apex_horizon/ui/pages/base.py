@@ -25,6 +25,25 @@ from ..widgets import Card, SearchBox, draw_text
 MAX_CARDS = 5
 
 
+def no_company_message(context: GameContext, action: str) -> str:
+    """What a page says when it needs an operating company and there isn't one.
+
+    Every page gating on :attr:`GameContext.has_company` says why in the same
+    voice, and says something different for a company that never existed than
+    for one that failed — a bankruptcy is a setback worth acknowledging, not a
+    detail to fold into the same sentence used on day one (V14.26: an empty
+    state has to read as honest, not as a locked door).
+
+    ``action`` completes "Found a company {action}." / "Found a new company
+    {action}.", e.g. ``"before hiring anyone"`` or ``"to begin tracking
+    finances"``.
+    """
+    failed = context.bankrupt_company
+    if failed is not None:
+        return f"{failed.name} went bankrupt. Found a new company {action}."
+    return f"Found a company {action}."
+
+
 class Page:
     """Base class for every page in the game."""
 

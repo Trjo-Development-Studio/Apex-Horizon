@@ -30,6 +30,18 @@ TIER_COLOURS = {
 
 ALL = "All"
 
+#: Height the archive needs for its heading, subtitle line and a small
+#: handful of rows — below this it is not worth the space it took (bug fix,
+#: 2026-08-09: the lead story used to keep a fixed 150px regardless of how
+#: much the page actually had, so a short window or the notification safe
+#: area (V27.7) could leave the archive with room for a single row).
+_MIN_ARCHIVE_HEIGHT = 150
+#: The least the lead story is allowed to shrink to before the archive's own
+#: minimum takes priority over it. Deliberately small: _draw_lead's own
+#: overlap guards are what actually keep it safe below this, so this floor
+#: only needs to cover its tier badge line, not the whole story.
+_MIN_LEAD_HEIGHT = 40
+
 
 class NewsPage(Page):
     """Everything the world has reported, newest first (V10.15)."""
@@ -163,7 +175,15 @@ class NewsPage(Page):
             return
 
         self.selected = min(self.selected, len(articles) - 1)
-        lead = pygame.Rect(rect.left, y, rect.width, 150)
+        # The archive is what makes the rest of the list reachable, so it
+        # keeps its minimum first and the lead story gives way, the same
+        # trade-off Employee Management makes between its Candidates panel
+        # and its staff table.
+        available = max(0, rect.bottom - y)
+        lead_height = max(_MIN_LEAD_HEIGHT,
+                          min(150, available - theme.GAP - _MIN_ARCHIVE_HEIGHT))
+        lead_height = min(lead_height, available)
+        lead = pygame.Rect(rect.left, y, rect.width, lead_height)
         self._draw_lead(surface, lead, fonts, articles[self.selected])
         archive = pygame.Rect(rect.left, lead.bottom + theme.GAP, rect.width,
                               max(0, rect.bottom - lead.bottom - theme.GAP))
@@ -185,28 +205,50 @@ class NewsPage(Page):
         colour = TIER_COLOURS.get(article.tier, theme.TEXT_MUTED)
         draw_text(surface, fonts.small, str(article.tier).upper(),
                   (rect.left + 20, rect.top + 16), colour)
+        # The headline's own line needs room below its offset, not merely a
+        # non-zero rect — a panel just tall enough for the tier badge alone
+        # would otherwise still ask for a headline that spills past its
+        # bottom edge (bug fix, 2026-08-09).
+        if rect.height < 66:
+            return
         draw_text(surface, fonts.subheading,
                   truncate(fonts.subheading, article.headline, rect.width - 40),
                   (rect.left + 20, rect.top + 40))
-        draw_text(surface, fonts.body,
-                  truncate(fonts.body, article.body, rect.width - 40),
-                  (rect.left + 20, rect.top + 76), theme.TEXT_MUTED)
 
+        byline_y = rect.bottom - 30
+        # The body sits below the headline; the byline is pinned above the
+        # bottom edge instead so both stay put as the panel resizes. Below
+        # _MIN_LEAD_HEIGHT the two would collide, so the body is what gives
+        # way — a missing line of summary is a far smaller defect than text
+        # laid over text (bug fix, 2026-08-09).
+        if byline_y >= rect.top + 76 + 26:
+            draw_text(surface, fonts.body,
+                      truncate(fonts.body, article.body, rect.width - 40),
+                      (rect.left + 20, rect.top + 76), theme.TEXT_MUTED)
+
+        if byline_y < rect.top + 40 + 20:
+            return
         byline = article.agency or "Unattributed"
         draw_text(surface, fonts.small, f"{byline} · day {article.day}",
-                  (rect.left + 20, rect.bottom - 30), theme.TEXT_FAINT)
+                  (rect.left + 20, byline_y), theme.TEXT_FAINT)
         if article.impact is not None:
             draw_text(surface, fonts.mono_small, article.impact.format(signed=True),
-                      (rect.right - 20, rect.bottom - 30),
+                      (rect.right - 20, byline_y),
                       theme.value_colour(not article.impact.is_negative), align="right")
 
     def _draw_archive(self, surface, rect, fonts, articles) -> None:
         panel(surface, rect)
+        self._row_hitboxes.clear()
+        # A panel too short even for its own heading would otherwise still
+        # draw one, spilling past its own bottom edge and into whatever sits
+        # below it (bug fix, 2026-08-09) — the same guard _draw_lead already
+        # has for its headline.
+        if rect.height < 40:
+            return
         draw_text(surface, fonts.subheading, "Archive", (rect.left + 20, rect.top + 16))
         draw_text(surface, fonts.small, "Select a story to read it in full.",
                   (rect.right - 20, rect.top + 20), theme.TEXT_FAINT, align="right")
 
-        self._row_hitboxes.clear()
         y = rect.top + 52
         row_height = 26
         for index, article in enumerate(articles):

@@ -19,7 +19,7 @@ import pygame
 from ...engine.values import Percentage
 from .. import theme
 from ..widgets import Button, Card, Column, SearchBox, Table, draw_text, panel, truncate
-from .base import Page
+from .base import Page, no_company_message
 
 
 def _return_colour(value) -> tuple[int, int, int]:
@@ -57,8 +57,18 @@ class FundsPage(Page):
 
     @property
     def book(self):
-        company = self.context.company
-        return getattr(company, "funds", None) if company else None
+        """The funds this company manages, or ``None`` without one operating.
+
+        A bankrupt company must not read as still able to open or manage a
+        fund, so this checks
+        :attr:`~apex_horizon.ui.context.GameContext.has_company` rather than
+        just that a company object exists. (Funds already opened are their own
+        financial entities and do not vanish with the company (V11.5) — this
+        only affects what the now-defunct company's own page can reach.)
+        """
+        if not self.context.has_company:
+            return None
+        return self.context.company.funds
 
     def breadcrumb(self):
         return [("Company", "company"), ("Investment Funds", self.key)]
@@ -118,7 +128,7 @@ class FundsPage(Page):
         book = self.book
         if book is None:
             panel(surface, pygame.Rect(rect.left, rect.top, rect.width, 160))
-            draw_text(surface, fonts.body, "Found a company first.",
+            draw_text(surface, fonts.body, no_company_message(self.context, "first"),
                       (rect.left + 24, rect.top + 60), theme.TEXT_MUTED)
             return
 
