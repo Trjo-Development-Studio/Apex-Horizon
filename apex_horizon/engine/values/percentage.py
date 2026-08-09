@@ -61,6 +61,11 @@ class Percentage:
     def is_negative(self) -> bool:
         return self.fraction < 0
 
+    @property
+    def is_positive(self) -> bool:
+        """Strictly above zero. Unchanged is not a gain."""
+        return self.fraction > 0
+
     # -- arithmetic ------------------------------------------------------
     def __add__(self, other: Percentage) -> Percentage:
         if not isinstance(other, Percentage):

@@ -84,7 +84,7 @@ class MarketPage(Page):
         market, economy = self.context.market, self.context.economy
         if market is None:
             return []
-        gainers, losers = market.top_movers(1)
+        _, losers = market.top_movers(1)
         mood = "Bull market" if market.is_bull_market() else (
             "Bear market" if market.is_bear_market() else "Steady"
         )
@@ -93,16 +93,22 @@ class MarketPage(Page):
             Card("Listed companies", str(len(market.active_listings())),
                  "Companies trading today"),
         ]
-        if gainers:
-            company = self.context.world.company_by_id(gainers[0].company_id)
+        # On a day when everything fell there is no top gainer, and saying so is
+        # the honest answer: the least bad loser is not a gainer.
+        best = market.top_gainer()
+        if best is not None:
+            company = self.context.world.company_by_id(best.company_id)
             cards.append(Card("Top gainer", company.name if company else "—",
-                              gainers[0].daily_change().format(signed=True),
-                              accent=theme.POSITIVE))
-        if losers:
+                              best.daily_change().format(signed=True),
+                              accent=theme.POSITIVE, trend=True))
+        elif market.active_listings():
+            cards.append(Card("Top gainer", "None today",
+                              "Every company fell or held"))
+        if losers and losers[0].daily_change().is_negative:
             company = self.context.world.company_by_id(losers[0].company_id)
             cards.append(Card("Top faller", company.name if company else "—",
                               losers[0].daily_change().format(signed=True),
-                              accent=theme.NEGATIVE))
+                              accent=theme.NEGATIVE, trend=False))
         if economy is not None and len(cards) < 4:
             cards.append(Card("Economy", str(economy.state), economy.describe()))
         return cards

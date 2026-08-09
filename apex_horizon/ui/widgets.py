@@ -183,6 +183,10 @@ class Column:
             return str(value)
 
 
+#: Space reserved at the foot of a table for the item count and page controls.
+FOOTER_HEIGHT = 48
+
+
 @dataclass
 class Table:
     """A searchable, sortable, paginated list of entities.
@@ -193,7 +197,7 @@ class Table:
 
     columns: Sequence[Column]
     search_key: str | None = None
-    page_size: int = 12
+    page_size: int = 12  # replaced on every draw by what the panel can hold
     sort_key: str | None = None
     sort_descending: bool = False
     page: int = 0
@@ -219,6 +223,11 @@ class Table:
                 reverse=self.sort_descending,
             )
         return filtered
+
+    def _rows_that_fit(self, rect) -> int:
+        """How many rows the panel has room for, below its header and footer."""
+        available = rect.height - theme.HEADER_ROW_HEIGHT - FOOTER_HEIGHT
+        return max(1, available // theme.ROW_HEIGHT)
 
     def page_count(self, total: int) -> int:
         return max(1, (total + self.page_size - 1) // self.page_size)
@@ -261,6 +270,12 @@ class Table:
     def draw(self, surface, rect, fonts, mouse, rows: list[dict], query: str = "") -> None:
         self._header_rects.clear()
         self._row_rects.clear()
+
+        # A page holds as many rows as actually fit. A fixed count draws past
+        # the bottom of the panel whenever a window is short or the page above
+        # grows, and rows running off the edge look like a broken list rather
+        # than a full one (V14.8: lists paginate).
+        self.page_size = self._rows_that_fit(rect)
 
         visible = self.visible_rows(rows, query)
         pages = self.page_count(len(visible))

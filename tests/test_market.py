@@ -421,3 +421,113 @@ def test_price_change_defaults_are_zero():
     assert change.dominant_cause() in {"company performance", "industry conditions",
                                        "market sentiment", "supply and demand",
                                        "ordinary variation"}
+
+
+# -- the day's top gainer (V4.15) -----------------------------------------
+
+
+def _fix_change(listing, fraction: str) -> None:
+    """Force a listing to show an exact change against yesterday's close.
+
+    ``previous_close`` is the entry *before* the last, since the last is today's
+    close (V4.22), so both are written rather than one appended.
+    """
+    from decimal import Decimal
+
+    today = Money(Decimal(100) * (1 + Decimal(fraction)))
+    while len(listing.history) < 2:
+        listing.history.append(Money(100))
+    listing.history[-2] = Money(100)
+    listing.history[-1] = today
+    listing.price = today
+
+
+def test_the_top_gainer_is_the_largest_actual_rise():
+    """Chosen from real price movement, never at random."""
+    market, _ = build_market()
+    listings = market.active_listings()[:4]
+    for listing, change in zip(listings, ("0.024", "0.078", "-0.012", "0.041"),
+                               strict=True):
+        _fix_change(listing, change)
+    for other in market.active_listings()[4:]:
+        _fix_change(other, "0")
+
+    assert market.top_gainer() is listings[1], "the +7.8% company must win"
+
+
+def test_the_top_gainer_is_not_merely_the_highest_price():
+    """Ranked on movement, not on the size of the price (V4.15)."""
+    market, _ = build_market()
+    expensive, riser = market.active_listings()[:2]
+    for other in market.active_listings():
+        _fix_change(other, "0")
+
+    # Dear, but unchanged: both closes are the same, so it has not moved.
+    expensive.history[-2] = Money(10_000)
+    expensive.history[-1] = Money(10_000)
+    expensive.price = Money(10_000)
+    _fix_change(riser, "0.05")
+
+    assert expensive.price > riser.price
+    assert market.top_gainer() is riser
+
+
+def test_the_top_gainer_changes_when_the_market_does():
+    market, _ = build_market()
+    first, second = market.active_listings()[:2]
+    for other in market.active_listings():
+        _fix_change(other, "0")
+    _fix_change(first, "0.03")
+    assert market.top_gainer() is first
+
+    _fix_change(second, "0.09")
+    assert market.top_gainer() is second
+
+
+def test_a_market_where_nothing_rose_has_no_top_gainer():
+    """The least bad loser is not a gainer."""
+    market, _ = build_market()
+    for listing in market.active_listings():
+        _fix_change(listing, "-0.03")
+
+    assert market.top_gainer() is None
+
+
+def test_a_flat_market_has_no_top_gainer():
+    market, _ = build_market()
+    for listing in market.active_listings():
+        _fix_change(listing, "0")
+
+    assert market.top_gainer() is None
+
+
+def test_a_tie_is_broken_deterministically():
+    """Never at random: the same market always gives the same answer."""
+    market, _ = build_market()
+    for other in market.active_listings():
+        _fix_change(other, "0")
+    tied = market.active_listings()[:3]
+    for listing in tied:
+        _fix_change(listing, "0.05")
+
+    answers = {market.top_gainer().company_id for _ in range(20)}
+    assert len(answers) == 1
+    # And it is a company that genuinely tied for the lead.
+    assert answers.pop() in {listing.company_id for listing in tied}
+
+
+def test_top_movers_never_consults_the_random_generator(monkeypatch):
+    """A guard against randomness creeping back into the ranking."""
+    market, engine = build_market()
+    for listing in market.active_listings():
+        _fix_change(listing, "0.01")
+
+    def explode(*args, **kwargs):  # pragma: no cover - only runs on failure
+        raise AssertionError("ranking must not use randomness")
+
+    monkeypatch.setattr(engine.rng, "random", explode)
+    monkeypatch.setattr(engine.rng, "choice", explode)
+    monkeypatch.setattr(engine.rng, "shuffle", explode)
+
+    assert market.top_gainer() is not None
+    assert market.top_movers(3)

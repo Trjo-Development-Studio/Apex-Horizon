@@ -9,6 +9,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Personal cash is now shown on every screen**, in a box directly under the
+  page header, in the same place each time. It is drawn by the shared page layout rather than by
+  each page, so no screen can omit it and it cannot drift out of position. It
+  is personal cash specifically — never net worth, which counts holdings and a
+  company that cannot be spent, and never the company's own cash, which stays
+  where it was (V1.4).
+- **A market where nothing rose no longer reports a top gainer.** Both the
+  Dashboard and the Market page were labelling the least bad loser as the top
+  gainer, in green, on a day when every company fell. They now say so plainly.
+- The Dashboard showed the top gainer's name with no figure beside it, which
+  gave the player no way to see the choice meant anything — and since it changes
+  every in-game day, it read as arbitrary. The change is now shown with it.
+- Ties for top gainer are broken on company id rather than on whatever order
+  the listings happened to be held in. The result was already stable, but by
+  accident rather than by design.
+
+- Tables now fit a page to the space the panel actually has, rather than always
+  drawing twelve rows. A fixed count ran past the bottom of the panel on a short
+  window, which reads as a broken list rather than a full one.
+
+The top gainer itself was **not** randomly selected: it was already ranked on
+the largest actual daily change, and a test now pins that, including one that
+fails if the ranking ever consults the random number generator.
+
 ### Changed — presentation and navigation (PM corrections)
 
 Two project-manager corrections made after playing the build. Both are

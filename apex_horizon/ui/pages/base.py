@@ -17,7 +17,12 @@ import pygame
 
 from .. import theme
 from ..context import GameContext
-from ..widgets import Card, SearchBox, draw_text
+from ..widgets import Card, SearchBox, draw_text, panel
+
+#: The cash box under every page header, a fixed size so the figure sits in
+#: exactly the same place on every screen.
+CASH_WIDTH = 200
+CASH_HEIGHT = 52
 
 
 class Page:
@@ -68,6 +73,10 @@ class Page:
                       theme.TEXT_MUTED)
         y += 66 if self.subtitle else 48
 
+        # 2. Cash, directly beneath the header, before anything else on the
+        # page. Same place on every screen (project manager, 2026-08-09).
+        y = self._draw_cash(surface, rect, fonts, y)
+
         # 2. Breadcrumb
         breadcrumb.set(self.breadcrumb())
         breadcrumb.draw(surface, fonts, mouse, (rect.left, y + 8))
@@ -94,6 +103,36 @@ class Page:
         # 5. Main content (and any additional details the page adds within it)
         content = pygame.Rect(rect.left, y, rect.width, max(0, rect.bottom - y))
         self.draw_content(surface, content, fonts, mouse)
+
+
+    def _draw_cash(self, surface, rect, fonts, top: int) -> int:
+        """The player's personal cash, on every page (V14.13, V1.4).
+
+        Drawn here rather than by each page so it cannot be forgotten on one
+        screen or drift to a different spot on another: whatever the player is
+        looking at, the answer to "what can I spend right now" is in the same
+        place, directly under the header.
+
+        Personal cash specifically, never net worth and never the company's.
+        Net worth counts holdings and a company that cannot be spent, so
+        showing it here would answer a question the player did not ask (V1.4).
+
+        Returns the y position the rest of the page should continue from.
+        """
+        player = getattr(self.context, "player", None)
+        if player is None:
+            return top
+
+        box = pygame.Rect(rect.left, top, CASH_WIDTH, CASH_HEIGHT)
+        panel(surface, box, fill=theme.SURFACE)
+        pygame.draw.rect(surface, theme.ACCENT,
+                         pygame.Rect(box.left + 1, box.top + 8, 3, box.height - 16),
+                         border_radius=2)
+        draw_text(surface, fonts.tiny, "CASH", (box.left + 16, box.top + 8),
+                  theme.TEXT_FAINT)
+        draw_text(surface, fonts.subheading, player.cash.format(),
+                  (box.left + 16, box.top + 24), theme.TEXT)
+        return box.bottom + 10
 
 
 class EmptyStatePage(Page):

@@ -119,11 +119,18 @@ class DashboardPage(Page):
         if market is not None:
             lines.append(("Market index", f"{market.market_index():,.0f}"))
             lines.append(("Companies listed", f"{len(market.active_listings()):,}"))
-            gainers, _ = market.top_movers(1)
-            if gainers and self.context.world:
-                record = self.context.world.company_by_id(gainers[0].company_id)
+            # The name alone told the player nothing: without the figure there
+            # was no way to see it meant anything, and it changes every day.
+            best = market.top_gainer()
+            if best is not None and self.context.world:
+                record = self.context.world.company_by_id(best.company_id)
                 if record:
-                    lines.append(("Today's top gainer", record.name))
+                    lines.append((
+                        "Today's top gainer",
+                        f"{record.name}  {best.daily_change().format(signed=True)}",
+                    ))
+            elif market.active_listings():
+                lines.append(("Today's top gainer", "Nothing gained today"))
         for label, value in lines:
             draw_text(surface, fonts.small, label, (world.left + 20, y), theme.TEXT_MUTED)
             draw_text(surface, fonts.small, truncate(fonts.small, value, column - 190),

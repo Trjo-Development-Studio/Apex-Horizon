@@ -334,11 +334,31 @@ class MarketSystem:
         return Percentage(sum(known, start=0) / len(known))
 
     def top_movers(self, count: int = 5) -> tuple[list[MarketListing], list[MarketListing]]:
-        """The day's biggest gainers and losers."""
+        """The day's biggest gainers and losers, by actual price movement.
+
+        Ranked on the change against yesterday's close, never on the size of the
+        price itself and never at random. Ties are broken on company id so the
+        same market always produces the same answer, rather than relying on
+        whatever order the listings happen to be held in.
+        """
         ranked = sorted(
-            self.active_listings(), key=lambda listing: listing.daily_change().fraction
+            self.active_listings(),
+            key=lambda listing: (listing.daily_change().fraction, listing.company_id),
         )
         return list(reversed(ranked[-count:])), ranked[:count]
+
+    def top_gainer(self) -> MarketListing | None:
+        """The day's best performer, or ``None`` if nothing actually gained.
+
+        A market where everything fell has no top gainer. Reporting the least
+        bad loser under that heading tells the player something untrue, so this
+        says nothing instead and lets the interface word it.
+        """
+        gainers, _ = self.top_movers(1)
+        if not gainers:
+            return None
+        best = gainers[0]
+        return best if best.daily_change().is_positive else None
 
     def is_bull_market(self) -> bool:
         return self.sentiment > 0.2

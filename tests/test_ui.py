@@ -557,3 +557,69 @@ def test_portfolio_draws_every_view(app):
     for label in portfolio.available():
         portfolio.tabs.selected = label
         app.draw(0)
+
+
+# -- personal cash is always visible (PM, 2026-08-09) ---------------------
+
+
+def _cash_box(app, key: str):
+    """Draw a page and report the cash box it rendered, if any."""
+    from apex_horizon.ui.pages import base
+
+    drawn: list[str] = []
+    real = base.Page._draw_cash
+
+    def record(self, surface, rect, fonts, top):
+        drawn.append(self.context.player.cash.format())
+        return real(self, surface, rect, fonts, top)
+
+    base.Page._draw_cash = record
+    try:
+        app.navigate(key)
+        app.draw(0)
+    finally:
+        base.Page._draw_cash = real
+    return drawn
+
+
+def test_personal_cash_is_shown_on_every_main_tab(app):
+    """Whatever the player is looking at, what they can spend is on screen."""
+    for item in NAV_ITEMS:
+        assert _cash_box(app, item.key), f"{item.label} shows no cash"
+
+
+def test_personal_cash_is_shown_on_sub_pages_too(app):
+    for key in ("market:company", "company:employees", "company:subsidiaries"):
+        assert _cash_box(app, key), key
+
+
+def test_the_figure_updates_after_a_transaction(app):
+    before = _cash_box(app, "market")[0]
+
+    app.context.player.cash = app.context.player.cash + Money(5_000)
+
+    assert _cash_box(app, "market")[0] != before
+
+
+def test_it_is_personal_cash_rather_than_net_worth(app):
+    """V1.4: net worth counts holdings and a company that cannot be spent."""
+    app.context.player.cash = Money(1_000)
+    listing = app.context.market.active_listings()[0]
+    app.context.portfolio.buy(listing.company_id, 1, 1)
+
+    shown = _cash_box(app, "market")[0]
+
+    assert shown == app.context.player.cash.format()
+    assert shown != app.context.player.net_worth().format()
+
+
+def test_company_cash_stays_separate_from_the_players(app):
+    app.context.player.cash = Money(60_000)
+    app.context.player.unlocks.unlock(CREATE_COMPANY)
+    company, _ = app.context.player.found_company("Test Capital", 1)
+    company.attach_market(app.context.market, app.context.allocator)
+
+    shown = _cash_box(app, "company")[0]
+
+    assert shown == app.context.player.cash.format()
+    assert shown != company.finances.cash.format()
