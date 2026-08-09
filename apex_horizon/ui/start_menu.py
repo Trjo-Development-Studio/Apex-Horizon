@@ -10,7 +10,7 @@ before a world exists. V1.15 still applies — clean, modern, professional, no
 flashy effects — but a menu earns a little more room to breathe than a page
 dense with figures, and the project manager asked for it to look like the front
 of a finished game rather than an empty application window, which is what
-:mod:`.menu_background` is for.
+:mod:`.background` is for.
 
 Starting a game means choosing where it will live. A save belongs to one slot
 for its whole life (the project manager's decision, 2026-08-09), so the slot is
@@ -25,7 +25,7 @@ import pygame
 
 from .. import __version__
 from . import theme
-from .menu_background import MenuBackground
+from .background import Backdrop
 from .widgets import Button, draw_text, panel, truncate
 
 NEW_GAME = "new"
@@ -57,7 +57,7 @@ class StartMenu:
         self.message_ok: bool = True
         #: Set to an action, or ``(action, slot)``, for the application to act on.
         self.request: object | None = None
-        self.background = MenuBackground()
+        self.background = Backdrop()
         self._slot_rects: list[tuple[pygame.Rect, str, bool]] = []
 
     # -- interaction -------------------------------------------------------

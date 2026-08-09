@@ -49,13 +49,27 @@ opening the fiftieth page feel exactly like opening the first (V14.25).
 The first screen, and where Save & Exit returns to (V16.4). It is deliberately
 not another dashboard: a title, four actions, and the version.
 
-Behind it is a drawn backdrop (`ui/menu_background.py`) — a city at dusk with a
-single index line rising over it, built from the palette in `theme.py` and a
-fixed seed, so it is the same city every launch. It is rendered once per window
-size into a cached surface rather than redrawn each frame. The skyline keeps to
-the bottom quarter and stays within a few values of the background it replaced,
-because a menu background that costs the buttons their contrast is a worse menu
-than a plain one (V27.10).
+Behind it is a drawn backdrop (`ui/background.py`) — a dark base with a slow
+gradient, one off-centre light, and a few very faint overlapping shapes and
+lines. It is deliberately abstract: the project manager ruled out anything
+representational, and ruled out a regular grid, which is the shape that makes an
+interface look like financial software. The composition is written down in
+fractions of the window rather than generated, so it is the same arrangement at
+every size and can be adjusted by moving a number. Nothing in it uses randomness.
+
+`Backdrop` is a component, not a picture of one screen: it fills whatever
+surface it is handed and caches one rendering per size, so any other full-screen
+menu can use it. Two things are worth knowing if it is ever changed:
+
+- **Softness comes from scale.** Shapes are drawn small and scaled up, so their
+  edges arrive blurred for the price of one smooth scale.
+- **Masks are dimmed after they are scaled, never before.** At these strengths
+  the whole alpha range is twenty-odd levels, and interpolating between those
+  few values turns a gradient into a visible mosaic of the mask's own pixels.
+
+Nothing in it rises above about a fifth of the brightness of the text in front
+of it, and a test holds that line — a menu background that costs the buttons
+their contrast is a worse menu than a plain one (V27.10).
 
 New Game leads to the save-slot list before anything is created: five slots,
 each marked EMPTY or IN USE with what it holds, none preselected, and an

@@ -39,15 +39,14 @@ WARNING = (219, 154, 62)
 
 OVERLAY = (8, 9, 12)
 
-# The Start Menu's backdrop (project manager, 2026-08-09): a city at dusk, drawn
-# from the same near-monochrome palette so the front of the game looks like the
-# rest of it. Deliberately close together in value — it is scenery behind the
-# menu, not something to read.
-MENU_SKY_TOP = (19, 23, 33)
-MENU_SKY_BOTTOM = (10, 12, 16)
-MENU_SKYLINE_FAR = (21, 25, 33)
-MENU_SKYLINE_NEAR = (27, 31, 41)
-MENU_HORIZON = (34, 40, 54)
+# The backdrop behind full-screen menus (project manager, 2026-08-09): abstract
+# soft geometry, drawn from the same near-monochrome palette so the front of the
+# game looks like the rest of it. Deliberately close together in value — it is
+# there to give a flat screen some depth, not to be looked at.
+BACKDROP_TOP = (20, 24, 34)
+BACKDROP_BOTTOM = (11, 13, 18)
+BACKDROP_SHAPE = (108, 132, 186)
+BACKDROP_LINE = (128, 152, 205)
 
 # -- metrics ----------------------------------------------------------------
 SIDEBAR_WIDTH = 68

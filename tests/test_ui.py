@@ -990,41 +990,74 @@ def test_the_slot_survives_closing_and_reopening_the_game(menu_app):
 # -- the Start Menu background ---------------------------------------------
 
 
-def test_the_menu_has_something_behind_it(menu_app):
-    """A drawn backdrop, not the flat fill the page background uses."""
-    from apex_horizon.ui.menu_background import MenuBackground
+def _backdrop(size=(900, 600)):
+    from apex_horizon.ui.background import Backdrop
 
-    surface = pygame.Surface((900, 600))
-    MenuBackground().draw(surface)
+    surface = pygame.Surface(size)
+    Backdrop().draw(surface)
+    return surface
+
+
+def test_the_menu_has_something_behind_it(menu_app):
+    """A drawn backdrop, not the flat fill a page uses."""
+    surface = _backdrop()
 
     colours = {surface.get_at((x, y))[:3]
                for x in range(0, 900, 60) for y in range(0, 600, 40)}
+
     assert len(colours) > 12, "a flat fill would give one or two"
 
 
-def test_it_is_the_same_city_every_launch(menu_app):
-    """V15.11's determinism, applied to scenery: no different skyline each run."""
-    from apex_horizon.ui.menu_background import MenuBackground
+def test_the_backdrop_stays_in_the_background(menu_app):
+    """PM: low contrast, no large bright shapes competing with the menu."""
+    surface = _backdrop()
+    samples = [surface.get_at((x, y))[:3]
+               for x in range(0, 900, 15) for y in range(0, 600, 15)]
+    brightness = [sum(colour) for colour in samples]
 
+    # Text is around 700 on this scale and the primary button around 500.
+    assert max(brightness) < 150, "nothing in it approaches the text or buttons"
+    assert max(brightness) - min(brightness) < 90, "and no hard edges within it"
+
+
+def test_it_is_the_same_every_launch(menu_app):
+    """The composition is written down, not rolled, so it cannot drift."""
     first, second = pygame.Surface((640, 480)), pygame.Surface((640, 480))
-    MenuBackground().draw(first)
-    MenuBackground().draw(second)
+    _draw_backdrop(first)
+    _draw_backdrop(second)
 
     assert pygame.image.tobytes(first, "RGB") == pygame.image.tobytes(second, "RGB")
 
 
+def _draw_backdrop(surface) -> None:
+    from apex_horizon.ui.background import Backdrop
+
+    Backdrop().draw(surface)
+
+
 def test_it_is_drawn_once_and_kept(menu_app):
-    from apex_horizon.ui.menu_background import MenuBackground
+    from apex_horizon.ui.background import Backdrop
 
-    background = MenuBackground()
+    backdrop = Backdrop()
     surface = pygame.Surface((640, 480))
-    background.draw(surface)
-    cached = background.surface_for((640, 480))
+    backdrop.draw(surface)
+    cached = backdrop.surface_for((640, 480))
 
-    background.draw(surface)
+    backdrop.draw(surface)
 
-    assert background.surface_for((640, 480)) is cached
-    assert background.surface_for((800, 600)) is not cached, "a resize rebuilds it"
+    assert backdrop.surface_for((640, 480)) is cached
+    assert backdrop.surface_for((800, 600)) is not cached, "a resize rebuilds it"
+
+
+def test_it_can_be_used_by_any_screen(menu_app):
+    """A component, not a picture of one menu: it fills whatever it is given."""
+    from apex_horizon.ui.background import Backdrop
+
+    backdrop = Backdrop()
+    for size in ((320, 240), (1920, 1080), (700, 1200)):
+        surface = pygame.Surface(size)
+        backdrop.draw(surface)
+        assert surface.get_at((size[0] - 1, size[1] - 1))[3] == 255
 
 
 def test_the_menu_keeps_its_contrast_over_the_background(menu_app):

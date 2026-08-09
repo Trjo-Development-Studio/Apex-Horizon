@@ -244,13 +244,24 @@ Two consequences worth naming:
 
 ## The Start Menu background (PM, 2026-08-09)
 
-The menu now has a drawn backdrop — a city at dusk with a single index line
-rising over it — rather than flat colour. It is built procedurally from the
-palette in `theme.py` from a fixed seed, so it is the same city every launch and
-costs one cached surface rather than an asset. V1.15's clean, modern,
-minimalistic identity is unchanged: the skyline keeps to the bottom quarter and
-stays within a few values of the background it replaced, so the buttons and
-title have exactly the contrast they had before.
+The menu has a drawn backdrop rather than flat colour, so the first screen does
+not read as an application that has not finished loading.
+
+The first attempt was representational — a city skyline at dusk with an index
+line rising over it. The project manager rejected it and chose **soft geometric**
+instead: a dark base, subtle gradient and lighting variation, and faint
+overlapping shapes and lines, with everything representational ruled out
+(buildings, charts, axes, symbols, logos, real-world objects) along with large
+high-contrast shapes and any visible grid, which is the shape that makes a
+screen look like financial software.
+
+It is drawn from the palette in `theme.py` and composed from constants written
+in fractions of the window, so it is the same arrangement at every size and on
+every launch with no randomness involved, and it costs one cached surface rather
+than an asset. It is built as a reusable component so other full-screen menus
+can use it later. V1.15's clean, modern, minimalistic identity is unchanged:
+nothing in the backdrop rises above about a fifth of the brightness of the text
+in front of it.
 
 ## Content and assets
 

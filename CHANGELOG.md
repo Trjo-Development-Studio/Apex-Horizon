@@ -17,11 +17,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   of what is already there; nothing is chosen for the player, and an occupied
   slot is confirmed before it is replaced. The new game is written to its slot
   straight away, so it appears in the menu from the moment it starts.
-- **A drawn Start Menu background.** A city at dusk with a single index line
-  rising over it, built procedurally from the game's own palette and a fixed
-  seed — the same city every launch, cached rather than redrawn each frame. The
-  skyline keeps to the bottom quarter and stays within a few values of the
-  background it replaced, so the title and buttons keep the contrast they had.
+- **A drawn Start Menu background.** Soft abstract geometry: a dark base with a
+  slow gradient, one off-centre light, and faint overlapping shapes and lines.
+  Deliberately not representational and with no grid, so it reads as depth
+  rather than as financial software. The composition is written down in
+  fractions of the window rather than generated, so it is identical at every
+  size and on every launch, and it is a reusable `Backdrop` component any
+  full-screen menu can use, cached per window size rather than redrawn each
+  frame. Nothing in it rises above about a fifth of the brightness of the text
+  in front of it, so the title and buttons keep the contrast they had.
 - **An in-game developer console, opened with Ctrl+T.** V15.18 put developer
   commands in the launching terminal, which is no help to a packaged build or a
   desktop shortcut; the same commands now work inside the window. Both surfaces
