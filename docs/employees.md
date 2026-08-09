@@ -32,6 +32,35 @@ still occasionally meet someone excellent. Skill ceilings follow the Better
 Employees unlocks of V6.7.2 — 1–20, 1–30, 1–40, with a more modest pool before
 any of them.
 
+### The Hire button (bug fix, 2026-08-09)
+
+`ui/pages/employees.py` recreated a fresh `Button` for every candidate on every
+draw call. An ordinary click spans two frames — the mouse goes down on one, up
+on the next, with a draw in between — and `Button` only registers a click when
+the same instance sees both halves (`ui/widgets.py`). A brand-new object on the
+second frame had no memory of the press the first one saw, so the release was
+silently ignored: the button looked and behaved like any other right up until
+the moment it should have fired.
+
+Nothing exercised the actual down-then-draw-then-up sequence, so nothing caught
+it — every other test drove the page's `requested_hire` field directly rather
+than through simulated mouse events. Three other pages (`unlocks.py`, `news.py`,
+`simple.py`'s save slots) already get this right, keeping one `Button` per row
+in a dict and fetching it back on the next draw rather than replacing it; the
+Hire buttons now follow the same pattern.
+
+The engine side — `EmployeeRoster.hire()`, capacity, applicant removal, the
+`on_hire` callback lifetime statistics rely on, and the save format — was
+already correct and is covered by the tests in `tests/test_employees.py`; only
+the click was ever lost. `tests/test_ui.py` now drives the button through real
+`MOUSEBUTTONDOWN`/`MOUSEBUTTONUP` events with a draw between them, and
+`tests/test_save.py::test_a_hired_employee_survives_save_and_load` hires
+through the same dispatcher the button uses and round-trips the save.
+
+The Employee Detail page's per-department Train buttons build the same way —
+cleared and recreated every draw rather than kept in a dict — and so carry the
+same latent defect. It was not in scope here and is not yet fixed.
+
 ## Development and training (V5.8, V5.9, V13.12)
 
 Experience accrues where work is actually done, so an employee improves fastest

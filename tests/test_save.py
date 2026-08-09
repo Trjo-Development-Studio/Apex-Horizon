@@ -326,6 +326,39 @@ def test_a_real_game_round_trips(game):
         assert game.context.market.listing_for(company_id).price == price
 
 
+def test_a_hired_employee_survives_save_and_load(game):
+    """Bug fix, 2026-08-09, Test 4: a hire is real state, not a UI-only change.
+
+    Goes through the same dispatcher the Hire button drives, rather than
+    calling ``roster.hire`` directly, so the test covers the path a player's
+    click actually takes and not just the engine method underneath it.
+    """
+    game.context.player.cash = Money(60_000)
+    game.context.player.unlocks.unlock(CREATE_COMPANY)
+    company, _ = game.context.player.found_company("Meridian Capital", 1)
+    company.register(game.context.engine)
+    roster = company.employees
+    roster.refresh_applicants(game.context.engine.rng, game.context.names,
+                              game.context.allocator, game.context.engine.date.day)
+    applicant = roster.applicants[0]
+
+    page = game.pages["company:employees"]
+    page.requested_hire = applicant.id
+    game._handle_employees_page(page)
+    assert any(e.id == applicant.id for e in roster.employees), "the hire itself must succeed"
+
+    assert game.saves.save_to_slot(1, "Hiring round trip").ok
+    game.context.engine.run_days(30)  # move on, then load back over it
+    assert game.saves.load_from_slot(1).ok
+
+    reloaded = game.context.company.employees
+    assert any(e.id == applicant.id for e in reloaded.employees), \
+        "the hired employee must still be on the roster after a reload"
+    assert reloaded.is_full is False
+    assert not any(a.id == applicant.id for a in reloaded.applicants), \
+        "and must not have reappeared as an applicant"
+
+
 def test_a_reloaded_game_continues_identically(game):
     game.context.engine.run_days(100)
     game.saves.save_to_slot(1)

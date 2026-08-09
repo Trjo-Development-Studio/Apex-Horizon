@@ -107,6 +107,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **The Hire button now actually hires.** Every candidate's button was recreated
+  from scratch on every draw, and a click spans two frames — down on one, up on
+  the next — so the fresh button on the second frame had no memory of the press
+  the first one saw, and the release was silently ignored. It now keeps one
+  button per candidate across frames, matching the pattern the rest of the
+  interface already uses for per-row buttons. `EmployeeRoster.hire()` itself —
+  capacity, applicant removal, statistics, saving — was already correct; only
+  the click was ever lost. Covered by tests that drive the button through real
+  mouse-down/mouse-up events with a draw between them, and by a save/load round
+  trip through the same dispatcher the button uses.
 - **Personal cash is now shown on every screen**, as the first summary card on
   every page, styled exactly like the figures beside it. It is drawn by the shared page layout rather than by
   each page, so no screen can omit it and it cannot drift out of position. It

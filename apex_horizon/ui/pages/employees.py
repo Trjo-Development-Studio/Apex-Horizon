@@ -51,7 +51,7 @@ class EmployeesPage(Page):
         )
         self.selected_employee_id: str | None = None
         self.recruit_button = Button("Find candidates", primary=True)
-        self.hire_buttons: list[tuple[str, Button]] = []
+        self.hire_buttons: dict[str, Button] = {}
         self.requested_recruit = False
         self.requested_hire: str | None = None
 
@@ -110,7 +110,7 @@ class EmployeesPage(Page):
         if self.recruit_button.handle_event(event) and self.recruit_button.take_click():
             self.requested_recruit = True
             return True
-        for employee_id, button in self.hire_buttons:
+        for employee_id, button in self.hire_buttons.items():
             if button.handle_event(event) and button.take_click():
                 self.requested_hire = employee_id
                 return True
@@ -151,24 +151,37 @@ class EmployeesPage(Page):
         self.recruit_button.draw(surface, pygame.Rect(rect.right - 176, rect.top + 16, 156, 32),
                                  fonts, mouse)
 
-        self.hire_buttons.clear()
-        if not roster.applicants:
+        shown = roster.applicants[:4]
+        # Buttons are kept across frames rather than recreated, so a click that
+        # started on one frame and released on the next is not lost: a fresh
+        # Button() would forget the press it saw a moment ago (V27.9).
+        visible_ids = {applicant.id for applicant in shown}
+        self.hire_buttons = {
+            applicant_id: button for applicant_id, button in self.hire_buttons.items()
+            if applicant_id in visible_ids
+        }
+        if not shown:
             draw_text(surface, fonts.small, "No candidates right now.",
                       (rect.left + 20, rect.top + 80), theme.TEXT_FAINT)
             return
 
         y = rect.top + 74
-        for applicant in roster.applicants[:4]:
+        for applicant in shown:
             draw_text(surface, fonts.small, applicant.name, (rect.left + 20, y), theme.TEXT)
             draw_text(surface, fonts.small,
                       f"{applicant.primary} · skill {applicant.overall_skill}",
                       (rect.left + 220, y), theme.TEXT_MUTED)
             draw_text(surface, fonts.mono_small, applicant.salary.format(decimals=0),
                       (rect.left + 460, y), theme.TEXT)
-            button = Button("Hire", enabled=not roster.is_full)
+            button = self._hire_button(applicant.id)
+            button.enabled = not roster.is_full
             button.draw(surface, pygame.Rect(rect.right - 96, y - 6, 72, 26), fonts, mouse)
-            self.hire_buttons.append((applicant.id, button))
             y += 30
+
+    def _hire_button(self, applicant_id: str) -> Button:
+        if applicant_id not in self.hire_buttons:
+            self.hire_buttons[applicant_id] = Button("Hire")
+        return self.hire_buttons[applicant_id]
 
 
 class EmployeeDetailPage(Page):

@@ -1155,3 +1155,146 @@ def test_the_menu_keeps_its_contrast_over_the_background(menu_app):
 
     assert sum(behind) < 160, "the backdrop stays dark behind light text"
     assert sum(on_button) - sum(behind) > 200, "the primary button still stands out"
+
+
+# -- hiring from the Employees page (bug fix, 2026-08-09) ------------------
+#
+# The Hire buttons were recreated from scratch every draw call. A real click
+# spans two frames — mouse-down on one, mouse-up on the next, with a draw in
+# between — and a brand-new Button() on the second frame has no memory of the
+# press the first frame saw, so the release was silently ignored. Nothing
+# exercised the click through actual down/up events, so nothing caught it.
+
+
+def _found_company_with_applicant(app):
+    """A company that can afford to hire, with exactly one applicant waiting."""
+    app.context.player.cash = Money(60_000)
+    app.context.player.unlocks.unlock(CREATE_COMPANY)
+    company, message = app.context.player.found_company("Test Capital", 1)
+    assert company is not None, message
+    roster = company.employees
+    roster.refresh_applicants(app.context.engine.rng, app.context.names,
+                              app.context.allocator, app.context.engine.date.day)
+    assert roster.applicants, "the generator should have produced someone to hire"
+    return company, roster, roster.applicants[0]
+
+
+def _hire_button_center(app, applicant_id: str):
+    page = app.pages["company:employees"]
+    app.navigate("company:employees")
+    app.draw(0)
+    button = page.hire_buttons[applicant_id]
+    return button.rect.center
+
+
+def _click_across_a_frame(app, pos) -> None:
+    """A mouse-down, a frame drawn in between, then the mouse-up — real play."""
+    page = app.pages["company:employees"]
+    page.handle_event(click(pos))
+    app.draw(16)  # the frame that used to wipe out the Hire button's press
+    page.handle_event(release(pos))
+    app._collect_page_requests()
+
+
+def test_clicking_hire_across_two_frames_adds_the_employee(app):
+    """Test 1: normal hiring, through the real down/up click sequence."""
+    _, roster, applicant = _found_company_with_applicant(app)
+    before = len(roster)
+
+    _click_across_a_frame(app, _hire_button_center(app, applicant.id))
+
+    assert len(roster) == before + 1
+    assert any(employee.id == applicant.id for employee in roster.employees)
+
+
+def test_hiring_updates_the_roster_page_immediately(app):
+    """Test 5: the employee appears in the UI without a separate refresh."""
+    _, _roster, applicant = _found_company_with_applicant(app)
+
+    _click_across_a_frame(app, _hire_button_center(app, applicant.id))
+
+    page = app.pages["company:employees"]
+    assert applicant.id in {row["id"] for row in page.rows()}
+
+
+def test_hiring_removes_the_applicant_so_they_cannot_be_hired_twice(app):
+    """Test 3: the same applicant cannot immediately be hired again."""
+    _, roster, applicant = _found_company_with_applicant(app)
+
+    _click_across_a_frame(app, _hire_button_center(app, applicant.id))
+    assert not any(a.id == applicant.id for a in roster.applicants)
+    count_after_first_hire = len(roster)
+
+    # The button for a since-hired applicant no longer exists to click, but the
+    # dispatcher must still refuse safely if it is ever asked to hire them again.
+    page = app.pages["company:employees"]
+    page.requested_hire = applicant.id
+    app._handle_employees_page(page)
+
+    assert len(roster) == count_after_first_hire
+
+
+def _fill_to_capacity(app, roster) -> None:
+    """Hire filler employees up to the company's limit.
+
+    Reuses the app's own allocator and name generator rather than fresh ones:
+    a second ``IdAllocator()`` starts counting from the same id used by the
+    applicant pool, and a filler colliding on id with a real applicant gets
+    stripped out of ``roster.applicants`` by ``hire()``'s own id-based filter.
+    """
+    from apex_horizon.engine.employees import generate_applicants
+
+    while not roster.is_full:
+        filler = generate_applicants(
+            app.context.engine.rng, app.context.names, app.context.allocator, count=1,
+        )[0]
+        roster.hire(filler, app.context.engine.date.day)
+
+
+def test_a_full_company_shows_hire_as_unavailable(app):
+    """Test 2: capacity is respected, and shown as unavailable rather than
+    failing silently."""
+    _, roster, applicant = _found_company_with_applicant(app)
+    _fill_to_capacity(app, roster)
+    assert roster.is_full
+
+    pos = _hire_button_center(app, applicant.id)
+    before = len(roster)
+
+    _click_across_a_frame(app, pos)
+
+    assert len(roster) == before, "a full company must not gain another employee"
+    page = app.pages["company:employees"]
+    assert not page.hire_buttons[applicant.id].enabled
+
+
+def test_a_rejected_hire_tells_the_player_why(app):
+    """Test 6: a legitimate failure is explained, not swallowed."""
+    _, roster, applicant = _found_company_with_applicant(app)
+    _fill_to_capacity(app, roster)
+    assert applicant.id in {a.id for a in roster.applicants}, \
+        "the original applicant should still be waiting, just unable to join"
+
+    page = app.pages["company:employees"]
+    page.requested_hire = applicant.id
+    app.notifications.items.clear()
+
+    app._handle_employees_page(page)
+
+    assert app.notifications.items, "a refusal must say something, not nothing"
+    message = app.notifications.items[-1].text.lower()
+    assert "capacity" in message or "level" in message or "hold" in message
+
+
+def test_hiring_dispatch_marks_the_game_as_having_unsaved_changes(app):
+    """Test 4 (part 1): the hire must land in state the save system will pick
+    up. This is what makes it actually saved rather than a UI-only change."""
+    _, roster, applicant = _found_company_with_applicant(app)
+    app.saves.unsaved_changes = False
+
+    page = app.pages["company:employees"]
+    page.requested_hire = applicant.id
+    app._handle_employees_page(page)
+
+    assert app.saves.unsaved_changes
+    assert any(employee.id == applicant.id for employee in roster.employees)
