@@ -11,8 +11,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- **Personal cash is now shown on every screen**, in a box directly under the
-  page header, in the same place each time. It is drawn by the shared page layout rather than by
+- **Personal cash is now shown on every screen**, as the first summary card on
+  every page, styled exactly like the figures beside it. It is drawn by the shared page layout rather than by
   each page, so no screen can omit it and it cannot drift out of position. It
   is personal cash specifically — never net worth, which counts holdings and a
   company that cannot be spent, and never the company's own cash, which stays

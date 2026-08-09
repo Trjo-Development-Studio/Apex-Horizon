@@ -17,12 +17,12 @@ import pygame
 
 from .. import theme
 from ..context import GameContext
-from ..widgets import Card, SearchBox, draw_text, panel
+from ..widgets import Card, SearchBox, draw_text
 
-#: The cash box under every page header, a fixed size so the figure sits in
-#: exactly the same place on every screen.
-CASH_WIDTH = 200
-CASH_HEIGHT = 52
+#: Cards shown across the top of a page. Five rather than four, so leading
+#: every page with the player's cash does not push a page's own fourth card off
+#: the row.
+MAX_CARDS = 5
 
 
 class Page:
@@ -73,19 +73,15 @@ class Page:
                       theme.TEXT_MUTED)
         y += 66 if self.subtitle else 48
 
-        # 2. Cash, directly beneath the header, before anything else on the
-        # page. Same place on every screen (project manager, 2026-08-09).
-        y = self._draw_cash(surface, rect, fonts, y)
-
         # 2. Breadcrumb
         breadcrumb.set(self.breadcrumb())
         breadcrumb.draw(surface, fonts, mouse, (rect.left, y + 8))
         y += 30
 
-        # 3. Summary cards
-        cards = self.cards()
+        # 3. Summary cards, always led by the player's cash
+        cards = self._cards_with_cash()
         if cards:
-            count = min(len(cards), 4)
+            count = min(len(cards), MAX_CARDS)
             width = (rect.width - theme.GAP * (count - 1)) // count
             for index, card in enumerate(cards[:count]):
                 card_rect = pygame.Rect(
@@ -105,34 +101,23 @@ class Page:
         self.draw_content(surface, content, fonts, mouse)
 
 
-    def _draw_cash(self, surface, rect, fonts, top: int) -> int:
-        """The player's personal cash, on every page (V14.13, V1.4).
+    def _cards_with_cash(self) -> list[Card]:
+        """This page's cards, always led by the player's personal cash.
 
-        Drawn here rather than by each page so it cannot be forgotten on one
-        screen or drift to a different spot on another: whatever the player is
-        looking at, the answer to "what can I spend right now" is in the same
-        place, directly under the header.
+        Assembled here rather than by each page so that no screen can omit it
+        and it always sits in the same position — first in the row — whatever
+        the player is looking at (V14.13).
 
-        Personal cash specifically, never net worth and never the company's.
-        Net worth counts holdings and a company that cannot be spent, so
-        showing it here would answer a question the player did not ask (V1.4).
-
-        Returns the y position the rest of the page should continue from.
+        Personal cash specifically: never net worth, which counts holdings and a
+        company that cannot be spent, and never the company's own cash (V1.4).
+        A page that shows either of those shows them as well, not instead.
         """
         player = getattr(self.context, "player", None)
         if player is None:
-            return top
-
-        box = pygame.Rect(rect.left, top, CASH_WIDTH, CASH_HEIGHT)
-        panel(surface, box, fill=theme.SURFACE)
-        pygame.draw.rect(surface, theme.ACCENT,
-                         pygame.Rect(box.left + 1, box.top + 8, 3, box.height - 16),
-                         border_radius=2)
-        draw_text(surface, fonts.tiny, "CASH", (box.left + 16, box.top + 8),
-                  theme.TEXT_FAINT)
-        draw_text(surface, fonts.subheading, player.cash.format(),
-                  (box.left + 16, box.top + 24), theme.TEXT)
-        return box.bottom + 10
+            return self.cards()
+        cash = Card("Cash", player.cash.format(), "Yours to spend right now",
+                    accent=theme.ACCENT)
+        return [cash, *self.cards()]
 
 
 class EmptyStatePage(Page):

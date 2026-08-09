@@ -117,8 +117,6 @@ class UnlockTreePage(Page):
                  "Progress through the tree"),
             Card("Available now", str(len(available)),
                  f"{len(buyable)} you can afford"),
-            Card("Personal cash", player.cash.format(decimals=0) if player else "—",
-                 "Unlocks are bought with your own money"),
             Card("Next", available[0].name if available else "—",
                  tree.cost_of(available[0].key).format(decimals=0) if available
                  else "Nothing available"),

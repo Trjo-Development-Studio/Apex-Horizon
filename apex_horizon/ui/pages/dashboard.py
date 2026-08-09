@@ -38,8 +38,6 @@ class DashboardPage(Page):
             cards.append(Card("Net worth", player.net_worth().format(decimals=0),
                               "Personal cash, holdings and company",
                               accent=theme.ACCENT))
-            cards.append(Card("Personal cash", player.cash.format(decimals=0),
-                              "Yours to invest or spend"))
         if company is not None:
             profit = company.finances.profit_this_week
             # A flat week has no direction, so it gets no arrow and no colour:

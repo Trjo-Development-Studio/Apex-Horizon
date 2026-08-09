@@ -92,8 +92,6 @@ class PortfolioPage(Page):
         return [
             Card("Your holdings", stats["Holdings value"].format(decimals=0),
                  f"{stats['Companies held']} companies", accent=theme.ACCENT),
-            Card("Personal cash", player.cash.format(decimals=0),
-                 "Available to invest"),
             Card("Unrealised", unrealised.format(decimals=0, signed=True),
                  "On shares you still hold",
                  accent=theme.value_colour(not unrealised.is_negative),

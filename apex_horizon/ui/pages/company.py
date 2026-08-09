@@ -41,8 +41,6 @@ class CompanyPage(Page):
         player = self.context.player
         if company is None:
             return [
-                Card("Personal cash", player.cash.format(decimals=0) if player else "—",
-                     "Available to found a company"),
                 Card("Founding cost",
                      player.founding_cost.format(decimals=0) if player else "—",
                      "One-off cost to incorporate"),

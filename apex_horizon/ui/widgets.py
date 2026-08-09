@@ -423,14 +423,20 @@ class Card:
         pygame.draw.rect(surface, self.accent or theme.BORDER_STRONG, marker,
                          border_radius=2)
 
-        draw_text(surface, fonts.tiny, self.label.upper(),
+        draw_text(surface, fonts.tiny,
+                  truncate(fonts.tiny, self.label.upper(), rect.width - 36),
                   (rect.left + 18, rect.top + 14), theme.TEXT_FAINT)
+
+        # A card holds names as well as figures, and a long company name has to
+        # give way rather than run over the edge of the card beside it.
         value_x = rect.left + 18
-        draw_text(surface, fonts.heading, self.value, (value_x, rect.top + 34), colour)
+        room = rect.width - 36 - (18 if self.trend is not None else 0)
+        value = truncate(fonts.heading, self.value, room)
+        draw_text(surface, fonts.heading, value, (value_x, rect.top + 34), colour)
 
         if self.trend is not None:
             arrow = "\u25b2" if self.trend else "\u25bc"
-            width = fonts.heading.size(self.value)[0]
+            width = fonts.heading.size(value)[0]
             draw_text(surface, fonts.small, arrow, (value_x + width + 8, rect.top + 42),
                       theme.value_colour(self.trend))
 
@@ -447,7 +453,8 @@ class Card:
             return
 
         if self.detail:
-            draw_text(surface, fonts.small, self.detail,
+            draw_text(surface, fonts.small,
+                      truncate(fonts.small, self.detail, rect.width - 36),
                       (rect.left + 18, rect.bottom - 24), theme.TEXT_MUTED)
 
 

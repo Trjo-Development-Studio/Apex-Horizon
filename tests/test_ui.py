@@ -563,29 +563,27 @@ def test_portfolio_draws_every_view(app):
 
 
 def _cash_box(app, key: str):
-    """Draw a page and report the cash box it rendered, if any."""
-    from apex_horizon.ui.pages import base
-
-    drawn: list[str] = []
-    real = base.Page._draw_cash
-
-    def record(self, surface, rect, fonts, top):
-        drawn.append(self.context.player.cash.format())
-        return real(self, surface, rect, fonts, top)
-
-    base.Page._draw_cash = record
-    try:
-        app.navigate(key)
-        app.draw(0)
-    finally:
-        base.Page._draw_cash = real
-    return drawn
+    """Open a page and report the cash figures among its summary cards."""
+    app.navigate(key)
+    app.draw(0)
+    return [card.value for card in app.page._cards_with_cash()
+            if card.label == "Cash"]
 
 
 def test_personal_cash_is_shown_on_every_main_tab(app):
     """Whatever the player is looking at, what they can spend is on screen."""
     for item in NAV_ITEMS:
         assert _cash_box(app, item.key), f"{item.label} shows no cash"
+
+
+def test_cash_leads_the_cards_and_is_never_shown_twice(app):
+    """It is a summary card like the others, in the same position each time."""
+    for item in NAV_ITEMS:
+        app.navigate(item.key)
+        labels = [card.label for card in app.page._cards_with_cash()]
+        assert labels[0] == "Cash", item.label
+        assert labels.count("Cash") == 1, item.label
+        assert "Personal cash" not in labels, f"{item.label} duplicates the figure"
 
 
 def test_personal_cash_is_shown_on_sub_pages_too(app):
