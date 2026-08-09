@@ -23,6 +23,27 @@ one family, and means no icon can go missing at runtime.
 Every icon is paired with a label or tooltip: navigation must never depend on
 icon recognition alone.
 
+### The real logo
+
+One exception to "drawn rather than loaded": the project's actual mark, made
+outside the engine, loaded from `assets/images/apex_horizon_mark.png` via
+`ui/assets.py`. It is a square crop of the mark alone — the "Apex Horizon"
+wordmark is trimmed away, because it reads at Start Menu size but not at the
+handful of pixels a window icon or the collapsed sidebar gets.
+
+It appears in two places (project-manager decision, 2026-08-09): the window
+icon, set once at startup before the display mode exists so the platform picks
+it up for the taskbar/dock; and the sidebar, in place of the "AH" placeholder
+text, at a fixed size and position regardless of whether the sidebar is
+expanded. Because it is a loaded image rather than a drawn icon, it cannot
+recolour itself for hover the way the nav icons do — hovering highlights a
+background pill behind it instead, the same treatment an active nav row gets.
+
+Every size ever asked for is cached, so drawing it costs one decode and one
+scale for the run, not one per frame. Missing the asset file returns `None`
+rather than raising — it is artwork, not gameplay data — and the sidebar falls
+back to the old text mark in that case.
+
 ## Layout
 
 ```

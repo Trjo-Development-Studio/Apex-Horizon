@@ -11,6 +11,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **The real Apex Horizon logo replaces two placeholder marks**: the window
+  icon (previously unset) and the sidebar's "AH" text, at every width. A
+  monogram-only crop is used at both sizes, since the full wordmark reads at
+  Start Menu size but blurs away at a window icon or a 30-pixel sidebar mark.
+  The image cannot recolour itself for hover the way the drawn nav icons do, so
+  hovering the sidebar mark highlights a background pill behind it instead. The
+  Start Menu itself keeps its text title, by project-manager choice.
 - **New Game asks where the game should live.** The flow is now Start Menu →
   New Game → choose a save slot → name the save → Create Game. The slot list
   shows all five, each marked EMPTY or IN USE with the name, date and net worth

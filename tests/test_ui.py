@@ -861,6 +861,91 @@ def test_clicking_the_logo_expands_and_collapses(app):
     assert app.sidebar.width(13_000) == theme.SIDEBAR_WIDTH
 
 
+# -- the real logo (project manager: window icon + sidebar mark) -----------
+
+
+def test_the_mark_loads_at_the_size_asked_for(app):
+    from apex_horizon.ui import assets
+
+    image = assets.mark(40)
+
+    assert image is not None
+    assert image.get_size() == (40, 40)
+
+
+def test_the_mark_is_cached_rather_than_reloaded(app):
+    from apex_horizon.ui import assets
+
+    first = assets.mark(40)
+    second = assets.mark(40)
+
+    assert first is second
+
+
+def test_a_missing_asset_is_handled_rather_than_raised(app, monkeypatch, tmp_path):
+    """This is artwork, not gameplay data: a missing file must not crash."""
+    from apex_horizon.ui import assets
+
+    assets._cache.clear()
+    monkeypatch.setattr(assets, "asset_path", lambda *parts: tmp_path.joinpath(*parts))
+
+    assert assets.mark(40) is None
+    assets._cache.clear()
+
+
+def test_the_sidebar_draws_the_real_mark_not_placeholder_text(app):
+    """The blue of the mark should be visible where the old 'AH' text sat."""
+    app.draw(0)
+
+    sampled = [app.surface.get_at((x, 23))[:3]
+               for x in range(theme.SIDEBAR_WIDTH // 2 - 10, theme.SIDEBAR_WIDTH // 2 + 10)]
+    assert any(blue > red and blue > 120 for red, _, blue in sampled), \
+        "expected some of the mark's blue among the sampled pixels"
+
+
+def test_the_mark_stays_put_when_the_sidebar_expands(app):
+    """Branding does not move; only the wordmark beside it appears."""
+    app.draw(0)
+    collapsed_logo = app.sidebar._logo_rect.topleft
+
+    app.sidebar.expanded = True
+    app.sidebar.width(10_000)
+    app.draw(11_000)
+
+    assert app.sidebar._logo_rect.topleft == collapsed_logo
+
+
+def test_hovering_the_logo_highlights_behind_it(app):
+    """The mark cannot recolour itself, so the affordance is a background pill."""
+    logo_edge = (6, 38)  # inside the hit area, away from the mark's own pixels
+
+    app.sidebar.draw(app.surface, app.fonts, (-100, -100), 0)
+    unhovered = app.surface.get_at(logo_edge)[:3]
+
+    app.sidebar.draw(app.surface, app.fonts, (34, 23), 0)
+    hovered = app.surface.get_at(logo_edge)[:3]
+
+    assert hovered != unhovered
+
+
+def test_the_window_icon_is_set_from_the_real_logo(monkeypatch):
+    """V15.19: the window/taskbar icon must be the actual artwork, not nothing."""
+    from apex_horizon.ui import assets
+
+    seen = []
+    monkeypatch.setattr(pygame.display, "set_icon", lambda surface: seen.append(surface))
+    set_calendar(Calendar(7, 4, 12))
+    application = GameApp(size=(900, 600), seed=2026)
+    try:
+        assert len(seen) == 1
+        expected = assets.mark(64)
+        assert expected is not None
+        assert seen[0].get_size() == expected.get_size()
+    finally:
+        application.shutdown()
+        set_calendar(None)
+
+
 def test_the_expanded_state_is_remembered_across_screens(app):
     app.draw(0)
     app.sidebar.handle_event(click(app.sidebar._logo_rect.center))

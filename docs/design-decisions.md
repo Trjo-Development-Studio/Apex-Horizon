@@ -263,6 +263,24 @@ can use it later. V1.15's clean, modern, minimalistic identity is unchanged:
 nothing in the backdrop rises above about a fifth of the brightness of the text
 in front of it.
 
+## The real logo (PM, 2026-08-09)
+
+The project's actual logo — made outside the engine — replaces two of the
+game's placeholder marks: the window icon (previously unset) and the sidebar's
+"AH" text. The project manager chose these two specifically over a third option,
+putting the logo on the Start Menu itself, which stays as it was.
+
+Only a square crop of the mark is used, with the "Apex Horizon" wordmark
+trimmed away: the wordmark reads at Start Menu size but not at a window icon or
+a 30-pixel sidebar mark, where it would blur into the letterforms rather than
+add to them. The source PNG (kept in the sibling Legacy project) has the full
+lockup; the derived, monogram-only asset is what is committed here, since that
+is the only size the official build currently uses.
+
+This is the one deliberate exception to V1.15's "icons are drawn, not loaded"
+rule (`docs/user-interface.md`): the project's real identity is not the kind of
+mark a handful of simple shapes can stand in for.
+
 ## Content and assets
 
 | Decision | Detail |

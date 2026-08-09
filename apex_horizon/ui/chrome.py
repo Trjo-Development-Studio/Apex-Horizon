@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 import pygame
 
-from . import icons, theme
+from . import assets, icons, theme
 from .charts import Animated
 from .widgets import draw_text, draw_tooltip, panel, truncate
 
@@ -54,6 +54,10 @@ NAV_ITEMS: tuple[NavItem, ...] = (
 SETTINGS_ITEM = NavItem("settings", "Settings", "settings")
 EXIT_ACTION = NavItem("exit", "Save & Exit", "exit")
 FOOT_ITEMS: tuple[NavItem, ...] = (SETTINGS_ITEM, EXIT_ACTION)
+
+
+#: The logo mark is drawn at this size regardless of the sidebar's own width.
+MARK_SIZE = 30
 
 
 class Sidebar:
@@ -134,22 +138,37 @@ class Sidebar:
                             active=item.key == self.active)
 
     def _draw_logo(self, surface, fonts, mouse, width: int) -> None:
-        """The wordmark, which is also the control that expands the sidebar.
+        """The real mark, which is also the control that expands the sidebar.
 
         Clicking it shows the names beside the icons and clicking it again
         hides them, so the player can trade width for legibility whenever they
         want without the setting living somewhere they have to go and find.
+
+        The mark stays in the same place at every width — collapsed or
+        expanded, the branding does not move — and only the wordmark beside it
+        appears once there is room, exactly like every icon below it.
         """
         self._logo_rect = pygame.Rect(0, 0, width, 46)
         hovered = self._logo_rect.collidepoint(mouse)
-        colour = theme.ACCENT if not hovered else theme.TEXT
-        if self.expanded and width > theme.SIDEBAR_WIDTH + 40:
-            draw_text(surface, fonts.subheading, "APEX HORIZON", (18, 22), colour,
-                      baseline="middle")
+        if hovered:
+            # The mark is a loaded image and cannot recolour itself the way the
+            # drawn nav icons do, so hovering highlights behind it instead —
+            # the same treatment an active or hovered nav row gets.
+            pygame.draw.rect(surface, theme.SURFACE_RAISED,
+                             self._logo_rect.inflate(-8, -6), border_radius=6)
+
+        centre = (theme.SIDEBAR_WIDTH // 2, 23)
+        image = assets.mark(MARK_SIZE)
+        if image is not None:
+            surface.blit(image, image.get_rect(center=centre))
         else:
-            draw_text(surface, fonts.subheading, "AH",
-                      (theme.SIDEBAR_WIDTH // 2, 22), colour,
+            # Only reachable from a checkout missing the binary asset.
+            draw_text(surface, fonts.subheading, "AH", centre, theme.ACCENT,
                       align="center", baseline="middle")
+
+        if self.expanded and width > theme.SIDEBAR_WIDTH + 40:
+            draw_text(surface, fonts.subheading, "APEX HORIZON",
+                      (theme.SIDEBAR_WIDTH - 4, 23), theme.TEXT, baseline="middle")
 
     def _draw_item(self, surface, fonts, mouse, item, item_rect, width: int,
                    *, active: bool) -> None:

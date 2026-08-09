@@ -32,7 +32,7 @@ from ..engine.statistics import LifetimeStatistics
 from ..engine.unlocks import UnlockEffects
 from ..engine.values import Money
 from ..engine.world import WorldGenerator, generate_world
-from . import theme
+from . import assets, theme
 from .chrome import NAV_ITEMS, Breadcrumb, NotificationCentre, SaveIndicator, Sidebar, TimeControls
 from .console import ConsoleOverlay, opens_console
 from .context import GameContext
@@ -74,6 +74,11 @@ class GameApp:
     def __init__(self, size: tuple[int, int] = WINDOW_SIZE, *, seed: int | None = None,
                  start_in_menu: bool = False):
         pygame.init()
+        # Set before the window exists, which is when the platform reads it
+        # for the taskbar/dock icon (V15.19: the real logo, not a placeholder).
+        icon = assets.mark(64)
+        if icon is not None:
+            pygame.display.set_icon(icon)
         pygame.display.set_caption(WINDOW_TITLE)
         self.surface = pygame.display.set_mode(size, pygame.RESIZABLE)
         self.clock = pygame.time.Clock()
