@@ -14,6 +14,7 @@ each receive a top-level folder.
 apex_horizon/
   engine/      Simulation, configuration, logging, error handling
   ui/          Presentation layer only — no business logic (V15.5)
+  debug/       Developer commands and the terminal reader (V15.18)
 config/        Gameplay configuration files (V15.10)
 assets/        Bundled images and sounds
 docs/          Technical documentation (V15.14) and the Design Bible

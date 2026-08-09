@@ -87,26 +87,29 @@ minimal by design and none may be added without approval.
 ```bash
 uv sync --group dev                                              # dev tooling
 uv run ruff check .                                              # lint
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run pytest -q     # 601 tests
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run pytest -q     # 603 tests
 ```
 
 Run all three before committing — they are exactly what CI runs.
 
 ### Developer console
 
-Launch the game from a terminal and type commands into it while it runs:
+Press **Ctrl+T** in the game, or type into the terminal that launched it — both
+run the same commands:
 
 ```
-> status                 # where the game currently stands
-> money 50000            # give the player cash
-> days 30                # advance time
-> unlock all             # grant every unlock
-> event up 5             # move every price
-> help                   # the full list
+> money player add 50000        # personal cash; 'money company' for the company
+> time add 5year                # runs the real simulation, spread across frames
+> unlock add create_company     # goes through the Unlock Tree and its effects
+> unlocks                       # what is currently owned
+> status                        # where the game currently stands
+> help money                    # exact syntax, per topic
 ```
 
-The console is inert when there is no terminal attached, so it never interferes
-with tests or CI.
+Commands act on the real game state, never on a debug-only copy. The console
+executes nothing from the operating system, and nothing typed into it can crash
+the game. The terminal half is inert when no terminal is attached, so it never
+interferes with tests or CI.
 
 ### Balance
 

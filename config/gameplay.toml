@@ -525,3 +525,11 @@ rolling_autosave_slots = 1
 # V15.13 — players are asked to report unrecoverable errors here.
 # TODO: replace with the real invite once the project manager provides it.
 discord_invite_url = ""
+
+[debug]
+# V15.18 — the developer console. Simulating a year honestly takes a few
+# seconds, so a time jump is spread over frames rather than run in one blocking
+# call; this is how much of each frame it may use, and how far a single command
+# may jump before it is refused as a mistake.
+fast_forward_budget_ms = 30
+max_fast_forward_years = 50

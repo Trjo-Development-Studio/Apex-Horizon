@@ -176,6 +176,42 @@ The counter only advances while the game is actually being played; time spent
 on an open decision does not count, so a game left sitting on a popup will not
 save itself repeatedly.
 
+## The in-game console (PM, 2026-08-09)
+
+The project manager specified an in-game developer console on **Ctrl+T** with
+its own parser, running no operating-system commands. V15.18 asked for developer
+commands *from the launching terminal*; both now exist and share one command
+set, so neither can drift from the other. The specified syntax replaced the
+terminal's older shorthand — `money 5000` became `money player add 5000` and
+`days 30` became `time add 30day` — rather than two spellings being maintained.
+
+Four judgement calls were made inside the brief, each because the specification
+did not reach them:
+
+**Time only moves forwards.** `time set` to a past date is refused. The engine
+advances a day at a time and systems record as they go; there is no operation
+that unlives a day, and reaching back by rewriting the counter would leave the
+world in a state the simulation never produces. The command says so instead.
+
+**Long jumps are spread across frames.** `time add 5year` is 1,680 days, which
+takes roughly half a minute to simulate honestly. Run inside one command it
+would freeze the window, which reads as a crash — so the command schedules the
+days and the application advances a slice each frame
+(`debug.fast_forward_budget_ms`), with the console counting them down.
+`time cancel`, which the brief does not mention, exists so a jump entered by
+mistake is not something to sit through.
+
+**`unlock add` grants what the unlock requires, and `unlock remove` removes what
+depended on it.** V6.9 makes progression strictly sequential, so a lone deep
+unlock is not a state the game can otherwise reach. The brief asked for removal
+to "handle it safely and report the issue rather than crashing", and this is the
+safe handling: both report what they had to take with them.
+
+**Company money moves through the company's books.** `money company add` arrives
+as owner capital and `remove` leaves as financing, so the ledger and cash-flow
+statement stay truthful. What the console skips is the price, which is its
+purpose; faking the bookkeeping as well would make every financial page lie.
+
 ## Content and assets
 
 | Decision | Detail |

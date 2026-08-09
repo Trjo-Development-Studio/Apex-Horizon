@@ -16,7 +16,7 @@ from random import Random
 import pygame
 
 from .. import __version__
-from ..debug import DebugConsole
+from ..debug import DebugConsole, DeveloperCommands
 from ..engine.ai import AICompanies
 from ..engine.analytics import AnalyticsService, HistoryRecorder
 from ..engine.company import Player
@@ -34,6 +34,7 @@ from ..engine.values import Money
 from ..engine.world import WorldGenerator, generate_world
 from . import theme
 from .chrome import NAV_ITEMS, Breadcrumb, NotificationCentre, SaveIndicator, Sidebar, TimeControls
+from .console import ConsoleOverlay, opens_console
 from .context import GameContext
 from .pages import (
     CompanyDetailPage,
@@ -127,10 +128,15 @@ class GameApp:
         self.menu = StartMenu(self.saves)
         self.in_menu = start_in_menu
 
-        # Developer commands from the launching terminal (V15.18). Inert when
-        # there is no terminal to read, which is every test and CI run.
-        self.console = DebugConsole(self.context, app=self)
+        # Developer commands (V15.18), defined once and reachable two ways: the
+        # terminal that launched the game, and Ctrl+T inside the window. The
+        # terminal reader is inert when there is no terminal, which is every
+        # test and CI run; the overlay always works.
+        self.dev_commands = DeveloperCommands(self.context, app=self)
+        self.console = DebugConsole(commands=self.dev_commands)
         self.console.start()
+        self.dev_console = ConsoleOverlay(self.dev_commands)
+        self._fast_forward_budget = get_config().get_float("debug.fast_forward_budget_ms") / 1000
 
     def _on_autosave(self, message: str) -> None:
         """A brief, non-pausing confirmation that an autosave completed (V16.24)."""
@@ -282,6 +288,14 @@ class GameApp:
                 width = max(MINIMUM_SIZE[0], event.w)
                 height = max(MINIMUM_SIZE[1], event.h)
                 self.surface = pygame.display.set_mode((width, height), pygame.RESIZABLE)
+                continue
+
+            # The developer console sits above everything, including a modal, and
+            # takes every key while it is open so nothing leaks into the game.
+            if opens_console(event):
+                self.dev_console.toggle()
+                continue
+            if self.dev_console.handle_event(event):
                 continue
 
             # A popup is modal: it takes every event while it is open (V14.15).
@@ -718,6 +732,8 @@ class GameApp:
         market_page = self.pages["market"]
         market_page.selected_company_id = None
         market_page.table.page = 0
+        # The loaded world is not the one a scheduled jump was counting through.
+        self.dev_commands.pending_days = 0
         self.navigate("dashboard")
 
     def _prompt_exit(self) -> None:
@@ -759,6 +775,8 @@ class GameApp:
     # -- the start menu (V16.4) --------------------------------------------
     def _return_to_menu(self, message: str = "") -> None:
         """Leave the session for the Main Menu, having saved (V16.4 step 5)."""
+        self.dev_console.hide()
+        self.dev_commands.pending_days = 0
         self.in_menu = True
         self.menu.showing_loads = False
         self.menu.message = message
@@ -812,7 +830,8 @@ class GameApp:
                 self.context.statistics.record_trade)
         for page in self.pages.values():
             page.context = self.context
-        self.console.context = self.context
+        self.dev_commands.context = self.context
+        self.dev_commands.pending_days = 0
         self.in_menu = False
         self.menu.message = ""
         self.navigate("dashboard")
@@ -846,15 +865,20 @@ class GameApp:
         # can never change the world halfway through a frame (V15.18).
         self.console.poll()
 
-        # Every popup pauses the simulation (V13.20, V14.15).
+        # Every popup pauses the simulation (V13.20, V14.15), and so does the
+        # developer console: state being read should not move while it is read.
         clock = self.context.engine.clock
-        if self.popups.is_open:
+        held = self.popups.is_open or self.dev_console.open
+        if held:
             clock.pause()
         else:
             clock.resume()
         self.context.engine.update(delta_ms / 1000.0)
+        # A scheduled time jump advances a slice at a time so the window keeps
+        # drawing through it, however many years were asked for.
+        self.dev_commands.pump(self._fast_forward_budget)
 
-        if not self.popups.is_open:
+        if not held:
             self.saves.record_playtime(delta_ms / 1000.0)
         self.save_indicator.unsaved = self.saves.unsaved_changes
         self.notifications.update(now)
@@ -885,6 +909,7 @@ class GameApp:
         self.notifications.draw(self.surface, self.fonts, now_ms)
         self.sidebar.draw_tooltip(self.surface, self.fonts)
         self.popups.draw(self.surface, self.fonts, mouse)
+        self.dev_console.draw(self.surface, self.fonts, now_ms)
         pygame.display.flip()
 
     def _draw_topbar(self, mouse, sidebar_width: int = theme.SIDEBAR_WIDTH) -> None:

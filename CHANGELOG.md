@@ -11,6 +11,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **An in-game developer console, opened with Ctrl+T.** V15.18 put developer
+  commands in the launching terminal, which is no help to a packaged build or a
+  desktop shortcut; the same commands now work inside the window. Both surfaces
+  drive one command set, so neither can drift from the other, and the console
+  executes nothing from the operating system — it understands its own commands
+  and refuses everything else.
+  - `money player` and `money company`, each with `set`, `add` and `remove`,
+    accepting decimals and amounts written as `$1,250.75`. Company money goes
+    through the company's own books, so the ledger stays truthful; with no
+    company, it says so rather than failing.
+  - `time`, `time set {year} {month} {week} {day}` and `time add {amount}{unit}`,
+    which run the real simulation through every day rather than moving a label.
+    Long jumps are spread across frames so the window keeps drawing, with the
+    console counting the days down; `time cancel` abandons one.
+  - `unlocks`, `unlock add` and `unlock remove`, going through the Unlock Tree
+    and re-applying its effects. Granting a deep unlock grants what it requires
+    and removing one removes what depended on it, so the tree never ends up in a
+    state the game itself could not produce.
+  - `help`, `help money`, `help time` and `help unlocks`, showing exact syntax.
+  - It pauses the simulation while open, captures the keyboard so nothing leaks
+    into the game behind it, shows commands apart from their output, colours
+    refusals red, and cannot be crashed by anything typed into it.
 - **A Start Menu.** The game now opens on one, with New Game, Load Game,
   Settings and Exit Game, and saved games listed with what V16.9 shows without
   loading the world. It is a menu rather than another dashboard.
