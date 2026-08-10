@@ -190,6 +190,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Save slots are named after the game saved in them**, in both Load Game and
+  the New Game slot chooser, rather than every row reading "Slot 1" … "Slot 5"
+  and leaving the player to tell five identical labels apart by the figures
+  underneath. "Slot N" remains the name of a slot with nothing in it to name.
+  The details beside the name no longer repeat it.
+- **The Unlock Tree follows the roadmap layout** the legacy prototype's
+  reference image lays out (layout only — colours and styling stay Design
+  Bible 2.0's): one spine straight through the middle carrying Basic
+  Investing, Create Company, the Company Levels and Investment Funds, with the
+  branches fanning symmetrically above and below it, and Analytics and News
+  outermost since they come off Basic Investing rather than off a company. The
+  spine previously sat near the top with every branch hanging beneath it.
+  Where the branches converge on Investment Funds they now share one vertical
+  rail instead of each drawing its own elbow, so seven incoming lines read as
+  a single junction rather than a fan.
 - **The shared Cash card no longer shows cents.** Every other summary card
   rounds to whole dollars; the Cash card was built with `.format()`'s own
   two-decimal default, so the figure the player reads most often was the one

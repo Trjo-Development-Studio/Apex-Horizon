@@ -2419,6 +2419,80 @@ def test_selecting_an_owned_unlock_shows_it_as_purchased(app):
     assert tree.has(CREATE_COMPANY)
 
 
+def test_the_spine_runs_straight_through_the_middle_of_the_tree(app):
+    """Project manager correction, 2026-08-10: the layout follows the legacy
+    prototype's roadmap reference — Basic Investing, Create Company, the
+    Company Levels and Investment Funds on one horizontal line through the
+    middle (V6.5, V6.8), rather than the spine sitting near the top with
+    every branch hanging beneath it."""
+    from apex_horizon.engine.unlocks import (
+        BASIC_INVESTING,
+        COMPANY_LEVEL_2,
+        CREATE_COMPANY,
+        INVESTMENT_FUNDS,
+    )
+
+    app.navigate("unlocks")
+    app.draw(0)
+    rects = app.pages["unlocks"]._node_rects
+    spine = (BASIC_INVESTING, CREATE_COMPANY, COMPANY_LEVEL_2, INVESTMENT_FUNDS)
+
+    assert len({rects[key].centery for key in spine}) == 1, "the spine must be one line"
+    lefts = [rects[key].left for key in spine]
+    assert lefts == sorted(lefts), "and must read left to right in progression order"
+
+
+def test_the_branches_fan_above_and_below_the_spine(app):
+    """The other half of the reference's shape: branches balanced either side
+    of the spine, with the two that come straight off Basic Investing rather
+    than off a company (Analytics, News) sitting outermost."""
+    from apex_horizon.engine.unlocks import BASIC_INVESTING
+    from apex_horizon.ui.pages.unlocks import (
+        ANALYTICS_BRANCH,
+        EMPLOYEE_BRANCH,
+        FINANCE_BRANCH,
+        NEWS_BRANCH,
+        RECRUITMENT_BRANCH,
+        TRAINING_BRANCH,
+    )
+
+    app.navigate("unlocks")
+    app.draw(0)
+    page = app.pages["unlocks"]
+    tree = app.context.unlocks
+
+    def top_of(branch):
+        return page._node_rects[tree.branch(branch)[0].key].centery
+
+    spine_y = page._node_rects[BASIC_INVESTING].centery
+    for branch in (ANALYTICS_BRANCH, FINANCE_BRANCH, EMPLOYEE_BRANCH):
+        assert top_of(branch) < spine_y, f"{branch} should sit above the spine"
+    for branch in (TRAINING_BRANCH, RECRUITMENT_BRANCH, NEWS_BRANCH):
+        assert top_of(branch) > spine_y, f"{branch} should sit below the spine"
+
+    assert top_of(ANALYTICS_BRANCH) < top_of(FINANCE_BRANCH)
+    assert top_of(NEWS_BRANCH) > top_of(RECRUITMENT_BRANCH)
+
+
+def test_every_branch_converges_on_investment_funds(app):
+    """V6.8, and the reference's single grey rail: every branch's last node
+    feeds Investment Funds, which is what makes the tree read as one map
+    rather than seven unrelated tracks."""
+    from apex_horizon.engine.unlocks import INVESTMENT_FUNDS
+
+    tree = app.context.unlocks
+    funds = tree.by_key[INVESTMENT_FUNDS]
+    app.navigate("unlocks")
+    app.draw(0)
+    rects = app.pages["unlocks"]._node_rects
+
+    assert len(funds.requires) > 1, "several branches must converge here"
+    for requirement in funds.requires:
+        # Each feeder sits to the left of Investment Funds, so the shared
+        # vertical rail drawn just left of it can never run backwards.
+        assert rects[requirement].right <= rects[INVESTMENT_FUNDS].left
+
+
 def test_the_info_panel_never_overflows_its_own_box_at_minimum_size(app):
     """Bug fix, 2026-08-10: the panel drew its text with no bound-checking
     and no clip, so a locked unlock with several prerequisites listed could

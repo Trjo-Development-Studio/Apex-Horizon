@@ -235,11 +235,25 @@ def test_an_empty_slot_describes_itself(store):
     assert info.label == "Slot 1"
 
 
+def test_an_empty_slot_is_titled_by_its_number(store):
+    """Project manager correction, 2026-08-10: "Slot N" is the fallback for a
+    slot with no game in it to name, not what every slot is called."""
+    assert store.info(1).title == "Slot 1"
+
+
+def test_a_written_slot_is_titled_by_the_saves_own_name(store):
+    store.write(1, sample_document())
+    info = store.info(1)
+    assert info.title == "Meridian Capital"
+    # The name belongs to the title, so the details beside it must not repeat
+    # it — every list shows the two together.
+    assert "Meridian Capital" not in info.describe()
+
+
 def test_a_written_slot_shows_its_details(store):
     store.write(1, sample_document())
     info = store.info(1)
     assert info.exists
-    assert "Meridian Capital" in info.describe()
     assert "Year 3" in info.describe()
     assert info.summary.net_worth_value == Money(2500)
 

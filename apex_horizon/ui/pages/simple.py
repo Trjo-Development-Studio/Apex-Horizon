@@ -338,12 +338,24 @@ class SettingsPage(Page):
         for info in saves.slots():
             if y + 24 > rect.bottom - 8:
                 break
-            draw_text(surface, fonts.small, info.label, (rect.left + 20, y), theme.TEXT)
+            # The save's own name leads the row, falling back to "Slot N" only
+            # when there is nothing saved here to name (project manager
+            # correction, 2026-08-10). Both columns are measured off the panel
+            # rather than fixed, so a long save name cannot push the details
+            # onto the buttons at the end of the row.
+            name_width = max(60, min(150, (rect.width - 220) // 2))
+            detail_left = rect.left + 20 + name_width + 12
+            detail_width = max(0, (rect.right - 168) - detail_left)
+            draw_text(surface, fonts.small,
+                      truncate(fonts.small, info.title, name_width),
+                      (rect.left + 20, y), theme.TEXT)
             colour = theme.NEGATIVE if info.damaged else (
                 theme.TEXT_MUTED if info.exists else theme.TEXT_FAINT
             )
-            draw_text(surface, fonts.small, truncate(fonts.small, info.describe(), 240),
-                      (rect.left + 110, y), colour)
+            if detail_width >= 40:
+                draw_text(surface, fonts.small,
+                          truncate(fonts.small, info.describe(), detail_width),
+                          (detail_left, y), colour)
 
             if saves.slot == info.slot:
                 # The slot this game lives in, so the player can see at a glance

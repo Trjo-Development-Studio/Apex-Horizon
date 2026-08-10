@@ -177,8 +177,13 @@ class StartMenu:
             pygame.draw.rect(surface, theme.ACCENT, rect, width=1, border_radius=6)
 
         text_colour = theme.TEXT if usable else theme.TEXT_FAINT
-        draw_text(surface, fonts.small, info.label, (rect.left + 14, rect.top + 7),
-                  text_colour)
+        # The save's own name, falling back to "Slot N" only when there is
+        # nothing saved here to name (project manager correction,
+        # 2026-08-10): a list of five identical "Slot N" rows tells the
+        # player nothing about which game is which.
+        draw_text(surface, fonts.small,
+                  truncate(fonts.small, info.title, rect.width - 110),
+                  (rect.left + 14, rect.top + 7), text_colour)
         detail = info.describe() if info.exists else "No game saved here"
         draw_text(surface, fonts.tiny, truncate(fonts.tiny, detail, rect.width - 110),
                   (rect.left + 14, rect.top + 27), theme.TEXT_MUTED)

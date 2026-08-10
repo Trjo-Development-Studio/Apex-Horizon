@@ -78,19 +78,21 @@ class SlotInfo:
         return self.label
 
     def describe(self) -> str:
-        """A save slot's name, money, net worth, date and playtime, in the
-        order the project manager specified (V16.9, QoL pass 2026-08-10).
-        All figures were already computed for the summary/metadata; this
-        only formats what is already there. Truncated by whatever draws it
-        on a narrow window, the same as every other row of text in the
-        interface, rather than a second layout system of its own.
+        """A save slot's money, net worth, date and playtime (V16.9, QoL pass
+        2026-08-10). All figures were already computed for the summary and
+        metadata; this only formats what is already there. Truncated by
+        whatever draws it on a narrow window, the same as every other row of
+        text in the interface, rather than a second layout system of its own.
+
+        Deliberately does *not* repeat the save's name: :attr:`title` is what
+        names a slot, and every list shows the two together (project manager
+        correction, 2026-08-10).
         """
         if not self.exists:
             return "Empty"
         if self.damaged or self.summary is None or self.metadata is None:
             return "Damaged save"
         return (
-            f"{self.metadata.name} · "
             f"{self.summary.money_value.format(decimals=0)} cash · "
             f"{self.summary.net_worth_value.format(decimals=0)} net worth · "
             f"{self.summary.date_label()} · "

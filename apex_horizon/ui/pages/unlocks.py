@@ -5,17 +5,23 @@ horizontal connections, no crossing lines, and a layout where the player always
 understands how every branch connects back to Basic Investing. That shapes the
 whole design here.
 
-The tree is laid out on a grid rather than drawn ad hoc — the primary
-progression along row 0 (V6.5), the Analytics branch above it and the News
-branch below (V6.6), the five Company Level 2 branches stacked in the order
-V6.7 gives, and Investment Funds and Subsidiaries together on the right where
-every branch converges (V6.8). Connections are drawn as elbows: down or up a
-shared vertical, then straight across. Because each branch owns its own row,
-no two connections ever cross — a guarantee that is topological (fixed row and
-column per branch), not pixel-based, which is what makes zooming safe (QoL
-pass, 2026-08-10): scaling every dimension by the same factor cannot change
-which row or column anything sits in, so it cannot introduce a crossing that
-did not already exist.
+The tree is laid out on a grid rather than drawn ad hoc, following the roadmap
+reference kept with the legacy prototype for its *layout* (colours and styling
+remain Design Bible 2.0's): one horizontal spine straight through the middle
+carrying Basic Investing, Create Company, the Company Levels and Investment
+Funds (V6.5, V6.8), with the branches fanning symmetrically above and below it
+(V6.6, V6.7) — see ``LAYOUT`` for which row each one takes and why.
+
+Connections are drawn as elbows: down or up a shared vertical, then straight
+across. Where several branches converge on one node — Investment Funds, which
+every branch feeds — they share a single vertical rail just left of it instead
+of each drawing its own midpoint elbow, so seven incoming lines read as one
+junction rather than a fan. Because each branch owns its own row, no two
+connections ever cross: a guarantee that is topological (fixed row and column
+per branch), not pixel-based, which is what makes zooming safe (QoL pass,
+2026-08-10) — scaling every dimension by the same factor cannot change which
+row or column anything sits in, so it cannot introduce a crossing that did not
+already exist.
 
 Thirty-two-plus nodes do not fit on one screen at a readable size, so the view
 pans — by dragging, the arrow keys, or scrolling — and zooms between three
@@ -64,18 +70,30 @@ DEFAULT_ZOOM_INDEX = 1
 #: drifts this far.
 CLICK_TOLERANCE = 6
 
-#: Row for each branch, and the column its first node sits in. The five Company
-#: Level 2 branches follow the top-to-bottom order V6.7 states.
+#: Row for each branch, and the column its first node sits in.
+#:
+#: Laid out to match the roadmap reference kept with the legacy prototype
+#: (`docs/Unlock tree layout example.png` there — layout only; colours and
+#: styling stay governed by Design Bible 2.0). Its organising idea is a single
+#: horizontal spine straight through the middle — Basic Investing, Create
+#: Company, the Company Levels, and Investment Funds where everything
+#: converges (V6.5, V6.8) — with branches fanning symmetrically above and
+#: below it, rather than the spine sitting near the top with every branch
+#: hanging beneath. Analytics and News sit outermost because they are the two
+#: that come straight off Basic Investing rather than off a company; the four
+#: Company Level 2 branches sit nearest the spine they depend on.
 LAYOUT: dict[str, tuple[int, int]] = {
-    ANALYTICS_BRANCH: (-1, 1),
+    ANALYTICS_BRANCH: (-3, 1),
+    FINANCE_BRANCH: (-2, 3),
+    EMPLOYEE_BRANCH: (-1, 3),
+    #: The spine: three branches sharing one row, in adjoining column ranges
+    #: (0-1, 2-6, 8) so they read as one continuous line left to right.
     PRIMARY: (0, 0),
-    NEWS_BRANCH: (1, 1),
-    FINANCE_BRANCH: (2, 3),
-    EMPLOYEE_BRANCH: (3, 3),
-    COMPANY_BRANCH: (4, 2),
-    TRAINING_BRANCH: (5, 3),
-    RECRUITMENT_BRANCH: (6, 3),
-    FINAL: (3, 8),
+    COMPANY_BRANCH: (0, 2),
+    FINAL: (0, 8),
+    TRAINING_BRANCH: (1, 3),
+    RECRUITMENT_BRANCH: (2, 3),
+    NEWS_BRANCH: (3, 1),
 }
 
 BRANCH_LABELS = {
@@ -358,25 +376,38 @@ class UnlockTreePage(Page):
 
     def _draw_connections(self, surface, tree) -> None:
         """Elbow connections: along a shared vertical, then straight across."""
+        radius = max(2, self._scaled(4))
         for unlock in tree.all:
             target = self._node_rects[unlock.key]
-            for requirement in unlock.requires:
-                source = self._node_rects.get(requirement)
-                if source is None:
-                    continue
-                done = tree.has(requirement) and tree.has(unlock.key)
+            sources = [(key, self._node_rects[key]) for key in unlock.requires
+                       if key in self._node_rects]
+            # Several branches converging on one node share a single vertical
+            # rail just left of it, rather than each running its own elbow
+            # from its own midpoint — which is what the roadmap reference
+            # does, and what stops Investment Funds' seven incoming lines
+            # reading as a fan of near-parallel diagonals (2026-08-10).
+            rail = None
+            if len(sources) > 1:
+                rail = target.left - self._scaled((COLUMN_STEP - NODE_WIDTH) // 2)
+            for key, source in sources:
+                done = tree.has(key) and tree.has(unlock.key)
                 colour = theme.POSITIVE if done else theme.BORDER
                 start = (source.right, source.centery)
                 end = (target.left, target.centery)
                 if start[1] == end[1]:
                     pygame.draw.line(surface, colour, start, end, 2)
-                    continue
-                # Drop or rise on a vertical midway between the columns, then
-                # run straight in — which is what keeps lines from crossing.
-                midway = (start[0] + end[0]) // 2
-                pygame.draw.line(surface, colour, start, (midway, start[1]), 2)
-                pygame.draw.line(surface, colour, (midway, start[1]), (midway, end[1]), 2)
-                pygame.draw.line(surface, colour, (midway, end[1]), end, 2)
+                else:
+                    # Drop or rise on a shared vertical, then run straight in —
+                    # which is what keeps lines from crossing.
+                    midway = rail if rail is not None else (start[0] + end[0]) // 2
+                    pygame.draw.line(surface, colour, start, (midway, start[1]), 2)
+                    pygame.draw.line(surface, colour, (midway, start[1]), (midway, end[1]), 2)
+                    pygame.draw.line(surface, colour, (midway, end[1]), end, 2)
+                # A dot at each end, as the reference has: it marks where a
+                # branch leaves its parent and where it arrives, which is the
+                # thing V6.10 wants legible at a glance.
+                pygame.draw.circle(surface, colour, start, radius)
+                pygame.draw.circle(surface, colour, end, radius)
 
     def _draw_branch_labels(self, surface, fonts, tree, map_view: pygame.Rect) -> None:
         gutter = pygame.Rect(map_view.left + 1, map_view.top + 1, GUTTER_WIDTH, map_view.height - 2)
