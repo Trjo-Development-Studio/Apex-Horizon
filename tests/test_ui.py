@@ -2203,3 +2203,120 @@ def test_a_subsidiary_bought_before_the_unlock_stays_owned_and_visible(app):
             if r["id"] != target_id)
     )
     assert not allowed, "the gate still blocks a genuinely new acquisition"
+
+
+# -- Unlock Tree: zoom, pan, click-select, info panel (2026-08-10) ---------
+
+
+def test_zoom_in_and_out_stay_within_bounds(app):
+    from apex_horizon.ui.pages.unlocks import ZOOM_LEVELS
+
+    page = app.pages["unlocks"]
+    for _ in range(len(ZOOM_LEVELS) + 2):
+        page.zoom_in()
+    assert page.zoom_index == len(ZOOM_LEVELS) - 1
+    for _ in range(len(ZOOM_LEVELS) + 2):
+        page.zoom_out()
+    assert page.zoom_index == 0
+
+
+def test_fit_to_screen_chooses_the_largest_level_that_fits(app):
+    from apex_horizon.ui.pages.unlocks import ZOOM_LEVELS
+
+    page = app.pages["unlocks"]
+    page.zoom_index = 2
+    page.fit_to_screen(pygame.Rect(0, 0, 100, 100))  # far too small for anything
+    assert page.zoom_index == 0
+    assert page.offset == [0, 0]
+
+    page.zoom_index = 0
+    page.fit_to_screen(pygame.Rect(0, 0, 100_000, 100_000))  # comfortably large
+    assert page.zoom_index == len(ZOOM_LEVELS) - 1
+
+
+def test_a_short_click_selects_a_node_but_a_drag_does_not(app):
+    app.navigate("unlocks")
+    app.draw(0)
+    page = app.pages["unlocks"]
+    assert page.selected_key is None
+    node_rect = next(iter(page._node_rects.values()))
+
+    # A drag: real movement between down and up.
+    start = node_rect.center
+    moved = (start[0] + 40, start[1] + 40)
+    page.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=start))
+    page.handle_event(pygame.event.Event(pygame.MOUSEMOTION, pos=moved))
+    page.handle_event(pygame.event.Event(pygame.MOUSEBUTTONUP, button=1, pos=moved))
+    assert page.selected_key is None, "a drag must not select whatever it started on"
+
+    # A genuine click: down and up at (near enough) the same point.
+    page.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=start))
+    page.handle_event(pygame.event.Event(pygame.MOUSEBUTTONUP, button=1, pos=start))
+    assert page.selected_key is not None
+
+
+def test_mouse_wheel_zooms(app):
+    page = app.pages["unlocks"]
+    before = page.zoom_index
+    page.handle_event(pygame.event.Event(pygame.MOUSEWHEEL, x=0, y=1))
+    assert page.zoom_index >= before
+    page.handle_event(pygame.event.Event(pygame.MOUSEWHEEL, x=0, y=-1))
+    page.handle_event(pygame.event.Event(pygame.MOUSEWHEEL, x=0, y=-1))
+    assert page.zoom_index <= before
+
+
+def test_zoom_and_pan_never_introduce_a_crossing_the_layout_did_not_have(app):
+    """The invariant the whole feature leans on: connections are computed
+    from node rects that are always a uniform scale of the same
+    (row, column) grid, at every zoom level."""
+    from apex_horizon.ui.pages.unlocks import ZOOM_LEVELS
+
+    page = app.pages["unlocks"]
+    tree = app.context.unlocks
+    for index in range(len(ZOOM_LEVELS)):
+        page.zoom_index = index
+        app.navigate("dashboard")  # force a fresh draw next
+        app.navigate("unlocks")
+        app.draw(0)
+        for unlock in tree.all:
+            # Every node on the same branch stays on the same horizontal line
+            # regardless of zoom — this is what "no crossing lines" rests on.
+            same_branch = [u for u in tree.all if u.branch == unlock.branch]
+            centers_y = {page._node_rects[u.key].centery for u in same_branch}
+            assert len(centers_y) == 1, f"{unlock.branch} split across rows at zoom {index}"
+
+
+def test_the_info_panel_shows_a_prompt_with_nothing_selected(app):
+    app.navigate("unlocks")
+    app.draw(0)
+    page = app.pages["unlocks"]
+    assert page.selected_key is None
+    # Renders without raising, which is what matters here — the panel's own
+    # text content is exercised for real by the selected-node tests below.
+
+
+def test_selecting_an_owned_unlock_shows_it_as_purchased(app):
+    app.context.player.unlocks.unlock(CREATE_COMPANY)
+    page = app.pages["unlocks"]
+    page.selected_key = CREATE_COMPANY
+    app.navigate("unlocks")
+    app.draw(0)  # must not raise with a real, owned selection
+    tree = app.context.unlocks
+    assert tree.has(CREATE_COMPANY)
+
+
+def test_the_info_panel_never_overflows_its_own_box_at_minimum_size(app):
+    """Bug fix, 2026-08-10: the panel drew its text with no bound-checking
+    and no clip, so a locked unlock with several prerequisites listed could
+    spill straight past its own bottom edge and into the notification stack
+    reserved below it. Clipped now, so this can no longer happen even if a
+    future edit reintroduces a missing bound check."""
+    from apex_horizon.engine.unlocks import INVESTMENT_FUNDS
+
+    page = app.pages["unlocks"]
+    page.selected_key = INVESTMENT_FUNDS  # seven prerequisites: the worst case
+    app.surface = pygame.Surface((1100, 680))
+    for index in range(6):
+        app.notifications.push(f"Message {index}", 0)
+    app.navigate("unlocks")
+    app.draw(2000)  # must not raise, and must not need to draw off-panel

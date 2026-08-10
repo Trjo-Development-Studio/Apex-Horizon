@@ -11,6 +11,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **The Unlock Tree can now be zoomed, and shows a details panel for
+  whatever node is selected.** Three discrete zoom levels (0.75x/1.0x/1.4x
+  — discrete rather than continuous, since pygame's fonts are bitmap and a
+  level between presets would blur rather than shrink cleanly), reachable
+  by scroll wheel or the new +/-/Fit buttons; "Fit" jumps to the largest
+  level that shows the whole tree at once. Clicking a node (as opposed to
+  dragging the map, which a small movement tolerance now tells apart from
+  a genuine click) selects it and opens a right-hand panel showing its
+  name, description, cost, status, prerequisites by name, and what it
+  unlocks — all read from the tree's own data, not a second hand-written
+  copy of the same descriptions. This reverses an earlier decision to
+  reject zoom entirely to protect V6.10's readability requirement — that
+  requirement still holds, because scaling every node/spacing dimension by
+  the same factor cannot change which row or column anything sits in, so
+  it cannot introduce a line crossing that the un-zoomed layout did not
+  already have, and text never renders below a legible preloaded size.
 - **Buying a company outright moved to Company → Subsidiaries → Buy, and
   Subsidiaries is now its own unlock**, one leaf past Investment Funds
   (project manager ruling). The Market page's Acquire button is gone —

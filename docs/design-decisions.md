@@ -312,6 +312,25 @@ made it look otherwise. Optimising any subsystem before that measurement exists
 would be guessing at the cost of correctness risk for a problem that has not
 been located, let alone confirmed.
 
+## Reversing the Unlock Tree's "no zoom" decision (PM, 2026-08-10)
+
+`apex_horizon/ui/pages/unlocks.py` originally rejected zooming the tree out,
+reasoning that it would defeat V6.10's readability requirement. That
+implementation only ever considered *continuous* zoom, which is a real risk
+with pygame's bitmap fonts — text shrunk smoothly would blur well before the
+whole tree fit on screen.
+
+The feature added here is discrete zoom: three fixed presets (0.75x/1.0x/1.4x),
+each with its own preloaded font, so there is no in-between state where text
+degrades. V6.10's actual guarantee — no crossing connection lines — is
+unaffected for a structural reason, not a visual one: every node's row and
+column come from the fixed `LAYOUT` table, and a uniform scale factor applied
+to every dimension cannot change which row or column anything sits in. Since
+a crossing can only be introduced by a row/column change, zoom cannot
+introduce one that the un-zoomed layout did not already have. The original
+"no zoom" decision was correct for the thing it was rejecting; discrete zoom
+is a different thing, not a relaxation of the same one.
+
 ## Subsidiaries as a progression gate (PM, 2026-08-10)
 
 Subsidiaries — previously gated only by Company Level (V12.15) — now also
