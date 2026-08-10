@@ -312,6 +312,25 @@ made it look otherwise. Optimising any subsystem before that measurement exists
 would be guessing at the cost of correctness risk for a problem that has not
 been located, let alone confirmed.
 
+## Recruitment automation as a new unlock (PM, 2026-08-10)
+
+The QoL pass's request for "recruitment automation" left open what actually
+drives it. Two options were put to the project manager: an automatic trigger
+tied to existing state (e.g. an empty candidate pool), or a new unlock giving
+the player a configurable auto-hire toggle. The project manager chose the
+latter — a new **Automated Recruitment** unlock (Recruitment branch, past
+Employee Performance) that exposes an on/off toggle and a minimum-skill
+criterion, both under the player's own control.
+
+The mechanism reuses the existing `refresh_applicants()`/`hire()` calls
+unchanged — automation only decides *when* to call them and against what
+threshold, exactly as a player clicking the same buttons would. The AI
+director and the debug `hire` command are unaffected, since neither goes
+through this new gate. A second, independent change requested at the same
+time — a fixed delay (`recruitment_delay_days`, default 4) between asking for
+candidates and their arriving — applies to manual and automated recruitment
+alike, so automation cannot bypass the pacing the delay exists to create.
+
 ## Reversing the Unlock Tree's "no zoom" decision (PM, 2026-08-10)
 
 `apex_horizon/ui/pages/unlocks.py` originally rejected zooming the tree out,
