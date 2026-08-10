@@ -135,23 +135,35 @@ class FundsPage(Page):
         allowed, reason = book.can_create()
         self.create_button.enabled = allowed
         if not book.funds:
-            box = pygame.Rect(rect.left, rect.top, rect.width, 200)
+            # Clamped like every other fixed-height panel (V27.7): this box
+            # carries the only "Create a fund" button reachable when the
+            # player owns none yet, so it must not be pushed under the
+            # notification stack on a short window.
+            box = pygame.Rect(rect.left, rect.top, rect.width, max(0, min(200, rect.height)))
             panel(surface, box)
+            if box.height < 24:
+                return
             headline = ("You manage no funds yet" if allowed
                         else "Investment Funds are not open to you yet")
             draw_text(surface, fonts.subheading, headline,
-                      (box.centerx, box.top + 52), theme.TEXT_MUTED,
+                      (box.centerx, box.top + 24), theme.TEXT_MUTED,
                       align="center", baseline="middle")
-            draw_text(surface, fonts.small,
-                      reason if not allowed else
-                      "A fund invests other people's money. The company earns a fee "
-                      "for managing it well.",
-                      (box.centerx, box.top + 82), theme.TEXT_FAINT,
-                      align="center", baseline="middle")
-            if allowed:
-                self.create_button.draw(
-                    surface, pygame.Rect(box.centerx - 70, box.top + 116, 140, 36),
-                    fonts, mouse)
+            body = reason if not allowed else (
+                "A fund invests other people's money. The company earns a fee "
+                "for managing it well.")
+            # The button gets first claim on whatever room is left, the same
+            # priority the Employee department bar already gives Candidates
+            # (2026-08): descriptive text is what gives way under pressure,
+            # not the only path to opening a first fund.
+            if allowed and box.height >= 78:
+                button_rect = pygame.Rect(box.centerx - 70, box.bottom - 52, 140, 36)
+                if box.height >= 118:
+                    draw_text(surface, fonts.small, body, (box.centerx, box.top + 56),
+                              theme.TEXT_FAINT, align="center", baseline="middle")
+                self.create_button.draw(surface, button_rect, fonts, mouse)
+            elif box.height >= 56:
+                draw_text(surface, fonts.small, body, (box.centerx, box.top + 56),
+                          theme.TEXT_FAINT, align="center", baseline="middle")
             return
 
         self.create_button.draw(
@@ -218,7 +230,10 @@ class FundDetailPage(Page):
             return
 
         column = (rect.width - theme.GAP) // 2
-        summary = pygame.Rect(rect.left, rect.top, column, 250)
+        # Clamped to what the page actually has, same as Dashboard/Employees:
+        # the notification stack reserves real space at the bottom (V27.7).
+        panel_height = max(0, min(250, rect.height))
+        summary = pygame.Rect(rect.left, rect.top, column, panel_height)
         panel(surface, summary)
         draw_text(surface, fonts.subheading, "The fund",
                   (summary.left + 20, summary.top + 18))
@@ -234,13 +249,15 @@ class FundDetailPage(Page):
         ]
         y = summary.top + 56
         for label, value in lines:
+            if y + 20 > summary.bottom - 8:
+                break
             draw_text(surface, fonts.small, label, (summary.left + 20, y), theme.TEXT_MUTED)
             draw_text(surface, fonts.mono_small, value, (summary.right - 20, y),
                       theme.TEXT, align="right")
             y += 26
 
         chart = pygame.Rect(summary.right + theme.GAP, rect.top,
-                            rect.width - column - theme.GAP, 250)
+                            rect.width - column - theme.GAP, panel_height)
         self._draw_history(surface, chart, fonts, fund)
 
         holdings = pygame.Rect(rect.left, summary.bottom + theme.GAP, rect.width,
@@ -254,10 +271,11 @@ class FundDetailPage(Page):
         draw_text(surface, fonts.subheading, "Under management over time",
                   (rect.left + 20, rect.top + 18))
         values = [float(value) for value in fund.history]
-        if len(values) < 2:
-            draw_text(surface, fonts.small,
-                      "A line appears once the fund has a few months behind it.",
-                      (rect.left + 20, rect.top + 54), theme.TEXT_FAINT)
+        if len(values) < 2 or rect.height < 90:
+            if rect.height >= 74:
+                draw_text(surface, fonts.small,
+                          "A line appears once the fund has a few months behind it.",
+                          (rect.left + 20, rect.top + 54), theme.TEXT_FAINT)
             return
 
         plot = pygame.Rect(rect.left + 20, rect.top + 56, rect.width - 40, rect.height - 84)

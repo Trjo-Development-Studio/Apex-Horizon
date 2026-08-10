@@ -2375,3 +2375,137 @@ def test_the_info_panel_never_overflows_its_own_box_at_minimum_size(app):
         app.notifications.push(f"Message {index}", 0)
     app.navigate("unlocks")
     app.draw(2000)  # must not raise, and must not need to draw off-panel
+
+
+# -- notification safe-area hardening, remaining pages (2026-08-10) --------
+#
+# Settings, Subsidiaries (empty state + purchase detail), and Funds (empty
+# state) all used fixed pixel heights that did not derive from or clamp to
+# the content rect, unlike Dashboard/Employees/News/the Unlock Tree info
+# panel, which were already fixed for the same class of bug. Each of these
+# carries a control (a Save/Load button, the bootstrapping Buy/Acquire/Open
+# button) that must never render underneath the reserved notification area —
+# `surface.get_rect().contains(...)` alone does not catch this, since the
+# notification stack occupies a corner of the surface rather than the whole
+# thing; what matters is the button's own bottom edge against the boundary
+# the notification stack actually reserves.
+
+
+def _assert_never_under_notifications(app, rect) -> None:
+    if rect.width == 0 and rect.height == 0:
+        return  # not drawn at all is a valid way to avoid overlapping, too
+    safe_bottom = app.surface.get_height() - app.notifications.safe_height()
+    assert rect.bottom <= safe_bottom
+
+
+def test_save_and_exit_never_overlaps_the_speed_buttons(app):
+    """Bug fix, 2026-08-10: clamping the Simulation panel's height without
+    also adjusting its internal layout left Save & Exit still pinned to the
+    box's (now much shorter) bottom edge, landing it on top of the speed
+    buttons rather than below them. Save & Exit must give way, not the speed
+    control — it is one of the two things this whole panel exists for."""
+    app.surface = pygame.Surface((1100, 680))
+    for index in range(6):
+        app.notifications.push(f"Message {index}", 0)
+    app.navigate("settings")
+    app.draw(2000)
+    page = app.pages["settings"]
+    for button in page.speed_buttons.values():
+        assert button.rect.height > 0, "the speed control must never be the one to give way"
+        if page.exit_button.rect.height > 0:
+            assert not button.rect.colliderect(page.exit_button.rect)
+
+
+def test_settings_save_slots_never_render_under_the_notification_stack(app):
+    app.surface = pygame.Surface((1100, 680))
+    for index in range(6):
+        app.notifications.push(f"Message {index}", 0)
+    app.navigate("settings")
+    app.draw(2000)
+    page = app.pages["settings"]
+    assert page._slot_buttons, "at least one save slot row must still be reachable"
+    for _slot, _action, button in page._slot_buttons:
+        _assert_never_under_notifications(app, button.rect)
+
+
+def test_the_save_slots_are_reachable_with_a_moderate_notification_load(app):
+    """The other half of the trade-off: a full 4-notification stack at the
+    minimum window size may legitimately have no room left for every row,
+    but ordinary play must still see and reach its save slots."""
+    app.surface = pygame.Surface((1100, 680))
+    app.notifications.push("One message", 0)
+    app.navigate("settings")
+    app.draw(0)
+    page = app.pages["settings"]
+    assert page._slot_buttons
+    assert app.surface.get_rect().contains(page._slot_buttons[0][2].rect)
+
+
+def test_subsidiaries_buy_button_never_renders_under_the_notification_stack(app):
+    company = _found_company_for_acquisitions(app)
+    company.subsidiaries.unlocked = True
+    assert len(company.subsidiaries) == 0
+
+    app.surface = pygame.Surface((1100, 680))
+    for index in range(6):
+        app.notifications.push(f"Message {index}", 0)
+    app.navigate("company:subsidiaries")
+    app.draw(2000)
+    page = app.pages["company:subsidiaries"]
+    _assert_never_under_notifications(app, page.buy_button.rect)
+
+
+def test_the_buy_button_is_reachable_with_a_moderate_notification_load(app):
+    company = _found_company_for_acquisitions(app)
+    company.subsidiaries.unlocked = True
+
+    app.surface = pygame.Surface((1100, 680))
+    app.notifications.push("One message", 0)
+    app.navigate("company:subsidiaries")
+    app.draw(0)
+    page = app.pages["company:subsidiaries"]
+    assert app.surface.get_rect().contains(page.buy_button.rect)
+    assert page.buy_button.rect.height > 0
+
+
+def test_the_acquire_button_never_renders_under_the_notification_stack(app):
+    company = _found_company_for_acquisitions(app)
+    company.subsidiaries.unlocked = True
+    buy_page = app.pages["company:subsidiaries:buy"]
+    buy_page.selected_company_id = buy_page.rows()[0]["id"]
+
+    app.surface = pygame.Surface((1100, 680))
+    for index in range(6):
+        app.notifications.push(f"Message {index}", 0)
+    app.navigate("company:subsidiaries:buy:company")
+    app.draw(2000)
+    detail_page = app.pages["company:subsidiaries:buy:company"]
+    _assert_never_under_notifications(app, detail_page.acquire_button.rect)
+
+
+def test_the_open_fund_button_never_renders_under_the_notification_stack(app):
+    company = _found_company_for_acquisitions(app)
+    assert company.funds is not None
+    company.funds.unlocked = True
+    assert not company.funds.funds
+
+    app.surface = pygame.Surface((1100, 680))
+    for index in range(6):
+        app.notifications.push(f"Message {index}", 0)
+    app.navigate("company:funds")
+    app.draw(2000)
+    page = app.pages["company:funds"]
+    _assert_never_under_notifications(app, page.create_button.rect)
+
+
+def test_the_open_fund_button_is_reachable_with_a_moderate_notification_load(app):
+    company = _found_company_for_acquisitions(app)
+    company.funds.unlocked = True
+
+    app.surface = pygame.Surface((1100, 680))
+    app.notifications.push("One message", 0)
+    app.navigate("company:funds")
+    app.draw(0)
+    page = app.pages["company:funds"]
+    assert app.surface.get_rect().contains(page.create_button.rect)
+    assert page.create_button.rect.height > 0

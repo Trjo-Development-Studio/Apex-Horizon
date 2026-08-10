@@ -133,29 +133,38 @@ class SubsidiariesPage(Page):
                       (rect.left + 24, rect.top + 60), theme.TEXT_MUTED)
             return
         if not len(book):
-            box = pygame.Rect(rect.left, rect.top, rect.width, 200)
+            # Clamped like every other fixed-height panel (V27.7): this box
+            # carries the only "Buy a company" button reachable when the
+            # player owns nothing yet — the same bootstrapping spot the
+            # earlier reachability bug fix (2026-08-10) covered, so it must
+            # not be pushed under the notification stack on a short window.
+            box = pygame.Rect(rect.left, rect.top, rect.width, max(0, min(200, rect.height)))
             panel(surface, box)
+            if box.height < 24:
+                return
             if book.unlocked:
-                draw_text(surface, fonts.body, "Your company owns nothing yet.",
-                          (box.centerx, box.centery - 28), theme.TEXT_MUTED,
-                          align="center", baseline="middle")
-                draw_text(surface, fonts.small,
-                          "Acquire a company outright to build a group. Acquisitions are "
-                          "paid for in company cash, in full.",
-                          (box.centerx, box.centery), theme.TEXT_FAINT,
-                          align="center", baseline="middle")
-                self.buy_button.draw(
-                    surface, pygame.Rect(box.centerx - 90, box.centery + 24, 180, 36),
-                    fonts, mouse)
+                headline = "Your company owns nothing yet."
+                body = ("Acquire a company outright to build a group. Acquisitions "
+                        "are paid for in company cash, in full.")
             else:
-                draw_text(surface, fonts.body, "Subsidiaries has not been unlocked yet.",
-                          (box.centerx, box.centery - 14), theme.TEXT_MUTED,
-                          align="center", baseline="middle")
-                draw_text(surface, fonts.small,
-                          "Unlock Subsidiaries in the Unlock Tree, past Investment Funds, "
-                          "to start acquiring companies outright.",
-                          (box.centerx, box.centery + 14), theme.TEXT_FAINT,
-                          align="center", baseline="middle")
+                headline = "Subsidiaries has not been unlocked yet."
+                body = ("Unlock Subsidiaries in the Unlock Tree, past Investment "
+                        "Funds, to start acquiring companies outright.")
+            draw_text(surface, fonts.body, headline, (box.centerx, box.top + 24),
+                      theme.TEXT_MUTED, align="center", baseline="middle")
+            # The button gets first claim on whatever room is left, the same
+            # priority the Employee department bar already gives Candidates
+            # (2026-08): descriptive text is what gives way under pressure,
+            # not the only path to buying a first subsidiary.
+            if book.unlocked and box.height >= 78:
+                button_rect = pygame.Rect(box.centerx - 90, box.bottom - 52, 180, 36)
+                if box.height >= 118:
+                    draw_text(surface, fonts.small, body, (box.centerx, box.top + 56),
+                              theme.TEXT_FAINT, align="center", baseline="middle")
+                self.buy_button.draw(surface, button_rect, fonts, mouse)
+            elif box.height >= 56:
+                draw_text(surface, fonts.small, body, (box.centerx, box.top + 56),
+                          theme.TEXT_FAINT, align="center", baseline="middle")
             return
 
         if book.unlocked:
@@ -221,7 +230,10 @@ class SubsidiaryDetailPage(Page):
             return
 
         column = (rect.width - theme.GAP) // 2
-        details = pygame.Rect(rect.left, rect.top, column, 250)
+        # Clamped to what the page actually has, same as Dashboard/Employees:
+        # the notification stack reserves real space at the bottom (V27.7).
+        panel_height = max(0, min(250, rect.height))
+        details = pygame.Rect(rect.left, rect.top, column, panel_height)
         panel(surface, details)
         draw_text(surface, fonts.subheading, "The business",
                   (details.left + 20, details.top + 18))
@@ -242,13 +254,15 @@ class SubsidiaryDetailPage(Page):
         ]
         y = details.top + 56
         for label, value in lines:
+            if y + 20 > details.bottom - 8:
+                break
             draw_text(surface, fonts.small, label, (details.left + 20, y), theme.TEXT_MUTED)
             draw_text(surface, fonts.small, truncate(fonts.small, str(value), column - 180),
                       (details.right - 20, y), theme.TEXT, align="right")
             y += 26
 
         money = pygame.Rect(details.right + theme.GAP, rect.top,
-                            rect.width - column - theme.GAP, 250)
+                            rect.width - column - theme.GAP, panel_height)
         panel(surface, money)
         draw_text(surface, fonts.subheading, "How it has done",
                   (money.left + 20, money.top + 18))
@@ -267,6 +281,8 @@ class SubsidiaryDetailPage(Page):
         ]
         y = money.top + 96
         for label, value, colour in figures:
+            if y + 20 > money.bottom - 8:
+                break
             draw_text(surface, fonts.small, label, (money.left + 20, y), theme.TEXT_MUTED)
             draw_text(surface, fonts.mono_small, value, (money.right - 20, y), colour,
                       align="right")
@@ -442,7 +458,11 @@ class SubsidiaryPurchaseDetailPage(Page):
                       (rect.left, rect.top + 20), theme.TEXT_MUTED)
             return
 
-        left = pygame.Rect(rect.left, rect.top, int(rect.width * 0.58), 260)
+        # Clamped like every other fixed-height panel (V27.7): the Acquire
+        # button lives at the bottom of `right`, and must not be pushed
+        # under the notification stack on a short window.
+        purchase_height = max(0, min(260, rect.height))
+        left = pygame.Rect(rect.left, rect.top, int(rect.width * 0.58), purchase_height)
         panel(surface, left)
         draw_text(surface, fonts.subheading, "The business", (left.left + 20, left.top + 18))
         world = self.context.world
@@ -457,13 +477,15 @@ class SubsidiaryPurchaseDetailPage(Page):
         ]
         y = left.top + 56
         for label, value in details:
+            if y + 20 > left.bottom - 8:
+                break
             draw_text(surface, fonts.small, label, (left.left + 20, y), theme.TEXT_MUTED)
             draw_text(surface, fonts.small, str(value), (left.right - 20, y), theme.TEXT,
                       align="right")
             y += 26
 
         right = pygame.Rect(left.right + theme.GAP, rect.top,
-                            rect.width - left.width - theme.GAP, 260)
+                            rect.width - left.width - theme.GAP, purchase_height)
         panel(surface, right)
         draw_text(surface, fonts.subheading, "Acquire outright", (right.left + 20, right.top + 18))
         draw_text(surface, fonts.small,

@@ -190,6 +190,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Settings, Subsidiaries and Investment Funds no longer let a panel spill
+  into the notification stack.** Each used a fixed pixel height that did not
+  shrink with the rest of the page the way Dashboard, Employee Management,
+  News and the Unlock Tree's info panel already did, so on a short window
+  with several notifications showing, a panel could render past its own
+  reserved space — in the worst case landing a control (a save slot's
+  Save/Load buttons, the bootstrapping Buy/Open/Acquire button for a
+  player's first subsidiary or fund) underneath the notifications rather
+  than above them. Panels now clamp to the room they actually have, and the
+  one control each carries gets priority over the descriptive text beside
+  it — matching the rule the Employee department bar already follows —
+  rather than the two being allowed to overlap each other.
 - **The Hire button now actually hires.** Every candidate's button was recreated
   from scratch on every draw, and a click spans two frames — down on one, up on
   the next — so the fresh button on the second frame had no memory of the press

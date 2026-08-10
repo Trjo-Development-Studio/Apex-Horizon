@@ -273,29 +273,51 @@ class SettingsPage(Page):
 
     def draw_content(self, surface, rect, fonts, mouse) -> None:
         self._draw_simulation(surface, rect, fonts, mouse)
-        saves_rect = pygame.Rect(rect.left + 540, rect.top,
-                                 max(320, rect.width - 540), 300)
+        # Clamped to what the page actually has, same as Dashboard/Employees:
+        # the notification stack reserves real space at the bottom (V27.7),
+        # and a fixed-height panel would otherwise overlap it on a short
+        # window. The left offset is also clamped so the panel never starts
+        # past the page's own right edge on a narrow window.
+        saves_left = min(rect.left + 540, rect.right - 320)
+        saves_rect = pygame.Rect(saves_left, rect.top,
+                                 max(320, rect.right - saves_left),
+                                 max(0, min(300, rect.height)))
         self._draw_saves(surface, saves_rect, fonts, mouse)
 
     def _draw_simulation(self, surface, rect, fonts, mouse) -> None:
-        box = pygame.Rect(rect.left, rect.top, min(rect.width, 520), 210)
+        box = pygame.Rect(rect.left, rect.top, min(rect.width, 520),
+                          max(0, min(210, rect.height)))
         panel(surface, box)
+        if box.height < 40:
+            return
         draw_text(surface, fonts.subheading, "Simulation", (box.left + 20, box.top + 18))
-        draw_text(surface, fonts.small,
-                  "Speed can also be changed with the 1, 2 and 3 keys.",
-                  (box.left + 20, box.top + 50), theme.TEXT_MUTED)
+        y = box.top + 50
+        if y + 30 <= box.bottom:
+            draw_text(surface, fonts.small,
+                      "Speed can also be changed with the 1, 2 and 3 keys.",
+                      (box.left + 20, y), theme.TEXT_MUTED)
+            y += 30
+        # The speed buttons are the one control on this panel that must never
+        # be skipped for lack of room — everything below them (the pause
+        # note, Save & Exit) gives way instead, positioned after them rather
+        # than pinned to the box's bottom, so a short box can never make Save
+        # & Exit land on top of them (same priority rule the Employee
+        # department bar already uses, 2026-08).
         engine = self.context.engine
         current = engine.clock.speed if engine else 1
         for index, (speed, button) in enumerate(self.speed_buttons.items()):
             button.primary = speed == current
-            button.draw(surface, pygame.Rect(box.left + 20 + index * 78, box.top + 80, 68, 34),
+            button.draw(surface, pygame.Rect(box.left + 20 + index * 78, y, 68, 34),
                         fonts, mouse)
-        draw_text(surface, fonts.small,
-                  "The simulation pauses only while a decision is open.",
-                  (box.left + 20, box.top + 130), theme.TEXT_FAINT)
-        self.exit_button.draw(surface,
-                              pygame.Rect(box.left + 20, box.bottom - 52, 140, 36),
-                              fonts, mouse)
+        y += 34 + 16
+        if y + 14 <= box.bottom - 44:
+            draw_text(surface, fonts.small,
+                      "The simulation pauses only while a decision is open.",
+                      (box.left + 20, y), theme.TEXT_FAINT)
+        exit_top = max(y, box.bottom - 52)
+        if exit_top + 36 <= box.bottom:
+            self.exit_button.draw(surface, pygame.Rect(box.left + 20, exit_top, 140, 36),
+                                  fonts, mouse)
 
     def _draw_saves(self, surface, rect, fonts, mouse) -> None:
         """Manual save slots (V16.8) with the details V16.9 requires."""
@@ -314,6 +336,8 @@ class SettingsPage(Page):
         self._slot_buttons.clear()
         y = rect.top + 84
         for info in saves.slots():
+            if y + 24 > rect.bottom - 8:
+                break
             draw_text(surface, fonts.small, info.label, (rect.left + 20, y), theme.TEXT)
             colour = theme.NEGATIVE if info.damaged else (
                 theme.TEXT_MUTED if info.exists else theme.TEXT_FAINT
