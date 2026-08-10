@@ -285,6 +285,61 @@ def test_save_and_exit_can_never_be_reached_through_back_or_forward(app):
     assert app.current_key in app.pages
 
 
+def test_escape_retraces_history_the_same_way_the_mouse_button_does(app):
+    """QoL pass, 2026-08-10: one consistent meaning for Escape — go back
+    through the same history navigate_back already maintains, rather than a
+    bespoke per-page mechanism."""
+    app.navigate("market")
+    app.navigate("portfolio")
+    app.navigate("unlocks")
+    app.handle_events()  # drain
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE, unicode=""))
+    app.handle_events()
+    assert app.current_key == "portfolio"
+
+
+def test_escape_does_nothing_with_no_history(app):
+    assert app.current_key == "dashboard"
+    app.handle_events()
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE, unicode=""))
+    app.handle_events()
+    assert app.current_key == "dashboard"
+
+
+def test_escape_closes_a_focused_search_box_before_it_navigates_back(app):
+    """The page gets first refusal: clearing a focused search box is what
+    Escape already did there, and must keep doing it instead of also (or
+    instead) retracing history in the same keypress."""
+    app.navigate("market")
+    app.navigate("portfolio")
+    page = app.pages["market"]
+    app.navigate("market")
+    app.draw(0)
+    page.search.focused = True
+    page.search.text = "abc"
+
+    app.handle_events()  # drain
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE, unicode=""))
+    app.handle_events()
+
+    assert app.current_key == "market", "the search box must claim this Escape, not history"
+    assert page.search.text == ""
+    assert not page.search.focused
+
+
+def test_escape_does_not_fire_while_a_popup_is_open(app):
+    app.navigate("market")
+    app.navigate("portfolio")
+    app._prompt_exit()
+    assert app.popups.is_open
+
+    app.handle_events()  # drain
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE, unicode=""))
+    app.handle_events()
+
+    assert app.current_key == "portfolio", "Escape must dismiss the popup, not retrace history"
+
+
 def test_navigation_history_is_cleared_after_starting_a_new_game(menu_app):
     menu_app.navigate("market")
     menu_app.navigate("portfolio")

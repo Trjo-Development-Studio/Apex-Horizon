@@ -11,6 +11,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Escape now retraces navigation history**, through the same back-stack
+  the mouse side buttons already use, whenever the page itself has not
+  already claimed the keypress for something else (closing a focused
+  search box, for instance, which still happens first). One consistent
+  meaning everywhere, rather than Escape doing something different — or
+  nothing at all — depending which page happens to be open.
 - **The Unlock Tree can now be zoomed, and shows a details panel for
   whatever node is selected.** Three discrete zoom levels (0.75x/1.0x/1.4x
   — discrete rather than continuous, since pygame's fonts are bitmap and a

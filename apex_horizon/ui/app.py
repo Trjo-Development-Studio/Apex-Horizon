@@ -416,8 +416,18 @@ class GameApp:
                     self.context.engine.clock.speed = speed
                 continue
 
-            self.page.handle_event(event)
+            handled = self.page.handle_event(event)
             self._collect_page_requests()
+            # One consistent meaning everywhere (V27 QoL, 2026-08-10): close
+            # whatever the page itself would close first — a focused search
+            # box, an open dropdown — and only once nothing on the page
+            # claims it does Escape retrace history, through the same
+            # navigate_back the mouse side button already uses. A page with
+            # nowhere to go back to is a no-op, the same as pressing the
+            # mouse button would be.
+            if (not handled and event.type == pygame.KEYDOWN
+                    and event.key == pygame.K_ESCAPE):
+                self.navigate_back()
 
     def _collect_page_requests(self) -> None:
         """Act on anything a page asked for while handling its own events."""
