@@ -14,10 +14,35 @@ import pygame
 from ...engine.employees import ALL_DEPARTMENTS, Department
 from ...engine.values import Money
 from .. import theme
-from ..widgets import Button, Card, Column, Dropdown, SearchBox, Table, draw_text, panel
+from ..widgets import Button, Card, Column, Dropdown, SearchBox, Table, Tabs, draw_text, panel
 from .base import Page, no_company_message
 
 DEPARTMENT_NAMES = [str(department) for department in ALL_DEPARTMENTS]
+
+#: The department tab shown before the player picks one — the whole roster,
+#: not one department's slice of it.
+ALL_DEPARTMENTS_LABEL = "All"
+
+#: Skill and status filters, applied on top of whichever department tab is
+#: selected. Deliberately few: V17 asks for useful filters, not exhaustive
+#: ones, and salary/performance are already reachable by sorting the column
+#: (Performance additionally depends on an unlock most playthroughs will not
+#: have yet, so a dedicated filter for it would be unusable more often than
+#: not).
+STATUS_FILTERS = ("Any status", "Training", "Available")
+SKILL_FILTERS = ("Any skill", "10+", "20+", "30+")
+
+
+def _performance(employee, config) -> float:
+    """How well an employee is actually contributing right now (V9.10).
+
+    Distinct from raw Skill: this factors in priority fit and happiness the
+    same way the Investment System's own department output does
+    (:meth:`Employee.effectiveness_in`), so it reads as "how much of this
+    person's skill the company is actually getting" rather than a duplicate
+    of the Skill column.
+    """
+    return employee.effectiveness_in(employee.primary, config)
 
 #: Height the Candidates panel needs for its heading, the explanatory line
 #: beneath it, and one row — the least it can be while a player can still see
@@ -59,16 +84,24 @@ class EmployeesPage(Page):
                 Column("name", "Name", 200),
                 Column("primary", "Primary", 120),
                 Column("skill", "Skill", 70, align="right", numeric=True),
+                Column("performance", "Performance", 100, align="right"),
                 Column("happiness", "Happiness", 100, align="right", numeric=True,
                        format=lambda v: f"{v * 100:.0f}%"),
                 Column("salary", "Salary", 110, align="right", numeric=True,
                        format=lambda v: v.format(decimals=0)),
-                Column("task", "Current task", 260),
+                Column("task", "Current task", 220),
             ],
             search_key="name",
             sort_key="name",
             page_size=8,
         )
+        #: Which department the roster is scoped to — the enum, not a label
+        #: string, so "the whole roster" and "no department chosen" stay one
+        #: state rather than two things that could disagree (V17: the same
+        #: system extends to future departments with no UI-specific code).
+        self.department_tabs = Tabs([ALL_DEPARTMENTS_LABEL, *DEPARTMENT_NAMES])
+        self.status_filter = Dropdown(list(STATUS_FILTERS), STATUS_FILTERS[0], width=130)
+        self.skill_filter = Dropdown(list(SKILL_FILTERS), SKILL_FILTERS[0], width=110)
         self.selected_employee_id: str | None = None
         self.recruit_button = Button("Find candidates", primary=True)
         self.hire_buttons: dict[str, Button] = {}
@@ -95,25 +128,58 @@ class EmployeesPage(Page):
             return None
         return self.context.company.employees
 
+    @property
+    def selected_department(self) -> Department | None:
+        """The department the tabs are scoped to, or ``None`` for the whole
+        roster — built from :data:`ALL_DEPARTMENTS` so a future department
+        needs no changes here to be selectable."""
+        label = self.department_tabs.selected
+        if label in (ALL_DEPARTMENTS_LABEL, None):
+            return None
+        return _department(label)
+
+    def _filtered_employees(self, roster) -> list:
+        department = self.selected_department
+        employees = roster.in_department(department) if department else list(roster)
+
+        status = self.status_filter.selected
+        if status == "Training":
+            employees = [e for e in employees if e.is_training]
+        elif status == "Available":
+            employees = [e for e in employees if not e.is_training]
+
+        skill = self.skill_filter.selected
+        if skill != SKILL_FILTERS[0]:
+            minimum = int(skill.rstrip("+"))
+            employees = [e for e in employees if e.overall_skill >= minimum]
+        return employees
+
     def rows(self) -> list[dict]:
         roster = self.roster
         if roster is None:
             return []
+        config = roster.config
         return [
             {
                 "id": employee.id,
                 "name": employee.name,
                 "primary": str(employee.primary),
                 "skill": employee.overall_skill,
+                "performance": (f"{_performance(employee, config) * 100:.0f}%"
+                               if roster.performance_visible else "—"),
                 "happiness": employee.happiness,
                 "salary": employee.salary,
                 "task": employee.current_task,
             }
-            for employee in roster
+            for employee in self._filtered_employees(roster)
         ]
 
     def breadcrumb(self):
-        return [("Company", "company"), ("Employees", self.key)]
+        department = self.selected_department
+        crumbs = [("Company", "company"), ("Employees", self.key)]
+        if department is not None:
+            crumbs.append((str(department), self.key))
+        return crumbs
 
     def cards(self):
         roster = self.roster
@@ -134,6 +200,17 @@ class EmployeesPage(Page):
     def handle_event(self, event) -> bool:
         if self.search is not None and self.search.handle_event(event):
             self.table.page = 0
+            return True
+        if self.department_tabs.handle_event(event):
+            self.table.page = 0
+            return True
+        if self.status_filter.handle_event(event):
+            if self.status_filter.take_change() is not None:
+                self.table.page = 0
+            return True
+        if self.skill_filter.handle_event(event):
+            if self.skill_filter.take_change() is not None:
+                self.table.page = 0
             return True
         if self.table.handle_event(event):
             row = self.table.take_opened()
@@ -184,6 +261,8 @@ class EmployeesPage(Page):
                       (rect.left + 24, rect.top + 60), theme.TEXT_MUTED)
             return
 
+        rect = self._draw_department_bar(surface, rect, fonts, mouse)
+
         # The candidates panel is sized first, up to its usual height, and the
         # table gets whatever is left — never the other way around. Hiring is
         # what a player comes to this page to do, so on a short window (a
@@ -205,8 +284,12 @@ class EmployeesPage(Page):
                 candidates_height -= short_by
                 table_height += short_by
         if table_height >= _MIN_TABLE_HEIGHT:
+            department = self.selected_department
+            empty_message = (f"No employees in {department} right now."
+                             if department else "No employees hired yet.")
             self.table.draw(surface, pygame.Rect(rect.left, rect.top, rect.width, table_height),
-                            fonts, mouse, self.rows(), self.search.text if self.search else "")
+                            fonts, mouse, self.rows(), self.search.text if self.search else "",
+                            empty_message=empty_message)
         elif table_height > 0:
             table_rect = pygame.Rect(rect.left, rect.top, rect.width, table_height)
             panel(surface, table_rect)
@@ -217,6 +300,39 @@ class EmployeesPage(Page):
         self._draw_applicants(surface,
                               pygame.Rect(rect.left, applicants_top, rect.width, candidates_height),
                               fonts, mouse, roster)
+
+    def _draw_department_bar(self, surface, rect, fonts, mouse) -> pygame.Rect:
+        """Department tabs, plus a couple of filters, above the roster.
+
+        Returns what is left of ``rect`` beneath the bar, the same way the
+        base page hands a page whatever is left beneath its own furniture.
+        Skipped below the point where the Candidates panel would still have
+        room to spare without it: a stack of notifications reserving real
+        space (V27.7) must never be able to push the Hire buttons out of
+        reach for the sake of a filter bar (bug fix, 2026-08-10).
+        """
+        reserved = self.department_tabs.height() + theme.GAP
+        if rect.height - reserved < _MIN_CANDIDATES_HEIGHT:
+            return rect
+        bar_height = min(self.department_tabs.height(), rect.height)
+        self.department_tabs.draw(surface, pygame.Rect(rect.left, rect.top, rect.width, bar_height),
+                                  fonts, mouse)
+        if bar_height >= self.department_tabs.height():
+            x = rect.right - self.skill_filter.width
+            self.skill_filter.draw(surface, pygame.Rect(x, rect.top + 3, self.skill_filter.width, 32),
+                                   fonts, mouse)
+            x -= self.status_filter.width + 8
+            self.status_filter.draw(surface,
+                                    pygame.Rect(x, rect.top + 3, self.status_filter.width, 32),
+                                    fonts, mouse)
+        gap = theme.GAP if bar_height < rect.height else 0
+        top = rect.top + bar_height + gap
+        return pygame.Rect(rect.left, top, rect.width, max(0, rect.bottom - top))
+
+    def draw_overlays(self, surface, fonts, mouse) -> None:
+        """Open filter dropdowns, drawn above the page (V14 layering)."""
+        self.status_filter.draw_open(surface, fonts, mouse)
+        self.skill_filter.draw_open(surface, fonts, mouse)
 
     def _draw_applicants(self, surface, rect, fonts, mouse, roster) -> None:
         """Candidates available to hire (V5.3, V18.14).

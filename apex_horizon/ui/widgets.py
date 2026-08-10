@@ -267,7 +267,8 @@ class Table:
         return row
 
     # -- drawing ---------------------------------------------------------
-    def draw(self, surface, rect, fonts, mouse, rows: list[dict], query: str = "") -> None:
+    def draw(self, surface, rect, fonts, mouse, rows: list[dict], query: str = "",
+             empty_message: str = "Nothing to show yet.") -> None:
         self._header_rects.clear()
         self._row_rects.clear()
 
@@ -308,7 +309,7 @@ class Table:
         if not page_rows:
             # An empty list gets a clear, intentional empty state (V14.26).
             draw_text(surface, fonts.small,
-                      "Nothing to show yet." if not query else f"No matches for “{query}”.",
+                      empty_message if not query else f"No matches for “{query}”.",
                       (rect.centerx, line_y + 40), theme.TEXT_FAINT,
                       align="center", baseline="middle")
         for index, row in enumerate(page_rows):

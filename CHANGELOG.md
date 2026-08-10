@@ -11,6 +11,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Employee Management gained department tabs, filters, and a Performance
+  figure.** Company → Employees now shows a tab per department (built
+  generically off the Department enum, so a future department needs no UI
+  changes to appear), with the breadcrumb reading Company → Employees →
+  {Department} once one is selected. Status and minimum-skill filters sit
+  beside the tabs, composing with the roster's existing search and
+  column-sort rather than replacing them. A new Performance column shows how
+  effectively each employee is actually contributing — skill weighted by
+  department priority and happiness, the same figures the Investment System
+  already uses internally — gated behind the existing but previously unused
+  `performance_visible` unlock flag (Recruitment branch) rather than a new
+  one. Sorting and filtering are display-only, as before; they never touch
+  saved employee data.
 - **Applicants take a few real simulated days to arrive, rather than
   appearing the instant "Find candidates" is clicked**, and the company can
   earn the right to screen and hire them on its own. Clicking "Find
