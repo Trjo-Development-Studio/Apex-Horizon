@@ -142,6 +142,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   beside the icons and clicking it again hides them; the choice is remembered
   for the session and the page moves aside rather than being covered. Tooltips
   stop once the names are showing, since they would only repeat them.
+- **Save slot descriptions now show money, net worth, in-game date, and
+  playtime together**, not net worth alone — every figure was already
+  computed on `SaveSummary`/`SaveMetadata`, this only formats what was
+  already there. Playtime reads in whichever unit fits its own size
+  (minutes, then hours/minutes, then days/hours) rather than one fixed
+  unit that reads oddly at either extreme. Shown wherever a slot is listed
+  — Settings and the Start Menu's Load Game screen both read the same
+  `SlotInfo.describe()`.
 
 ### Changed
 

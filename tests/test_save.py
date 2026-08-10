@@ -244,6 +244,28 @@ def test_a_written_slot_shows_its_details(store):
     assert info.summary.net_worth_value == Money(2500)
 
 
+def test_a_slot_description_includes_money_and_playtime(store):
+    """QoL pass, 2026-08-10: Save Name, Money, Net Worth, Y/M/W/D and
+    Playtime, all in one description — every figure was already computed on
+    SaveSummary/SaveMetadata, this only formats what is already there."""
+    document = sample_document()
+    document.metadata.playtime_seconds = 3 * 3600 + 22 * 60
+    store.write(1, document)
+    description = store.info(1).describe()
+    assert "$1,000" in description  # money, distinct from net worth
+    assert "$2,500" in description  # net worth
+    assert "3h 22m played" in description
+
+
+def test_playtime_formats_by_its_own_magnitude():
+    from apex_horizon.engine.save.slots import _format_playtime
+
+    assert _format_playtime(0) == "0m played"
+    assert _format_playtime(45 * 60) == "45m played"
+    assert _format_playtime(3 * 3600 + 22 * 60) == "3h 22m played"
+    assert _format_playtime(2 * 86400 + 5 * 3600) == "2d 5h played"
+
+
 def test_writing_is_atomic_and_leaves_no_temporary_files(store):
     store.write(2, sample_document())
     assert not list(store.directory.glob("*.tmp"))

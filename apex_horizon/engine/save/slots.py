@@ -36,6 +36,18 @@ AUTOSAVE_SLOT = "autosave"
 SAVE_SUFFIX = ".ahsave"
 
 
+def _format_playtime(seconds: float) -> str:
+    """Total time played in this save, in whichever unit reads naturally."""
+    minutes = int(seconds // 60)
+    if minutes < 60:
+        return f"{minutes}m played"
+    hours, minutes = divmod(minutes, 60)
+    if hours < 24:
+        return f"{hours}h {minutes}m played"
+    days, hours = divmod(hours, 24)
+    return f"{days}d {hours}h played"
+
+
 @dataclass
 class SlotInfo:
     """What a save slot shows the player before loading it (V16.9)."""
@@ -66,13 +78,23 @@ class SlotInfo:
         return self.label
 
     def describe(self) -> str:
+        """A save slot's name, money, net worth, date and playtime, in the
+        order the project manager specified (V16.9, QoL pass 2026-08-10).
+        All figures were already computed for the summary/metadata; this
+        only formats what is already there. Truncated by whatever draws it
+        on a narrow window, the same as every other row of text in the
+        interface, rather than a second layout system of its own.
+        """
         if not self.exists:
             return "Empty"
         if self.damaged or self.summary is None or self.metadata is None:
             return "Damaged save"
         return (
-            f"{self.metadata.name} · {self.summary.date_label()} · "
-            f"{self.summary.net_worth_value.format(decimals=0)}"
+            f"{self.metadata.name} · "
+            f"{self.summary.money_value.format(decimals=0)} cash · "
+            f"{self.summary.net_worth_value.format(decimals=0)} net worth · "
+            f"{self.summary.date_label()} · "
+            f"{_format_playtime(self.metadata.playtime_seconds)}"
         )
 
 
