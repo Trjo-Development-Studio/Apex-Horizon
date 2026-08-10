@@ -167,6 +167,151 @@ def test_sub_pages_keep_their_parent_highlighted(app):
     assert app.sidebar.active == "market"
 
 
+# -- mouse-button back/forward navigation (2026-08-09) ---------------------
+#
+# Browser-style history built into navigate() itself, so every existing way
+# of moving between pages — sidebar, breadcrumb, a row drilled into, a popup
+# redirecting after an action — already populates it with no page-specific
+# wiring. Mouse buttons 4 and 5 (pygame.BUTTON_X1 / BUTTON_X2) just replay it.
+
+
+def click_button(button: int, pos=(0, 0)):
+    return pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=button, pos=pos)
+
+
+def test_navigate_back_and_forward_retrace_history(app):
+    """The exact scenario from the feature request: Market -> Portfolio ->
+    Company, then back, back, forward."""
+    app.navigate("market")
+    app.navigate("portfolio")
+    app.navigate("company")
+    assert app.current_key == "company"
+
+    app.navigate_back()
+    assert app.current_key == "portfolio"
+
+    app.navigate_back()
+    assert app.current_key == "market"
+
+    app.navigate_forward()
+    assert app.current_key == "portfolio"
+
+
+def test_navigate_back_does_nothing_with_no_history(app):
+    assert app.current_key == "dashboard"
+    app.navigate_back()
+    assert app.current_key == "dashboard"
+
+
+def test_navigate_forward_does_nothing_with_no_forward_history(app):
+    app.navigate("market")
+    app.navigate_forward()
+    assert app.current_key == "market"
+
+
+def test_navigating_normally_after_going_back_clears_forward_history(app):
+    app.navigate("market")
+    app.navigate("portfolio")
+    app.navigate_back()
+    assert app.current_key == "market"
+
+    app.navigate("news")  # a fresh move, the way clicking a link would be
+    assert app.current_key == "news"
+    app.navigate_forward()
+    assert app.current_key == "news", "forward history must not have survived the new move"
+
+
+def test_mouse_button_4_navigates_back_through_real_events(app):
+    app.navigate("market")
+    app.navigate("portfolio")
+    app.handle_events()  # drain
+    pygame.event.post(click_button(pygame.BUTTON_X1))
+    app.handle_events()
+    assert app.current_key == "market"
+
+
+def test_mouse_button_5_navigates_forward_through_real_events(app):
+    app.navigate("market")
+    app.navigate("portfolio")
+    app.navigate_back()
+    assert app.current_key == "market"
+    app.handle_events()  # drain
+    pygame.event.post(click_button(pygame.BUTTON_X2))
+    app.handle_events()
+    assert app.current_key == "portfolio"
+
+
+def test_ordinary_clicks_are_unaffected_by_the_new_button_handling(app):
+    app.draw(0)  # lay out the sidebar so it has hit areas
+    market_rect = app.sidebar._rects["market"]
+    app.handle_events()  # drain
+    pygame.event.post(click_button(pygame.BUTTON_LEFT, market_rect.center))
+    pygame.event.post(click_button(pygame.BUTTON_RIGHT))
+    pygame.event.post(click_button(pygame.BUTTON_MIDDLE))
+    app.handle_events()
+    assert app.current_key == "market", "left/right/middle clicks must behave exactly as before"
+
+
+def test_back_and_forward_do_nothing_while_a_popup_is_open(app):
+    app.navigate("market")
+    app.navigate("portfolio")
+    app._prompt_exit()
+    assert app.popups.is_open
+
+    app.handle_events()  # drain
+    pygame.event.post(click_button(pygame.BUTTON_X1))
+    app.handle_events()
+    assert app.current_key == "portfolio", "back must not fire through an open popup"
+
+
+def test_back_and_forward_do_nothing_while_the_dev_console_is_open(app):
+    app.navigate("market")
+    app.navigate("portfolio")
+    app.dev_console.open = True
+
+    app.handle_events()  # drain
+    pygame.event.post(click_button(pygame.BUTTON_X1))
+    app.handle_events()
+    assert app.current_key == "portfolio", "back must not fire through the open console"
+
+
+def test_save_and_exit_can_never_be_reached_through_back_or_forward(app):
+    """V16.4: leaving is an action, not a destination. Save & Exit never calls
+    navigate(), so it can never end up in history for back/forward to land on."""
+    app.navigate("market")
+    for _ in range(5):
+        app.navigate_back()
+    assert "exit" not in app.pages
+    assert app.current_key in app.pages
+
+
+def test_navigation_history_is_cleared_after_starting_a_new_game(menu_app):
+    menu_app.navigate("market")
+    menu_app.navigate("portfolio")
+    assert menu_app._nav_history  # something to clear
+
+    _new_game(menu_app, slot="3", name="Fresh Start")
+
+    assert menu_app.current_key == "dashboard"
+    assert not menu_app._nav_history
+    assert not menu_app._nav_forward
+    menu_app.navigate_back()
+    assert menu_app.current_key == "dashboard", "nothing from before the new game to go back to"
+
+
+def test_navigation_history_is_cleared_after_loading_a_game(menu_app):
+    _new_game(menu_app, slot="3", name="Continued")
+    menu_app.navigate("market")
+    menu_app.navigate("portfolio")
+    menu_app._prompt_exit()
+    _choose(menu_app, "exit")
+
+    menu_app._load_from_menu("3")
+
+    assert not menu_app._nav_history
+    assert not menu_app._nav_forward
+
+
 def test_breadcrumb_returns_to_an_earlier_level(app):
     breadcrumb = Breadcrumb()
     breadcrumb.set([("Market", "market"), ("Some Company", "market:company")])

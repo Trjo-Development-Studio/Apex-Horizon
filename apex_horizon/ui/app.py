@@ -126,6 +126,13 @@ class GameApp:
             "settings": SettingsPage(self.context),
         }
         self.current_key = "dashboard"
+        # Browser-style navigation history (V27.7-style QoL, 2026-08-09): every
+        # self.navigate() records where it left from, so the mouse side buttons
+        # can retrace it. "exit" never reaches this — Save & Exit is an action,
+        # not a page, and never calls navigate() (V16.4) — so back/forward can
+        # never land on it either.
+        self._nav_history: list[str] = []
+        self._nav_forward: list[str] = []
 
         self.saves = SaveService(self.context)
         self.saves.on_autosave.append(self._on_autosave)
@@ -296,10 +303,34 @@ class GameApp:
 
     def navigate(self, key: str) -> None:
         if key in self.pages and key != self.current_key:
+            # A fresh move anywhere — sidebar, breadcrumb, drilling into a row,
+            # a popup redirecting after an action — extends the back history and
+            # discards whatever was available to go forward to, the same way a
+            # browser link click does once you have gone back from it.
+            self._nav_history.append(self.current_key)
+            self._nav_forward.clear()
             self.current_key = key
             self.page.on_show()
         # Sub-pages keep their parent's sidebar entry highlighted.
         self.sidebar.active = key.split(":")[0]
+
+    def navigate_back(self) -> None:
+        """Retrace one step of navigation history (mouse button 4)."""
+        if not self._nav_history:
+            return
+        self._nav_forward.append(self.current_key)
+        self.current_key = self._nav_history.pop()
+        self.page.on_show()
+        self.sidebar.active = self.current_key.split(":")[0]
+
+    def navigate_forward(self) -> None:
+        """Retrace one step of forward history (mouse button 5)."""
+        if not self._nav_forward:
+            return
+        self._nav_history.append(self.current_key)
+        self.current_key = self._nav_forward.pop()
+        self.page.on_show()
+        self.sidebar.active = self.current_key.split(":")[0]
 
     # -- events ------------------------------------------------------------
     def handle_events(self) -> None:
@@ -324,6 +355,23 @@ class GameApp:
             # A popup is modal: it takes every event while it is open (V14.15).
             if self.popups.is_open:
                 self.popups.handle_event(event)
+                continue
+
+            # The mouse side buttons retrace navigation history, the way a
+            # browser's back/forward buttons do. Checked explicitly against the
+            # console rather than relying on the block above to have consumed
+            # it: the console only swallows left-clicks, wheel and key-ups
+            # while open, so an X1/X2 press would otherwise reach here even
+            # with the console up. Left/right/middle clicks are untouched —
+            # every other widget in the interface only ever reacts to button 1
+            # — and this never fires on a MOUSEBUTTONUP, so it cannot be
+            # mistaken for the second half of an ordinary click.
+            if (event.type == pygame.MOUSEBUTTONDOWN and not self.dev_console.open
+                    and event.button in (pygame.BUTTON_X1, pygame.BUTTON_X2)):
+                if event.button == pygame.BUTTON_X1:
+                    self.navigate_back()
+                else:
+                    self.navigate_forward()
                 continue
 
             if event.type == pygame.KEYDOWN and event.key in SPEED_KEYS:
@@ -759,6 +807,10 @@ class GameApp:
         # The loaded world is not the one a scheduled jump was counting through.
         self.dev_commands.pending_days = 0
         self.navigate("dashboard")
+        # A loaded game starts its own session; back/forward should not be able
+        # to retrace pages visited before this load ever happened.
+        self._nav_history.clear()
+        self._nav_forward.clear()
 
     def _prompt_exit(self) -> None:
         """The Save & Exit workflow of V16.4.
@@ -913,6 +965,10 @@ class GameApp:
         self.menu.close_slots()
         self.menu.message = ""
         self.navigate("dashboard")
+        # A new game starts its own session; back/forward should not be able
+        # to retrace pages visited before this game ever began.
+        self._nav_history.clear()
+        self._nav_forward.clear()
         self.notifications.push(
             f"{name} begun in {self.saves.store.info(slot).label}." if result.ok
             else f"Started, but saving failed: {result.message}",

@@ -11,6 +11,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **The mouse side buttons navigate back and forward**, the way they do in a
+  browser. Every existing way of moving between pages — the sidebar, the
+  breadcrumb, drilling into a row, a popup redirecting after an action —
+  already goes through the one `GameApp.navigate()` method, so history is
+  recorded there rather than as a separate system built just for the mouse
+  buttons: each move extends the back history and clears whatever was
+  available to go forward to, exactly like following a fresh link after
+  going back in a browser. Save & Exit is an action rather than a
+  destination (V16.4) and never calls `navigate()`, so it can never appear
+  in history for either button to land on. Both buttons are inert while a
+  popup or the developer console is open, and starting a new game or loading
+  one clears the history from whatever session came before it, so back
+  cannot reach across a load. Portfolio's own tabs (Personal, Company,
+  Analytics, Statistics) stay page-internal state, untouched by this, the
+  same as before.
 - **The real Apex Horizon logo replaces two placeholder marks**: the window
   icon (previously unset) and the sidebar's "AH" text, at every width. A
   monogram-only crop is used at both sizes, since the full wordmark reads at
