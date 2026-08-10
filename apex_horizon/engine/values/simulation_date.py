@@ -76,6 +76,18 @@ def set_calendar(calendar: Calendar | None) -> None:
     _calendar = calendar
 
 
+def format_calendar_label(year: int, month: int, week: int, day: int) -> str:
+    """The V13.6 display format, e.g. "Year 3, Month 8, Week 2, Day 4".
+
+    A free function, not just :meth:`SimulationDate.label`, so a save slot's
+    summary — which stores the already-derived year/month/week/day rather
+    than a day counter, precisely so it can be read without loading the
+    world a `SimulationDate` needs — can share the one spelling instead of
+    reimplementing the format string independently.
+    """
+    return f"Year {year}, Month {month}, Week {week}, Day {day}"
+
+
 @dataclass(frozen=True, order=True)
 class SimulationDate:
     """A point in in-game time, stored purely as a day counter (V30.4).
@@ -193,9 +205,8 @@ class SimulationDate:
     def label(self, calendar: Calendar | None = None) -> str:
         """The V13.6 display format, e.g. "Year 3, Month 8, Week 2, Day 4"."""
         cal = calendar or get_calendar()
-        return (
-            f"Year {self.year(cal)}, Month {self.month(cal)}, "
-            f"Week {self.week_of_month(cal)}, Day {self.day_of_week(cal)}"
+        return format_calendar_label(
+            self.year(cal), self.month(cal), self.week_of_month(cal), self.day_of_week(cal)
         )
 
     def short_label(self, calendar: Calendar | None = None) -> str:

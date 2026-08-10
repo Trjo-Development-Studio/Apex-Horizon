@@ -18,7 +18,17 @@ import pygame
 
 from ...engine.values import Percentage
 from .. import theme
-from ..widgets import Button, Card, Column, SearchBox, Table, draw_text, panel, truncate
+from ..widgets import (
+    Button,
+    Card,
+    Column,
+    SearchBox,
+    Table,
+    draw_text,
+    format_fraction,
+    panel,
+    truncate,
+)
 from .base import Page, no_company_message
 
 
@@ -243,7 +253,7 @@ class FundDetailPage(Page):
             ("Invested by clients", fund.contributed.format(decimals=0)),
             ("Under management", fund.assets_under_management().format(decimals=0)),
             ("Cash not yet invested", fund.finances.cash.format(decimals=0)),
-            ("Investor confidence", f"{fund.confidence:.0%}"),
+            ("Investor confidence", format_fraction(fund.confidence)),
             ("Open since day", f"{fund.created_on_day:,}"),
             ("Running for", f"{age:,} days"),
         ]

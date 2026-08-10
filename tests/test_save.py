@@ -266,6 +266,23 @@ def test_playtime_formats_by_its_own_magnitude():
     assert _format_playtime(2 * 86400 + 5 * 3600) == "2d 5h played"
 
 
+def test_the_date_label_matches_simulation_dates_own_format():
+    """Formatting-consistency pass, 2026-08-10: SaveSummary.date_label() used
+    to reimplement SimulationDate.label()'s exact format string independently
+    rather than sharing it — a save slot's date must read exactly like the
+    in-game date does everywhere else."""
+    from apex_horizon.engine.save.format import SaveSummary
+    from apex_horizon.engine.values import SimulationDate
+
+    live_date = SimulationDate(200)
+    summary = SaveSummary(
+        year=live_date.year(), month=live_date.month(),
+        week=live_date.week_of_month(), day=live_date.day_of_week(),
+    )
+
+    assert summary.date_label() == live_date.label()
+
+
 def test_writing_is_atomic_and_leaves_no_temporary_files(store):
     store.write(2, sample_document())
     assert not list(store.directory.glob("*.tmp"))

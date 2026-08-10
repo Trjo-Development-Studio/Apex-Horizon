@@ -1000,6 +1000,19 @@ def test_the_figure_updates_after_a_transaction(app):
     assert _cash_box(app, "market")[0] != before
 
 
+def test_the_cash_card_never_shows_cents(app):
+    """Bug fix, 2026-08-10: every other summary card rounds to whole dollars
+    (`decimals=0`), but the shared Cash card was built with `.format()`'s own
+    default of two, so it alone showed cents — the one figure the player
+    reads most often was the one that stood out as different."""
+    app.context.player.cash = Money("1234.56")
+
+    shown = _cash_box(app, "market")[0]
+
+    assert shown == "$1,235"
+    assert "." not in shown
+
+
 def test_it_is_personal_cash_rather_than_net_worth(app):
     """V1.4: net worth counts holdings and a company that cannot be spent."""
     app.context.player.cash = Money(1_000)
@@ -1008,7 +1021,7 @@ def test_it_is_personal_cash_rather_than_net_worth(app):
 
     shown = _cash_box(app, "market")[0]
 
-    assert shown == app.context.player.cash.format()
+    assert shown == app.context.player.cash.format(decimals=0)
     assert shown != app.context.player.net_worth().format()
 
 
@@ -1020,7 +1033,7 @@ def test_company_cash_stays_separate_from_the_players(app):
 
     shown = _cash_box(app, "company")[0]
 
-    assert shown == app.context.player.cash.format()
+    assert shown == app.context.player.cash.format(decimals=0)
     assert shown != company.finances.cash.format()
 
 
@@ -1371,6 +1384,32 @@ def test_tooltips_stop_once_the_names_are_showing(app):
     before = pygame.image.tobytes(app.surface, "RGB")
     app.sidebar.draw_tooltip(app.surface, app.fonts)
     assert pygame.image.tobytes(app.surface, "RGB") == before
+
+
+def test_a_buttons_tooltip_shows_only_on_hover(app):
+    """`Button.tooltip` was set on every button since the field was added but
+    never once read (bug fix, 2026-08-10) — wired to the same `draw_tooltip`
+    primitive the Sidebar already uses for its own icons.
+
+    Compares only the strip above the button, where the tooltip renders —
+    not the button itself, which already changes colour on hover regardless
+    of any tooltip, and would make the comparison pass for the wrong reason.
+    """
+    from apex_horizon.ui.widgets import Button
+
+    button = Button("Criteria", tooltip="Set the minimum skill for auto-hire.")
+    rect = pygame.Rect(200, 200, 100, 30)
+    above = pygame.Rect(150, 150, 300, 45)
+
+    app.draw(0)
+    button.draw(app.surface, rect, app.fonts, (0, 0))
+    not_hovered = pygame.image.tobytes(app.surface.subsurface(above), "RGB")
+
+    app.draw(0)
+    button.draw(app.surface, rect, app.fonts, rect.center)
+    hovered = pygame.image.tobytes(app.surface.subsurface(above), "RGB")
+
+    assert hovered != not_hovered
 
 
 def test_notifications_are_drawn_on_the_right(app):
@@ -2136,6 +2175,26 @@ def _found_company_for_acquisitions(app, cash: int = 2_000_000_000):
     # Acquisitions require Company Level 2 (acquisitions.minimum_company_level).
     company.set_level(3)
     return company
+
+
+def test_the_market_page_names_its_own_empty_state(app):
+    """The generic Table fallback ("Nothing to show yet.") read oddly for a
+    page that always has companies except in a genuine edge case (bug fix,
+    2026-08-10) — the Market page now says specifically what is missing."""
+    page = app.pages["market"]
+    captured = {}
+    original_draw = page.table.draw
+
+    def spy(surface, rect, fonts, mouse, rows, query="", **kwargs):
+        captured.update(kwargs)
+        return original_draw(surface, rect, fonts, mouse, rows, query, **kwargs)
+
+    page.table.draw = spy
+    app.navigate("market")
+    app.draw(0)
+
+    assert captured.get("empty_message") == "No companies are listed on the market right now."
+    assert captured["empty_message"] != "Nothing to show yet."
 
 
 def test_the_market_page_no_longer_offers_an_acquire_button(app):

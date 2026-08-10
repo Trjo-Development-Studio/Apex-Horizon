@@ -127,7 +127,7 @@ class UnlockTreePage(Page):
         self._pending_fit = False
         self.zoom_out_button = Button("-")
         self.zoom_in_button = Button("+")
-        self.fit_button = Button("Fit")
+        self.fit_button = Button("Fit", tooltip="Zoom to fit the whole tree on screen.")
 
     def take_unlock_request(self) -> str | None:
         request, self.unlock_request = self.unlock_request, None

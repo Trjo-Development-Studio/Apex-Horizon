@@ -145,7 +145,7 @@ class Page:
         player = getattr(self.context, "player", None)
         if player is None:
             return self.cards()
-        cash = Card("Cash", player.cash.format(), "Yours to spend right now",
+        cash = Card("Cash", player.cash.format(decimals=0), "Yours to spend right now",
                     accent=theme.ACCENT)
         return [cash, *self.cards()]
 

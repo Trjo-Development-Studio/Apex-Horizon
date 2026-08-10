@@ -14,7 +14,18 @@ import pygame
 from ...engine.employees import ALL_DEPARTMENTS, Department
 from ...engine.values import Money
 from .. import theme
-from ..widgets import Button, Card, Column, Dropdown, SearchBox, Table, Tabs, draw_text, panel
+from ..widgets import (
+    Button,
+    Card,
+    Column,
+    Dropdown,
+    SearchBox,
+    Table,
+    Tabs,
+    draw_text,
+    format_fraction,
+    panel,
+)
 from .base import Page, no_company_message
 
 DEPARTMENT_NAMES = [str(department) for department in ALL_DEPARTMENTS]
@@ -86,7 +97,7 @@ class EmployeesPage(Page):
                 Column("skill", "Skill", 70, align="right", numeric=True),
                 Column("performance", "Performance", 100, align="right"),
                 Column("happiness", "Happiness", 100, align="right", numeric=True,
-                       format=lambda v: f"{v * 100:.0f}%"),
+                       format=format_fraction),
                 Column("salary", "Salary", 110, align="right", numeric=True,
                        format=lambda v: v.format(decimals=0)),
                 Column("task", "Current task", 220),
@@ -110,7 +121,9 @@ class EmployeesPage(Page):
         #: Automated Recruitment (V5.26: the player's own criteria, calling
         #: the same hire as the Hire button — never a separate system).
         self.automation_button = Button("Automation: Off")
-        self.criteria_button = Button("Criteria")
+        self.criteria_button = Button(
+            "Criteria",
+            tooltip="Set the minimum skill an applicant needs before auto-hire takes them.")
         self.requested_automation_toggle = False
         self.requested_criteria = False
 
@@ -165,7 +178,7 @@ class EmployeesPage(Page):
                 "name": employee.name,
                 "primary": str(employee.primary),
                 "skill": employee.overall_skill,
-                "performance": (f"{_performance(employee, config) * 100:.0f}%"
+                "performance": (format_fraction(_performance(employee, config))
                                if roster.performance_visible else "—"),
                 "happiness": employee.happiness,
                 "salary": employee.salary,
@@ -459,7 +472,7 @@ class EmployeeDetailPage(Page):
         return [
             Card("Overall skill", str(employee.overall_skill),
                  f"Ceiling {employee.skill_ceiling}"),
-            Card("Happiness", f"{employee.happiness * 100:.0f}%",
+            Card("Happiness", format_fraction(employee.happiness),
                  "Pay, workload and company success",
                  accent=theme.POSITIVE if employee.happiness > 0.6 else (
                      theme.NEGATIVE if employee.happiness < 0.35 else None)),

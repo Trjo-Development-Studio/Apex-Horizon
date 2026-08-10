@@ -139,7 +139,9 @@ class MarketPage(Page):
         return False
 
     def draw_content(self, surface, rect, fonts, mouse) -> None:
-        self.table.draw(surface, rect, fonts, mouse, self.rows(), self.search.text if self.search else "")
+        self.table.draw(surface, rect, fonts, mouse, self.rows(),
+                        self.search.text if self.search else "",
+                        empty_message="No companies are listed on the market right now.")
 
 
 #: Tall enough for all seven causes V4.4 lists, so none is cut off.

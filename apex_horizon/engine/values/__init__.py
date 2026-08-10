@@ -14,6 +14,7 @@ from .simulation_date import (
     WEEKDAY_NAMES,
     Calendar,
     SimulationDate,
+    format_calendar_label,
     get_calendar,
     set_calendar,
 )
@@ -27,6 +28,7 @@ __all__ = [
     "Money",
     "Percentage",
     "SimulationDate",
+    "format_calendar_label",
     "get_calendar",
     "new_save_id",
     "now_iso",

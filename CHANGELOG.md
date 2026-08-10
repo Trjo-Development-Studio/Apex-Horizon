@@ -190,6 +190,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **The shared Cash card no longer shows cents.** Every other summary card
+  rounds to whole dollars; the Cash card was built with `.format()`'s own
+  two-decimal default, so the figure the player reads most often was the one
+  that looked different from its neighbours.
+- **The Market page names its own empty state** ("No companies are listed on
+  the market right now.") instead of falling back to the generic Table
+  message, which read oddly for a page that normally always has listings.
+- **Button tooltips now actually show.** `Button.tooltip` has existed since
+  buttons could carry one, but nothing ever read it. Hovering a button with a
+  tooltip set now shows it with the same small label the sidebar already uses
+  for its icons — applied to Employee Management's automation Criteria
+  button and the Unlock Tree's Fit button, where the label alone does not say
+  what the button does.
+- **One spelling for a percentage.** Reputation, investor confidence,
+  happiness and performance were each formatted with a different pattern
+  (`:.0%` in some places, `value * 100:.0f}%` in others) for the identical
+  visual result. All four now go through one small helper.
+- **A save slot's date reads exactly like the in-game date everywhere else.**
+  `SaveSummary.date_label()` reimplemented `SimulationDate.label()`'s format
+  string independently; it now shares it, so the two can never drift apart.
 - **Settings, Subsidiaries and Investment Funds no longer let a panel spill
   into the notification stack.** Each used a fixed pixel height that did not
   shrink with the rest of the page the way Dashboard, Employee Management,

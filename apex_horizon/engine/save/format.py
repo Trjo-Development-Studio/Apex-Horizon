@@ -24,7 +24,7 @@ import zlib
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from ..values import Money, new_save_id, now_iso
+from ..values import Money, format_calendar_label, new_save_id, now_iso
 
 # File signature and container revision. The container is separate from the
 # save *format* version in the metadata: this changes only if the framing does.
@@ -94,7 +94,7 @@ class SaveSummary:
         return Money(self.net_worth)
 
     def date_label(self) -> str:
-        return f"Year {self.year}, Month {self.month}, Week {self.week}, Day {self.day}"
+        return format_calendar_label(self.year, self.month, self.week, self.day)
 
 
 @dataclass

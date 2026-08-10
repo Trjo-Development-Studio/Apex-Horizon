@@ -20,7 +20,7 @@ import pygame
 
 from .. import theme
 from ..charts import meter
-from ..widgets import Card, chip, draw_text, panel, truncate
+from ..widgets import Card, chip, draw_text, format_fraction, panel, truncate
 from .base import Page
 
 
@@ -169,7 +169,7 @@ class DashboardPage(Page):
             # default view to lean on indicators rather than graphs).
             draw_text(surface, fonts.small, "Company reputation",
                       (world.left + 20, y + 6), theme.TEXT_MUTED)
-            draw_text(surface, fonts.mono_small, f"{company.reputation:.0%}",
+            draw_text(surface, fonts.mono_small, format_fraction(company.reputation),
                       (world.right - 20, y + 6), theme.TEXT, align="right")
             meter(surface, pygame.Rect(world.left + 20, y + 28, world.width - 40, 6),
                   company.reputation, colour=theme.ACCENT)

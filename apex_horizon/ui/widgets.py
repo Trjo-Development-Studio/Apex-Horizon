@@ -52,6 +52,17 @@ def truncate(font, text: str, width: int) -> str:
     return text + ellipsis
 
 
+def format_fraction(value: float, *, decimals: int = 0) -> str:
+    """Format a raw 0.0-1.0 fraction as a percentage, e.g. ``0.42`` -> ``"42%"``.
+
+    For fields not represented as a real :class:`~apex_horizon.engine.values.
+    Percentage` value (reputation, confidence, happiness, performance) — one
+    spelling instead of ``:.0%`` in some places and ``* 100:.0f}%`` in others
+    for the same output (formatting-consistency pass, 2026-08-10).
+    """
+    return f"{value * 100:.{decimals}f}%"
+
+
 def panel(surface, rect, *, fill=theme.SURFACE, border=theme.BORDER, radius=theme.CORNER):
     pygame.draw.rect(surface, fill, rect, border_radius=radius)
     if border is not None:
@@ -121,6 +132,12 @@ class Button:
             content_x = self.rect.centerx + 12
         draw_text(surface, fonts.small, self.label, (content_x, self.rect.centery),
                   text_colour, align="center", baseline="middle")
+        # `tooltip` was set on every button since it was added but never once
+        # read (formatting-consistency pass, 2026-08-10) — this is its only
+        # consumer. Drawn last, above the button's own top edge, the same
+        # primitive the Sidebar already uses for its own icon tooltips.
+        if self.tooltip and hovered:
+            draw_tooltip(surface, fonts, self.tooltip, (self.rect.left, self.rect.top - 20))
 
 
 class SearchBox:

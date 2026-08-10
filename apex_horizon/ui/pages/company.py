@@ -11,7 +11,7 @@ import pygame
 
 from ...engine.unlocks import CREATE_COMPANY
 from .. import theme
-from ..widgets import Button, Card, draw_text, panel
+from ..widgets import Button, Card, draw_text, format_fraction, panel
 from .base import Page, no_company_message
 
 
@@ -56,7 +56,7 @@ class CompanyPage(Page):
                 decimals=0, signed=True),
                 "Revenue less expenses",
                 accent=theme.value_colour(not finances.last_week.profit.is_negative)),
-            Card("Reputation", f"{company.reputation * 100:.0f}%",
+            Card("Reputation", format_fraction(company.reputation),
                  "Standing in the industry"),
         ]
 

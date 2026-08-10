@@ -17,7 +17,7 @@ from __future__ import annotations
 import pygame
 
 from .. import theme
-from ..widgets import Card, draw_text, panel, truncate
+from ..widgets import Card, draw_text, format_fraction, panel, truncate
 from .base import Page
 
 ROW_HEIGHT = 24
@@ -91,7 +91,7 @@ class StatisticsPage(Page):
                 ("Company value", _format(company.value())),
                 ("Cash", _format(finances.cash)),
                 ("Weekly profit", finances.profit_this_week.format(decimals=0, signed=True)),
-                ("Reputation", f"{company.reputation:.0%}"),
+                ("Reputation", format_fraction(company.reputation)),
                 ("Company level", str(company.level)),
                 ("Employees", f"{len(company.employees):,}"),
             ]
