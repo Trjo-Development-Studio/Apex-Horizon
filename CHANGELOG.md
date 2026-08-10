@@ -153,6 +153,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **No source file runs past 500 lines any more**, and `ui/app.py` — the one
+  file allowed more room, since it is the application itself — is under 1,000
+  (project manager instruction). Nothing changed behaviour: the suite runs the
+  same 804 tests it did before, and no import anywhere else was rewritten.
+  `ui/widgets.py` and `debug/commands.py` became packages whose `__init__`
+  re-exports what they always did; the employee, subsidiary and Unlock Tree
+  pages split by the screen they serve; `app.py`'s eleven modal dialogs moved
+  to `ui/prompts.py`; and the six largest test modules became per-system
+  directories with their fixtures in a local `conftest.py`, so each family
+  keeps its own calendar setup instead of leaking it to every other test.
+
 - **A save game now belongs to one slot for its whole life.** Autosaving used to
   write a separate rolling `autosave` file, which appeared in the Load menu as a
   sixth game the player had never started. Autosaving is now simply saving the
