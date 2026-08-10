@@ -130,3 +130,4 @@ class UnlockEffects:
         )
         roster.strengths_visible = self.tree.has(c.EMPLOYEE_STRENGTHS)
         roster.performance_visible = self.tree.has(c.EMPLOYEE_PERFORMANCE)
+        roster.automation_allowed = self.tree.has(c.AUTOMATED_RECRUITMENT)

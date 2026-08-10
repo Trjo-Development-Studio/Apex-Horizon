@@ -74,6 +74,12 @@ class EmployeesPage(Page):
         self.hire_buttons: dict[str, Button] = {}
         self.requested_recruit = False
         self.requested_hire: str | None = None
+        #: Automated Recruitment (V5.26: the player's own criteria, calling
+        #: the same hire as the Hire button — never a separate system).
+        self.automation_button = Button("Automation: Off")
+        self.criteria_button = Button("Criteria")
+        self.requested_automation_toggle = False
+        self.requested_criteria = False
 
     # -- data --------------------------------------------------------------
     @property
@@ -138,6 +144,14 @@ class EmployeesPage(Page):
         if self.recruit_button.handle_event(event) and self.recruit_button.take_click():
             self.requested_recruit = True
             return True
+        roster = self.roster
+        if roster is not None and roster.automation_allowed:
+            if self.automation_button.handle_event(event) and self.automation_button.take_click():
+                self.requested_automation_toggle = True
+                return True
+            if self.criteria_button.handle_event(event) and self.criteria_button.take_click():
+                self.requested_criteria = True
+                return True
         for employee_id, button in self.hire_buttons.items():
             if button.handle_event(event) and button.take_click():
                 self.requested_hire = employee_id
@@ -150,6 +164,14 @@ class EmployeesPage(Page):
 
     def take_hire_request(self) -> str | None:
         request, self.requested_hire = self.requested_hire, None
+        return request
+
+    def take_automation_toggle_request(self) -> bool:
+        request, self.requested_automation_toggle = self.requested_automation_toggle, False
+        return request
+
+    def take_criteria_request(self) -> bool:
+        request, self.requested_criteria = self.requested_criteria, False
         return request
 
     # -- drawing -----------------------------------------------------------
@@ -212,12 +234,36 @@ class EmployeesPage(Page):
             return
         draw_text(surface, fonts.subheading, "Candidates", (rect.left + 20, rect.top + 16))
         compact = rect.height < _MIN_CANDIDATES_HEIGHT
+
+        pending_day = roster.pending_applicants_day
+        day = self.context.engine.date.day if self.context.engine else None
+        waiting = pending_day is not None and day is not None
         if not compact:
-            draw_text(surface, fonts.small,
-                      "Better candidates appear as your company's reputation grows.",
-                      (rect.left + 20, rect.top + 42), theme.TEXT_MUTED)
+            if waiting:
+                remaining = max(0, pending_day - day)
+                unit = "day" if remaining == 1 else "days"
+                draw_text(surface, fonts.small,
+                          f"Candidates arriving in {remaining} {unit}.",
+                          (rect.left + 20, rect.top + 42), theme.TEXT_MUTED)
+            else:
+                draw_text(surface, fonts.small,
+                          "Better candidates appear as your company's reputation grows.",
+                          (rect.left + 20, rect.top + 42), theme.TEXT_MUTED)
+        self.recruit_button.enabled = not waiting
         self.recruit_button.draw(surface, pygame.Rect(rect.right - 176, rect.top + 16, 156, 32),
                                  fonts, mouse)
+        if roster.automation_allowed:
+            self.automation_button.label = (
+                "Automation: On" if roster.auto_recruit_enabled else "Automation: Off"
+            )
+            self.automation_button.draw(
+                surface, pygame.Rect(rect.right - 176 - 8 - 110, rect.top + 16, 110, 32),
+                fonts, mouse,
+            )
+            self.criteria_button.draw(
+                surface, pygame.Rect(rect.right - 176 - 8 - 110 - 8 - 80, rect.top + 16, 80, 32),
+                fonts, mouse,
+            )
 
         rows_top = rect.top + (44 if compact else 74)
         max_rows = max(0, (rect.bottom - rows_top) // 30)

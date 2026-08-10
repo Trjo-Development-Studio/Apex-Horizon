@@ -542,6 +542,9 @@ class DeveloperCommands:
             return no("No company currently exists.")
         roster = company.employees
         engine = self.context.engine
+        # Deliberately calls refresh_applicants directly rather than
+        # request_applicants: a debug command should stay instant, not wait
+        # out the same real recruitment delay a player would.
         roster.refresh_applicants(engine.rng, self.context.names,
                                   self.context.allocator, engine.date.day)
         hired = 0

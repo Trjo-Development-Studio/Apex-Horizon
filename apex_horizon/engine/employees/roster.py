@@ -62,6 +62,32 @@ class EmployeeRoster:
         #: hires can, without this module knowing what it is (V15.7).
         self.on_hire: list = []
 
+        # -- recruitment pacing and automation (QoL pass, 2026-08-10) -------
+        #: Set once, when the company gets a market to recruit against
+        #: (:meth:`attach_recruitment_sources`) — needed by
+        #: :meth:`check_recruitment` to draw a pool itself, from inside a
+        #: registered daily phase, rather than only ever on a UI click.
+        self._names: NameGenerator | None = None
+        self._allocator: IdAllocator | None = None
+        #: The day a requested pool of applicants actually arrives, or None
+        #: while nothing is pending. Applicants are never instant (V5.26
+        #: favours co-workers over a vending machine); the wait is real
+        #: simulated time, not a UI delay.
+        self.pending_applicants_day: int | None = None
+        self._last_recruitment_check_day: int | None = None
+        #: Whether the company may automate recruitment at all — earned
+        #: through the Recruitment branch, same shape as training_allowed.
+        self.automation_allowed: bool = False
+        #: The player's own toggle and criterion, once automation is earned.
+        self.auto_recruit_enabled: bool = False
+        self.auto_recruit_minimum_skill: int = self.config.get_int(
+            "employees.auto_recruit_default_minimum_skill"
+        )
+        #: Called once a requested pool of applicants actually arrives, so the
+        #: UI can say so without this module knowing what a notification is
+        #: (V15.7, same shape as on_hire).
+        self.on_applicants_arrived: list = []
+
     # -- the roster --------------------------------------------------------
     def __len__(self) -> int:
         return len(self.employees)
@@ -86,6 +112,18 @@ class EmployeeRoster:
         return [e for e in self.employees if e.primary is department]
 
     # -- hiring and firing (V5.3) -----------------------------------------
+    def attach_recruitment_sources(self, names: NameGenerator, allocator: IdAllocator) -> None:
+        """Give the roster what it needs to draw its own applicant pool.
+
+        Without this, a new pool can only ever be drawn from a UI click that
+        happens to have a name generator and id allocator in scope.
+        :meth:`check_recruitment` needs to draw one on its own, from inside a
+        registered daily phase, so a delayed or automated refresh can arrive
+        without anything in the UI asking for it that day.
+        """
+        self._names = names
+        self._allocator = allocator
+
     def refresh_applicants(self, rng: Random, names: NameGenerator,
                            allocator: IdAllocator, day: int) -> list[Employee]:
         """Draw a new pool of candidates, shaped by company reputation."""
@@ -100,6 +138,39 @@ class EmployeeRoster:
             config=self.config,
         )
         return self.applicants
+
+    def request_applicants(self, day: int) -> None:
+        """Ask for a new pool of candidates, which arrives after a real wait.
+
+        Applicants are not a vending machine (V5.26): a request schedules
+        :meth:`check_recruitment` to actually draw the pool a few simulated
+        days later, using the same :meth:`refresh_applicants` a debug command
+        or the AI's own hiring already uses unchanged. Any pool already
+        waiting stays fully hireable while the new one is on its way.
+        """
+        delay = self.config.get_int("employees.recruitment_delay_days")
+        self.pending_applicants_day = day + delay
+
+    def set_automation(self, enabled: bool, minimum_skill: int,
+                       day: int) -> tuple[bool, str]:
+        """Turn the company's own hiring judgement on or off.
+
+        Automation only ever calls :meth:`request_applicants` and
+        :meth:`hire` — the exact methods manual hiring calls — to criteria
+        the player themselves set, never a separate hiring path (V5.26).
+        """
+        if not self.automation_allowed:
+            return False, "Automated Recruitment has not been unlocked yet."
+        toggled = enabled != self.auto_recruit_enabled
+        self.auto_recruit_enabled = enabled
+        self.auto_recruit_minimum_skill = minimum_skill
+        if enabled and self.pending_applicants_day is None and not self.applicants:
+            self.request_applicants(day)
+        if toggled:
+            message = "Automated Recruitment turned on." if enabled else "Automated Recruitment turned off."
+        else:
+            message = f"Automated Recruitment will hire skill {minimum_skill} and above."
+        return True, message
 
     def hire(self, applicant: Employee, day: int) -> tuple[bool, str]:
         """Take on an applicant, if there is room for them (V5.17).
@@ -222,8 +293,48 @@ class EmployeeRoster:
     def register(self, engine: SimulationEngine) -> None:
         """Attach to the simulation (V29.7, V13.10)."""
         engine.register(SimulationPhase.EMPLOYEES, self.work_day)
+        engine.register(SimulationPhase.EMPLOYEES, self.check_recruitment)
         engine.register_boundary(PeriodBoundary.MONTH, self.pay_salaries)
         engine.register_boundary(PeriodBoundary.WEEK, self.update_happiness)
+
+    def check_recruitment(self, context: SimulationContext) -> None:
+        """Bring in a requested pool once its wait is over, and keep
+        automation running if the company has it switched on.
+
+        Runs every simulated day, the same as :meth:`work_day`; most days it
+        does nothing at all, which is deliberate — a pending request is the
+        common case being waited out, not an error.
+        """
+        if self._last_recruitment_check_day == context.day_number:
+            return  # a retried phase must not act on the same day twice (V15.26)
+        self._last_recruitment_check_day = context.day_number
+
+        if (self.pending_applicants_day is not None
+                and context.day_number >= self.pending_applicants_day
+                and self._names is not None and self._allocator is not None):
+            self.pending_applicants_day = None
+            self.refresh_applicants(context.rng, self._names, self._allocator,
+                                    context.day_number)
+            for callback in list(self.on_applicants_arrived):
+                callback()
+            if self.automation_allowed and self.auto_recruit_enabled:
+                self._auto_hire(context.day_number)
+
+        if (self.automation_allowed and self.auto_recruit_enabled
+                and self.pending_applicants_day is None and not self.is_full):
+            self.request_applicants(context.day_number)
+
+    def _auto_hire(self, day: int) -> None:
+        """Hire every waiting applicant who meets the player's own bar.
+
+        Calls the exact :meth:`hire` the "Hire" button calls — never a
+        parallel path that could hire someone manual hiring would refuse.
+        """
+        for applicant in list(self.applicants):
+            if self.is_full:
+                break
+            if applicant.overall_skill >= self.auto_recruit_minimum_skill:
+                self.hire(applicant, day)
 
     def work_day(self, context: SimulationContext) -> None:
         """Advance training and let everyone work for a day."""
@@ -343,6 +454,13 @@ class EmployeeRoster:
             "recruitment_tier": self.recruitment_tier,
             "strengths_visible": self.strengths_visible,
             "last_worked_day": self._last_worked_day,
+            # automation_allowed is re-derived from the Unlock Tree on load
+            # (UnlockEffects), the same as every other unlock-driven flag
+            # here, so only the player's own choices and the in-flight wait
+            # need saving.
+            "pending_applicants_day": self.pending_applicants_day,
+            "auto_recruit_enabled": self.auto_recruit_enabled,
+            "auto_recruit_minimum_skill": self.auto_recruit_minimum_skill,
         }
 
     def restore(self, data: dict) -> None:
@@ -351,3 +469,9 @@ class EmployeeRoster:
         self.recruitment_tier = int(data.get("recruitment_tier", 0))
         self.strengths_visible = bool(data.get("strengths_visible", False))
         self._last_worked_day = data.get("last_worked_day")
+        self.pending_applicants_day = data.get("pending_applicants_day")
+        self.auto_recruit_enabled = bool(data.get("auto_recruit_enabled", False))
+        self.auto_recruit_minimum_skill = int(data.get(
+            "auto_recruit_minimum_skill",
+            self.config.get_int("employees.auto_recruit_default_minimum_skill"),
+        ))

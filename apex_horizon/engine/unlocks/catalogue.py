@@ -62,6 +62,7 @@ BETTER_RECRUITMENT = "better_recruitment"
 MORE_APPLICANTS = "more_applicants"
 EMPLOYEE_STRENGTHS = "employee_strengths"
 EMPLOYEE_PERFORMANCE = "employee_performance"
+AUTOMATED_RECRUITMENT = "automated_recruitment"
 
 # -- the final unlock (V6.8) ----------------------------------------------
 INVESTMENT_FUNDS = "investment_funds"
@@ -249,6 +250,13 @@ UNLOCKS: tuple[Unlock, ...] = (
         position=3,
         description="Performance statistics for everyone you employ.",
         requires=(EMPLOYEE_STRENGTHS,), cost_tier=5,
+    ),
+    Unlock(
+        key=AUTOMATED_RECRUITMENT, name="Automated Recruitment", branch=RECRUITMENT_BRANCH,
+        position=4,
+        description="Let the company screen and hire candidates on its own, "
+                    "to criteria you set. Manual hiring still works exactly as before.",
+        requires=(EMPLOYEE_PERFORMANCE,), cost_tier=6,
     ),
 
     # -- the final unlock (V6.8) ------------------------------------------

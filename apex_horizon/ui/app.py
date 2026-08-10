@@ -253,6 +253,19 @@ class GameApp:
         if company.funds is not None:
             company.funds.on_created.append(statistics.record_fund)
             company.funds.on_created.append(self._observe_fund)
+        self._observe_recruitment(company)
+
+    def _observe_recruitment(self, company) -> None:
+        """Say so once a requested pool of applicants actually arrives.
+
+        A separate hook from :meth:`_observe_company` so it can also be
+        called after loading a save, where there is no fresh founding to
+        attach the rest of that method's statistics wiring to.
+        """
+        company.employees.on_applicants_arrived.append(self._on_applicants_arrived)
+
+    def _on_applicants_arrived(self) -> None:
+        self.notifications.push("New applicants are ready to review.", pygame.time.get_ticks())
 
     def _observe_fund(self, fund) -> None:
         """Count the fees a newly opened fund goes on to pay (V28.7)."""
@@ -453,10 +466,9 @@ class GameApp:
         if roster is None:
             return
         if page.take_recruit_request():
-            roster.refresh_applicants(
-                self.context.engine.rng, self.context.names,
-                self.context.allocator, self.context.engine.date.day,
-            )
+            # Applicants are not instant (V5.26): this schedules the pool
+            # rather than drawing one immediately.
+            roster.request_applicants(self.context.engine.date.day)
             self.saves.mark_changed()
         applicant_id = page.take_hire_request()
         if applicant_id:
@@ -466,6 +478,16 @@ class GameApp:
                 self.notifications.push(message, pygame.time.get_ticks(), emphasis=not ok)
                 if ok:
                     self.saves.mark_changed()
+        if page.take_automation_toggle_request():
+            ok, message = roster.set_automation(
+                not roster.auto_recruit_enabled, roster.auto_recruit_minimum_skill,
+                self.context.engine.date.day,
+            )
+            self.notifications.push(message, pygame.time.get_ticks(), emphasis=not ok)
+            if ok:
+                self.saves.mark_changed()
+        if page.take_criteria_request():
+            self._prompt_automation_criteria(roster)
 
     def _handle_employee_detail(self, page) -> None:
         """Assignment, training, pay and dismissal (V5.5, V5.9, V5.11)."""
@@ -684,6 +706,40 @@ class GameApp:
 
         self.popups.open(popup, on_choice)
 
+    def _prompt_automation_criteria(self, roster) -> None:
+        """Set the minimum skill Automated Recruitment hires to (V5.26).
+
+        The player's own bar, not a hidden one — automation hires exactly
+        who this number says and no one else.
+        """
+        popup = PromptPopup(
+            title="Automated Recruitment criteria",
+            message="Hire any candidate whose overall skill is at least:",
+            placeholder="Minimum skill",
+            text=str(roster.auto_recruit_minimum_skill),
+            max_length=4,
+            actions=[PopupAction("cancel", "Cancel"),
+                     PopupAction("set", "Set", primary=True)],
+        )
+
+        def on_choice(choice: str) -> None:
+            if choice != "set":
+                return
+            try:
+                minimum_skill = int(popup.text.strip())
+            except ValueError:
+                self.notifications.push("Enter a whole number.", pygame.time.get_ticks(),
+                                        emphasis=True)
+                return
+            ok, message = roster.set_automation(
+                roster.auto_recruit_enabled, minimum_skill, self.context.engine.date.day,
+            )
+            self.notifications.push(message, pygame.time.get_ticks(), emphasis=not ok)
+            if ok:
+                self.saves.mark_changed()
+
+        self.popups.open(popup, on_choice)
+
     def _prompt_unlock(self, key: str) -> None:
         """Buy an unlock with personal cash (V6.2)."""
         player = self.context.player
@@ -806,6 +862,8 @@ class GameApp:
         market_page.table.page = 0
         # The loaded world is not the one a scheduled jump was counting through.
         self.dev_commands.pending_days = 0
+        if self.context.player.company is not None:
+            self._observe_recruitment(self.context.player.company)
         self.navigate("dashboard")
         # A loaded game starts its own session; back/forward should not be able
         # to retrace pages visited before this load ever happened.

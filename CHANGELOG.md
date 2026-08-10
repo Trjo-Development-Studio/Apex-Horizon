@@ -11,6 +11,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Applicants take a few real simulated days to arrive, rather than
+  appearing the instant "Find candidates" is clicked**, and the company can
+  earn the right to screen and hire them on its own. Clicking "Find
+  candidates" now schedules a pool (`employees.recruitment_delay_days`,
+  4 by default) instead of drawing one immediately, and any candidates
+  already waiting stay fully hireable while the new pool is on its way. A
+  new unlock, **Automated Recruitment**, closes out the Recruitment branch:
+  once bought, the Employees page offers an on/off toggle and a minimum-skill
+  criterion, and while it's on the company keeps requesting and hiring
+  candidates to that bar entirely on its own — through the exact same
+  `hire()`/`refresh_applicants()` a manual click uses, never a separate or
+  hidden hiring path, and manual hiring keeps working unchanged whether
+  automation is on or not.
 - **The mouse side buttons navigate back and forward**, the way they do in a
   browser. Every existing way of moving between pages — the sidebar, the
   breadcrumb, drilling into a row, a popup redirecting after an action —

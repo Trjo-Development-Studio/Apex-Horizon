@@ -172,6 +172,17 @@ class InvestmentCompany:
 
         self.funds = FundBook(self, allocator=allocator, config=self.config)
         self.funds.attach_market(market)
+        # The roster needs a name generator and id allocator of its own to
+        # draw a pool from inside a registered daily phase (a delayed or
+        # automated recruitment refresh), not only from a UI click that
+        # happens to have both in scope. The market's own generator already
+        # carries a name generator, so nothing new needs passing through
+        # every attach_market call site — only tests that simulate a market
+        # in isolation, with no generator, leave this unset, and those never
+        # exercise recruitment scheduling anyway.
+        names = getattr(market.generator, "names", None)
+        if allocator is not None and names is not None:
+            self.employees.attach_recruitment_sources(names, allocator)
         return self.investments
 
     # -- simulation --------------------------------------------------------

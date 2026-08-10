@@ -1637,6 +1637,92 @@ def test_hiring_dispatch_marks_the_game_as_having_unsaved_changes(app):
     assert any(employee.id == applicant.id for employee in roster.employees)
 
 
+# -- recruitment pacing and automation, through the real UI (2026-08-10) --
+
+
+def _found_company_with_market(app):
+    """A company with a real market attached, so recruitment scheduling has
+    the name generator and id allocator it needs (attach_recruitment_sources
+    is wired inside attach_market)."""
+    app.context.player.cash = Money(60_000)
+    app.context.player.unlocks.unlock(CREATE_COMPANY)
+    company, message = app.context.player.found_company("Test Capital", 1)
+    assert company is not None, message
+    company.attach_market(app.context.market, app.context.allocator)
+    company.register(app.context.engine)
+    # The real founding flow wires this through _observe_company; founding
+    # directly here, as every other employee test in this module does,
+    # bypasses that popup-driven path, so it is wired explicitly instead.
+    app._observe_recruitment(company)
+    return company, company.employees
+
+
+def test_clicking_find_candidates_schedules_a_wait_rather_than_instant_candidates(app):
+    _, roster = _found_company_with_market(app)
+    page = app.pages["company:employees"]
+    app.navigate("company:employees")
+    app.draw(0)
+
+    pos = page.recruit_button.rect.center if page.recruit_button.rect.width else (
+        app.surface.get_width() - 100, 300)
+    page.handle_event(click(pos))
+    app.draw(16)
+    page.handle_event(release(pos))
+    app._collect_page_requests()
+
+    assert roster.pending_applicants_day is not None
+    assert roster.applicants == []
+
+
+def test_the_arriving_message_and_disabled_button_show_while_pending(app):
+    _, roster = _found_company_with_market(app)
+    roster.request_applicants(app.context.engine.date.day)
+    page = app.pages["company:employees"]
+    app.navigate("company:employees")
+    app.draw(0)
+    assert not page.recruit_button.enabled
+
+
+def test_an_arrival_notification_is_pushed_through_the_real_engine(app):
+    _, roster = _found_company_with_market(app)
+    roster.request_applicants(app.context.engine.date.day)
+    delay = roster.config.get_int("employees.recruitment_delay_days")
+    app.notifications.items.clear()
+
+    app.context.engine.run_days(delay + 1)
+
+    assert roster.applicants, "the pool should have arrived"
+    assert any("applicant" in item.text.lower() for item in app.notifications.items)
+
+
+def test_automation_controls_stay_hidden_until_unlocked(app):
+    _, roster = _found_company_with_market(app)
+    assert not roster.automation_allowed
+    page = app.pages["company:employees"]
+    app.navigate("company:employees")
+    app.draw(0)
+    # Nothing to click: the controls are not drawn at all pre-unlock, so their
+    # rects stay at the Button() default rather than a real position.
+    assert page.automation_button.rect.width == 0
+
+
+def test_automation_toggle_flows_through_the_real_dispatcher(app):
+    _, roster = _found_company_with_market(app)
+    roster.automation_allowed = True
+    page = app.pages["company:employees"]
+    app.navigate("company:employees")
+    app.draw(0)
+    assert page.automation_button.rect.width > 0, "unlocked, so it must be drawn"
+
+    pos = page.automation_button.rect.center
+    page.handle_event(click(pos))
+    app.draw(16)
+    page.handle_event(release(pos))
+    app._collect_page_requests()
+
+    assert roster.auto_recruit_enabled is True
+
+
 # -- a bankrupt company is not operational (bug fix, 2026-08-09) -----------
 #
 # has_company already meant "a company exists and is not bankrupt", but most

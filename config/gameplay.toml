@@ -153,6 +153,13 @@ training_default_days = 10
 applicant_pool_size = 5
 reputation_quality_weight = 0.5
 
+# A requested pool of applicants is not instant (V5.26: co-workers, not a
+# vending machine) - it arrives after this many simulated days. Automated
+# Recruitment, once unlocked, hires to this default minimum skill until the
+# player changes it.
+recruitment_delay_days = 4
+auto_recruit_default_minimum_skill = 10
+
 [investments]
 # The workflow of V8.3: research discovers, management approves, an investor
 # executes, the position is held, and the investor eventually sells. Each stage
