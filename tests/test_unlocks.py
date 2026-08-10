@@ -303,6 +303,11 @@ class FakeFunds:
         self.unlocked = False
 
 
+class FakeSubsidiaries:
+    def __init__(self):
+        self.unlocked = False
+
+
 class FakeCompany:
     def __init__(self):
         self.level = 1
@@ -310,6 +315,7 @@ class FakeCompany:
         self.finance_tier = 0
         self.employees = FakeRoster()
         self.funds = FakeFunds()
+        self.subsidiaries = FakeSubsidiaries()
         self.max_level = 5
 
     def set_level(self, level):
@@ -343,6 +349,7 @@ class FakeContext:
             vars(self.analytics).copy(),
             company.level, company.borrowing_allowed, company.finance_tier,
             company.funds.unlocked,
+            company.subsidiaries.unlocked,
             vars(company.employees).copy(),
         )
 

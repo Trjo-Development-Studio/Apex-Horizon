@@ -22,7 +22,7 @@ def _shared_calendar():
     set_calendar(None)
 
 
-def build(capital: int = 200_000_000, level: int = 3):
+def build(capital: int = 200_000_000, level: int = 3, unlocked: bool = True):
     world, allocator, _ = generate_world(2026)
     economy = EconomySystem()
     market = MarketSystem(world, economy=economy)
@@ -40,6 +40,7 @@ def build(capital: int = 200_000_000, level: int = 3):
     company.attach_market(market, allocator)
     company.register(engine)
     company.set_level(level)
+    company.subsidiaries.unlocked = unlocked
     player.transfer_to_company(Money(capital), 1)
     return player, company, market, world, engine
 
@@ -137,6 +138,40 @@ def test_acquisitions_require_a_grown_company():
 
     assert not allowed
     assert "Company Level" in reason
+
+
+def test_acquisitions_require_subsidiaries_to_be_unlocked():
+    """Subsidiaries, one unlock past Investment Funds (project manager
+    ruling, 2026-08-10): a locked company cannot acquire, however grown."""
+    _, company, market, world, _ = build(unlocked=False)
+    target = cheapest(market, world)
+
+    allowed, reason = book(company).can_acquire(target)
+
+    assert not allowed
+    assert "unlock" in reason.lower()
+    subsidiary, _ = book(company).acquire(target, day=1)
+    assert subsidiary is None
+
+
+def test_a_subsidiary_owned_before_the_unlock_stays_owned():
+    """Grandfathered: unlocked only gates new acquisitions, never what is
+    already owned — an old save must not lose or freeze existing income."""
+    _, company, market, world, _ = build()
+    target = cheapest(market, world)
+    subsidiary, message = book(company).acquire(target, day=1)
+    assert subsidiary is not None, message
+
+    # The unlock is later revoked (e.g. an old save with the flag defaulting
+    # False), the way it would for anyone who owned subsidiaries before this
+    # system existed.
+    book(company).unlocked = False
+
+    assert book(company).owns(target)
+    assert book(company).total_value() == subsidiary.valuation
+    another = next(c for c in market.active_listings() if c.company_id != target)
+    allowed, _ = book(company).can_acquire(another.company_id)
+    assert not allowed, "the gate still blocks a *new* acquisition"
 
 
 def test_a_company_cannot_be_owned_twice():

@@ -189,6 +189,29 @@ def test_ai_companies_survive_a_round_trip():
     assert after == before
 
 
+def test_ai_companies_can_still_acquire_once_subsidiaries_is_a_gated_unlock():
+    """Bug found while gating Subsidiaries behind an unlock (2026-08-10): AI
+    companies never run through the player's Unlock Tree at all, so without
+    an explicit bypass here — the same one training_allowed already gets —
+    every AI company would silently lose the ability to acquire outright the
+    moment the gate existed, contradicting V12.14 (AI organisations expand
+    by acquisition too)."""
+    ai, _, _, _, _ = build()
+    assert all(company.subsidiaries.unlocked for company in ai.companies)
+
+
+def test_the_acquisition_bypass_survives_a_round_trip():
+    ai, market, engine, names, _ = build()
+    engine.run_days(30)
+
+    restored = AICompanies(allocator=ai.allocator)
+    restored.restore(ai.state(), market=market, names=names, rng=Random(1))
+
+    for company in restored.companies:
+        if company.subsidiaries is not None:  # None only for a bankrupt company
+            assert company.subsidiaries.unlocked
+
+
 def test_a_directors_random_stream_is_saved():
     """V15.11: their decisions reach the market, so they must not restart.
 

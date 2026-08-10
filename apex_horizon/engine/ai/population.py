@@ -71,6 +71,12 @@ class AICompanies:
             company.employees.recruitment_tier = self.config.get_int("ai.recruitment_tier")
             company.employees.training_allowed = True
             company.attach_market(market, self.allocator)
+            # AI companies never run through the player's Unlock Tree, so
+            # they bypass it here the same way training already does —
+            # otherwise gating Subsidiaries behind an unlock only the player
+            # can buy would silently stop every AI company from acquiring at
+            # all (V12.14: AI organisations expand by acquisition too).
+            company.subsidiaries.unlocked = True
             self.companies.append(company)
             self.directors[company.id] = AIDirector(
                 company, rng=Random(rng.random()), config=self.config
@@ -153,6 +159,12 @@ class AICompanies:
             company.restore(saved)
             company.employees.risk_bias = float(record.get("risk_bias", 0.0))
             company.employees.training_allowed = True
+            if company.subsidiaries is not None:
+                # Unconditionally True, the same as training_allowed above and
+                # for the same reason: AI companies bypass the Unlock Tree
+                # entirely, so a save from before this unlock existed must not
+                # silently leave them unable to acquire (V12.14).
+                company.subsidiaries.unlocked = True
             director = AIDirector(company, rng=Random(rng.random()), config=self.config)
             director.restore(record.get("director", {}))
             self.companies.append(company)

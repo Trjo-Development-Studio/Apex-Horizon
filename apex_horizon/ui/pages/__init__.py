@@ -16,7 +16,12 @@ from .news import NewsPage
 from .portfolio import PortfolioPage
 from .simple import InvestmentsPage, SettingsPage
 from .statistics import StatisticsPage
-from .subsidiaries import SubsidiariesPage, SubsidiaryDetailPage
+from .subsidiaries import (
+    SubsidiariesBuyPage,
+    SubsidiariesPage,
+    SubsidiaryDetailPage,
+    SubsidiaryPurchaseDetailPage,
+)
 from .unlocks import UnlockTreePage
 
 __all__ = [
@@ -37,7 +42,9 @@ __all__ = [
     "PortfolioPage",
     "SettingsPage",
     "StatisticsPage",
+    "SubsidiariesBuyPage",
     "SubsidiariesPage",
     "SubsidiaryDetailPage",
+    "SubsidiaryPurchaseDetailPage",
     "UnlockTreePage",
 ]

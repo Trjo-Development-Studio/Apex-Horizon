@@ -96,6 +96,12 @@ class SubsidiaryBook:
         self._last_income_day: int | None = None
         #: Called with each company bought, for anything keeping a tally.
         self.on_acquired: list = []
+        #: Earned through the Unlock Tree, one leaf past Investment Funds
+        #: (project manager ruling, 2026-08-10) — a progression link only,
+        #: with no runtime coupling to FundBook. Gates new acquisitions only;
+        #: a subsidiary already owned when this was introduced keeps earning
+        #: exactly as before (see docs/design-decisions.md).
+        self.unlocked: bool = False
 
         # Subsidiaries count toward company value (V12.11, V17.12) without the
         # finances module needing to know what a subsidiary is (V15.7).
@@ -145,6 +151,11 @@ class SubsidiaryBook:
 
     def can_acquire(self, company_id: str) -> tuple[bool, str]:
         """Whether this company may be bought now, and why not if not."""
+        if not self.unlocked:
+            return False, (
+                "Subsidiaries must be unlocked before the company can acquire "
+                "another one outright."
+            )
         if self.company.bankrupt:
             return False, "A bankrupt company cannot acquire anything."
         record = self.world.company_by_id(company_id)
@@ -266,6 +277,7 @@ class SubsidiaryBook:
         return {
             "subsidiaries": [s.state() for s in self.subsidiaries],
             "last_income_day": self._last_income_day,
+            "unlocked": self.unlocked,
         }
 
     def restore(self, data: dict) -> None:
@@ -273,3 +285,4 @@ class SubsidiaryBook:
             Subsidiary.from_state(item) for item in data.get("subsidiaries", [])
         ]
         self._last_income_day = data.get("last_income_day")
+        self.unlocked = bool(data.get("unlocked", False))

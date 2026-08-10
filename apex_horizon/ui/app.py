@@ -56,8 +56,10 @@ from .pages import (
     NewsPage,
     PortfolioPage,
     SettingsPage,
+    SubsidiariesBuyPage,
     SubsidiariesPage,
     SubsidiaryDetailPage,
+    SubsidiaryPurchaseDetailPage,
     UnlockTreePage,
 )
 from .popups import Popup, PopupAction, PopupManager, PromptPopup
@@ -107,6 +109,7 @@ class GameApp:
         market_page = MarketPage(self.context)
         employees_page = EmployeesPage(self.context)
         subsidiaries_page = SubsidiariesPage(self.context)
+        subsidiaries_buy_page = SubsidiariesBuyPage(self.context, subsidiaries_page)
         funds_page = FundsPage(self.context)
         self.pages = {
             "dashboard": DashboardPage(self.context),
@@ -115,6 +118,9 @@ class GameApp:
             "company:employee": EmployeeDetailPage(self.context, employees_page),
             "company:subsidiaries": subsidiaries_page,
             "company:subsidiary": SubsidiaryDetailPage(self.context, subsidiaries_page),
+            "company:subsidiaries:buy": subsidiaries_buy_page,
+            "company:subsidiaries:buy:company": SubsidiaryPurchaseDetailPage(
+                self.context, subsidiaries_buy_page),
             "company:funds": funds_page,
             "company:fund": FundDetailPage(self.context, funds_page),
             "portfolio": PortfolioPage(self.context),
@@ -437,6 +443,9 @@ class GameApp:
             trade = page.take_trade_request()
             if trade:
                 self._prompt_trade(*trade)
+        if isinstance(page, SubsidiariesPage) and page.take_buy_request():
+            self.navigate("company:subsidiaries:buy")
+        if isinstance(page, SubsidiaryPurchaseDetailPage):
             target = page.take_acquire_request()
             if target:
                 self._prompt_acquire(target)

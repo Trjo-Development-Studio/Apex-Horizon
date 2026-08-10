@@ -66,6 +66,7 @@ AUTOMATED_RECRUITMENT = "automated_recruitment"
 
 # -- the final unlock (V6.8) ----------------------------------------------
 INVESTMENT_FUNDS = "investment_funds"
+SUBSIDIARIES = "subsidiaries"
 
 #: Branch identifiers, used only for laying the tree out (V6.10).
 PRIMARY = "primary"
@@ -268,5 +269,14 @@ UNLOCKS: tuple[Unlock, ...] = (
             BETTER_TRAINING_3, EMPLOYEE_PERFORMANCE, BREAKING_NEWS,
         ),
         cost_tier=6,
+    ),
+    # A progression-only link, not a functional one (project manager ruling,
+    # 2026-08-10): Subsidiaries and Investment Funds remain independent
+    # systems at runtime (V12.15's own growth-stage gate is unaffected), this
+    # only places Subsidiaries as a second, later capstone in the tree.
+    Unlock(
+        key=SUBSIDIARIES, name="Subsidiaries", branch=FINAL, position=1,
+        description="Acquire other companies outright and build a group.",
+        requires=(INVESTMENT_FUNDS,), cost_tier=6,
     ),
 )

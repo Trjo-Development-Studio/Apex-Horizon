@@ -93,6 +93,10 @@ class UnlockEffects:
         # The final unlock opens institutional capital (V11.3, V6.8).
         if company.funds is not None:
             company.funds.unlocked = self.tree.has(c.INVESTMENT_FUNDS)
+        # Subsidiaries, one unlock past Investment Funds (project manager
+        # ruling, 2026-08-10) — see the Subsidiaries catalogue entry.
+        if company.subsidiaries is not None:
+            company.subsidiaries.unlocked = self.tree.has(c.SUBSIDIARIES)
 
     # -- Employee, Training and Recruitment branches (V6.7.2, .4, .5) -----
     def _apply_employees(self, roster) -> None:

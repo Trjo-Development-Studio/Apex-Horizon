@@ -312,6 +312,30 @@ made it look otherwise. Optimising any subsystem before that measurement exists
 would be guessing at the cost of correctness risk for a problem that has not
 been located, let alone confirmed.
 
+## Subsidiaries as a progression gate (PM, 2026-08-10)
+
+Subsidiaries — previously gated only by Company Level (V12.15) — now also
+requires a new unlock, **Subsidiaries**, one leaf past Investment Funds on
+the `FINAL` branch of the Unlock Tree. Buying moved from the Market page to
+a dedicated Company → Subsidiaries → Buy flow at the same time.
+
+This is a **progression-only** link, not a functional one: `SubsidiaryBook`
+and `FundBook` remain completely independent at runtime — neither reads the
+other, and V12.15's own growth-stage gate (company level) is unchanged. The
+new unlock only adds an edge in the tree; it does not make Subsidiaries
+depend on Funds functioning, and does not change how either system earns or
+pays out. Existing saves are grandfathered: the unlock only gates *new*
+acquisitions, so a company that already owned subsidiaries before this
+shipped keeps them, and keeps earning from them, whether or not the new
+unlock has been bought.
+
+AI companies bypass this gate unconditionally, at population time and on
+save load, the same way they already bypass the Unlock Tree for Employee
+Training — they never purchase unlocks, so gating acquisitions behind one
+without a bypass would have silently stopped every AI company in the game
+from ever acquiring again (V12.14: AI organisations expand by acquisition
+too).
+
 ## Content and assets
 
 | Decision | Detail |

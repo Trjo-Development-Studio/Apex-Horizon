@@ -2061,3 +2061,145 @@ def test_refounding_restores_full_operation(app):
     for key in list(app.pages):
         app.navigate(key)
         app.draw(0)
+
+
+# -- Subsidiaries: unlock gate and the Buy flow (2026-08-10) ---------------
+#
+# Buying moves to Company -> Subsidiaries -> Buy; the Market page's old
+# Acquire button is gone. Subsidiaries itself is gated behind a new unlock,
+# one leaf past Investment Funds, with existing subsidiaries grandfathered.
+
+
+def _found_company_for_acquisitions(app, cash: int = 2_000_000_000):
+    app.context.player.cash = Money(cash)
+    app.context.player.unlocks.unlock(CREATE_COMPANY)
+    company, message = app.context.player.found_company("Acquirer Capital", 1)
+    assert company is not None, message
+    company.attach_market(app.context.market, app.context.allocator)
+    company.register(app.context.engine)
+    company.receive_capital(app.context.engine.date.day, Money(cash))
+    # Acquisitions require Company Level 2 (acquisitions.minimum_company_level).
+    company.set_level(3)
+    return company
+
+
+def test_the_market_page_no_longer_offers_an_acquire_button(app):
+    """Buying outright moved to Company -> Subsidiaries -> Buy; the Market
+    page's company detail must not carry the old flow's remnants."""
+    page = app.pages["market:company"]
+    assert not hasattr(page, "acquire_button")
+    assert not hasattr(page, "acquire_request")
+    assert not hasattr(page, "take_acquire_request")
+
+
+def test_subsidiaries_page_offers_no_buy_action_while_locked(app):
+    company = _found_company_for_acquisitions(app)
+    assert company.subsidiaries.unlocked is False
+    page = app.pages["company:subsidiaries"]
+    app.navigate("company:subsidiaries")
+    app.draw(0)
+    # The button exists but must never be reachable while locked.
+    page.buy_button.handle_event(click((1, 1)))
+    assert not page.requested_buy
+
+
+def test_buy_button_navigates_to_the_buy_page_through_the_real_dispatcher(app):
+    company = _found_company_for_acquisitions(app)
+    company.subsidiaries.unlocked = True
+    page = app.pages["company:subsidiaries"]
+    app.navigate("company:subsidiaries")
+    app.draw(0)
+
+    pos = page.buy_button.rect.center
+    page.handle_event(click(pos))
+    app.draw(16)
+    page.handle_event(release(pos))
+    app._collect_page_requests()
+
+    assert app.current_key == "company:subsidiaries:buy"
+
+
+def test_the_buy_page_lists_acquirable_companies_and_excludes_the_players_own(app):
+    company = _found_company_for_acquisitions(app)
+    company.subsidiaries.unlocked = True
+    page = app.pages["company:subsidiaries:buy"]
+    rows = page.rows()
+    assert rows, "the market should offer something to acquire"
+    assert all(row["id"] != company.id for row in rows)
+
+
+def test_selecting_a_row_opens_the_purchase_detail_page(app):
+    company = _found_company_for_acquisitions(app)
+    company.subsidiaries.unlocked = True
+    buy_page = app.pages["company:subsidiaries:buy"]
+    app.navigate("company:subsidiaries:buy")
+    app.draw(0)
+    row_rect, row = next(iter(buy_page.table._row_rects))
+
+    buy_page.handle_event(click(row_rect.center))
+    app._collect_page_requests()
+
+    assert app.current_key == "company:subsidiaries:buy:company"
+    assert buy_page.selected_company_id == row["id"]
+
+
+def test_the_acquire_button_is_enabled_for_a_companys_very_first_acquisition(app):
+    """Bug fix, 2026-08-10: SubsidiaryBook defines __len__, so `if book:`
+    reads a company with zero subsidiaries so far — exactly a first-time
+    buyer's position — as falsy and silently disabled the button. Must use
+    `is not None`."""
+    company = _found_company_for_acquisitions(app)
+    company.subsidiaries.unlocked = True
+    assert len(company.subsidiaries) == 0
+    buy_page = app.pages["company:subsidiaries:buy"]
+    target_id = buy_page.rows()[0]["id"]
+    detail_page = app.pages["company:subsidiaries:buy:company"]
+    buy_page.selected_company_id = target_id
+    app.navigate("company:subsidiaries:buy:company")
+
+    app.draw(0)
+
+    assert detail_page.acquire_button.enabled is True
+
+
+def test_clicking_acquire_buys_the_company_through_the_real_dispatcher(app):
+    company = _found_company_for_acquisitions(app)
+    company.subsidiaries.unlocked = True
+    buy_page = app.pages["company:subsidiaries:buy"]
+    target_id = buy_page.rows()[0]["id"]
+    buy_page.selected_company_id = target_id
+    app.navigate("company:subsidiaries:buy:company")
+    app.draw(0)
+    detail_page = app.pages["company:subsidiaries:buy:company"]
+
+    pos = detail_page.acquire_button.rect.center
+    detail_page.handle_event(click(pos))
+    app.draw(16)
+    detail_page.handle_event(release(pos))
+    app._collect_page_requests()
+    assert app.popups.is_open
+    app.popups.current.chosen = "acquire"
+    app.popups.handle_event(pygame.event.Event(pygame.USEREVENT))
+
+    assert company.subsidiaries.owns(target_id)
+    assert app.current_key == "company:subsidiaries"
+
+
+def test_a_subsidiary_bought_before_the_unlock_stays_owned_and_visible(app):
+    """Grandfathered: a subsidiary already owned must keep showing and
+    earning even if the unlock is later found missing (e.g. an old save)."""
+    company = _found_company_for_acquisitions(app)
+    company.subsidiaries.unlocked = True
+    target_id = app.pages["company:subsidiaries:buy"].rows()[0]["id"]
+    subsidiary, message = company.subsidiaries.acquire(target_id, app.context.engine.date.day)
+    assert subsidiary is not None, message
+
+    company.subsidiaries.unlocked = False  # as an old save would restore it
+
+    page = app.pages["company:subsidiaries"]
+    assert target_id in {row["id"] for row in page.rows()}
+    allowed, _ = company.subsidiaries.can_acquire(
+        next(r["id"] for r in app.pages["company:subsidiaries:buy"].rows()
+            if r["id"] != target_id)
+    )
+    assert not allowed, "the gate still blocks a genuinely new acquisition"

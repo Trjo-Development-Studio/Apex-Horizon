@@ -156,18 +156,11 @@ class CompanyDetailPage(Page):
         self.market_page = market_page
         self.buy_button = Button("Buy", primary=True)
         self.sell_button = Button("Sell")
-        self.acquire_button = Button("Acquire")
-        #: Set when the player asks to buy this company outright (V12.4).
-        self.acquire_request: str | None = None
         #: Set to ("buy"|"sell", company_id) when the player asks to trade.
         self.trade_request: tuple[str, str] | None = None
 
     def take_trade_request(self) -> tuple[str, str] | None:
         request, self.trade_request = self.trade_request, None
-        return request
-
-    def take_acquire_request(self) -> str | None:
-        request, self.acquire_request = self.acquire_request, None
         return request
 
     def handle_event(self, event) -> bool:
@@ -181,10 +174,6 @@ class CompanyDetailPage(Page):
         if self.sell_button.enabled and self.sell_button.handle_event(event) \
                 and self.sell_button.take_click():
             self.trade_request = ("sell", company.id)
-            return True
-        if self.acquire_button.enabled and self.acquire_button.handle_event(event) \
-                and self.acquire_button.take_click():
-            self.acquire_request = company.id
             return True
         return super().handle_event(event)
 
@@ -368,24 +357,9 @@ class CompanyDetailPage(Page):
                              fonts, mouse)
         self.sell_button.draw(surface, pygame.Rect(rect.right - 104, rect.top + 56, 84, 34),
                               fonts, mouse)
-
-        # Buying the whole company is a different decision from buying shares
-        # (V12.12), so it sits here beside them rather than on another screen.
-        book = getattr(self.context.company, "subsidiaries", None)
-        if book is None:
-            self.acquire_button.enabled = False
-            return
-        price = book.price_of(listing.company_id)
-        allowed, _ = book.can_acquire(listing.company_id)
-        self.acquire_button.enabled = allowed
-        if price is not None:
-            draw_text(surface, fonts.small,
-                      f"Acquire outright: {price.format(decimals=0)}",
-                      (rect.right - 200, rect.bottom - 30), theme.TEXT_FAINT,
-                      align="right")
-        self.acquire_button.draw(
-            surface, pygame.Rect(rect.right - 104, rect.bottom - 40, 84, 30), fonts, mouse
-        )
+        # Buying the whole company outright is a different decision from
+        # buying shares (V12.12) and lives at Company -> Subsidiaries -> Buy
+        # instead, not here beside them (project manager ruling, 2026-08-10).
 
 
 def _period_card(title: str, change, note: str, missing: str) -> Card:

@@ -11,6 +11,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Buying a company outright moved to Company → Subsidiaries → Buy, and
+  Subsidiaries is now its own unlock**, one leaf past Investment Funds
+  (project manager ruling). The Market page's Acquire button is gone —
+  Company → Subsidiaries now has its own "Buy a company" flow, listing
+  every acquirable company and opening a purchase page (facts, price
+  history, cost, one Acquire button) that calls the same
+  `SubsidiaryBook.acquire()` the old Market button called; nothing about
+  the acquisition itself changed, only where it's reached. The gate applies
+  only to *new* acquisitions — a subsidiary already owned keeps earning
+  income exactly as before, unaffected by whether the unlock is present.
+  AI companies bypass the gate entirely, the same way they already bypass
+  the Unlock Tree for training, since they never purchase unlocks.
 - **Employee Management gained department tabs, filters, and a Performance
   figure.** Company → Employees now shows a tab per department (built
   generically off the Department enum, so a future department needs no UI
