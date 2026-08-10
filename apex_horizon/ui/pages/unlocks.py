@@ -36,92 +36,27 @@ from __future__ import annotations
 
 import pygame
 
-from ...engine.unlocks import (
-    ANALYTICS_BRANCH,
-    COMPANY_BRANCH,
-    EMPLOYEE_BRANCH,
-    FINAL,
-    FINANCE_BRANCH,
-    NEWS_BRANCH,
-    PRIMARY,
-    RECRUITMENT_BRANCH,
-    TRAINING_BRANCH,
-)
 from .. import theme
 from ..widgets import Button, Card, draw_text, panel, truncate
 from .base import Page
-
-NODE_WIDTH = 168
-NODE_HEIGHT = 78
-COLUMN_STEP = 208
-ROW_STEP = 96
-PAN_STEP = 60
-#: A fixed strip on the left holding branch names, which never scrolls or
-#: scales with zoom — it is chrome, not part of the map.
-GUTTER_WIDTH = 104
-#: A fixed strip on the right showing whatever node is selected.
-INFO_PANEL_WIDTH = 260
-
-#: Discrete zoom presets, applied uniformly to every dimension of the map.
-ZOOM_LEVELS: tuple[float, ...] = (0.75, 1.0, 1.4)
-DEFAULT_ZOOM_INDEX = 1
-#: Movement, in pixels, below which a mouse-down/up is a click rather than a
-#: drag — a real drag rarely holds perfectly still, and a real click rarely
-#: drifts this far.
-CLICK_TOLERANCE = 6
-
-#: Row for each branch, and the column its first node sits in.
-#:
-#: Laid out to match the roadmap reference kept with the legacy prototype
-#: (`docs/Unlock tree layout example.png` there — layout only; colours and
-#: styling stay governed by Design Bible 2.0). Its organising idea is a single
-#: horizontal spine straight through the middle — Basic Investing, Create
-#: Company, the Company Levels, and Investment Funds where everything
-#: converges (V6.5, V6.8) — with branches fanning symmetrically above and
-#: below it, rather than the spine sitting near the top with every branch
-#: hanging beneath. Analytics and News sit outermost because they are the two
-#: that come straight off Basic Investing rather than off a company; the four
-#: Company Level 2 branches sit nearest the spine they depend on.
-LAYOUT: dict[str, tuple[int, int]] = {
-    ANALYTICS_BRANCH: (-3, 1),
-    FINANCE_BRANCH: (-2, 3),
-    EMPLOYEE_BRANCH: (-1, 3),
-    #: The spine: three branches sharing one row, in adjoining column ranges
-    #: (0-1, 2-6, 8) so they read as one continuous line left to right.
-    PRIMARY: (0, 0),
-    COMPANY_BRANCH: (0, 2),
-    FINAL: (0, 8),
-    TRAINING_BRANCH: (1, 3),
-    RECRUITMENT_BRANCH: (2, 3),
-    NEWS_BRANCH: (3, 1),
-}
-
-BRANCH_LABELS = {
-    ANALYTICS_BRANCH: "Analytics",
-    NEWS_BRANCH: "News",
-    FINANCE_BRANCH: "Finance",
-    EMPLOYEE_BRANCH: "Employees",
-    COMPANY_BRANCH: "Company",
-    TRAINING_BRANCH: "Training",
-    RECRUITMENT_BRANCH: "Recruitment",
-}
+from .unlocks_layout import (
+    BRANCH_LABELS,
+    CLICK_TOLERANCE,
+    COLUMN_STEP,
+    DEFAULT_ZOOM_INDEX,
+    GUTTER_WIDTH,
+    INFO_PANEL_WIDTH,
+    LAYOUT,
+    NODE_HEIGHT,
+    NODE_WIDTH,
+    PAN_STEP,
+    ROW_STEP,
+    ZOOM_LEVELS,
+)
+from .unlocks_panel import InfoPanelMixin
 
 
-def _wrap(surface, font, text, rect, colour) -> None:
-    words, line, y = str(text).split(), "", rect.top
-    for word in words:
-        candidate = f"{line} {word}".strip()
-        if font.size(candidate)[0] <= rect.width or not line:
-            line = candidate
-            continue
-        draw_text(surface, font, line, (rect.left, y), colour)
-        y += font.get_height() + 3
-        line = word
-    if line:
-        draw_text(surface, font, line, (rect.left, y), colour)
-
-
-class UnlockTreePage(Page):
+class UnlockTreePage(InfoPanelMixin, Page):
     """The player's map of their own future (V6.14)."""
 
     key = "unlocks"
@@ -472,108 +407,3 @@ class UnlockTreePage(Page):
         button.draw(surface, pygame.Rect(
             rect.right - self._scaled(80), rect.bottom - self._scaled(32),
             self._scaled(68), self._scaled(24)), fonts, mouse)
-
-    def _draw_info_panel(self, surface, rect, fonts, tree) -> None:
-        """What the tree itself knows about the selected unlock (V6.14).
-
-        Deliberately reads Unlock.description/.requires and the tree's own
-        prerequisite/ownership state rather than a second, hand-written
-        summary of the same node that would drift out of sync with the
-        first (bug class avoided: the earlier per-node cards already show
-        cost/status this way; this panel goes further into prerequisites
-        and what a purchase unlocks, still from the same source of truth).
-        """
-        panel(surface, rect)
-        if rect.width < 60 or rect.height < 20:
-            return
-        # Bound-checked against rect.bottom throughout, and clipped besides:
-        # this panel sits directly above the notification stack's reserved
-        # area (V27.7), and a locked unlock can have seven prerequisites to
-        # list — on a short window under a full stack there is no guarantee
-        # all of it fits, and the alternative to stopping early is spilling
-        # into whatever is drawn next (bug fix, 2026-08-10).
-        previous_clip = surface.get_clip()
-        surface.set_clip(rect)
-        unlock = tree.by_key.get(self.selected_key) if self.selected_key else None
-        if unlock is None:
-            if rect.height >= 40:
-                draw_text(surface, fonts.small, "Click a node to see its details.",
-                          (rect.left + 16, rect.top + 20), theme.TEXT_FAINT)
-            surface.set_clip(previous_clip)
-            return
-
-        owned = tree.has(unlock.key)
-        ready = not owned and tree.prerequisites_met(unlock.key) and unlock.implemented
-        y = rect.top + 18
-        if y > rect.bottom - 20:
-            surface.set_clip(previous_clip)
-            return
-        draw_text(surface, fonts.subheading,
-                  truncate(fonts.subheading, unlock.name, rect.width - 32), (rect.left + 16, y))
-        y += 30
-
-        if y <= rect.bottom - 20:
-            _wrap(surface, fonts.small, unlock.description,
-                  pygame.Rect(rect.left + 16, y, rect.width - 32, max(0, rect.bottom - y - 4)),
-                  theme.TEXT_MUTED)
-        y += 70
-
-        if not unlock.implemented:
-            status_label, status_colour = "Not implemented yet", theme.TEXT_FAINT
-        elif owned:
-            status_label, status_colour = "Purchased", theme.POSITIVE
-        elif ready:
-            status_label, status_colour = "Available", theme.ACCENT
-        else:
-            status_label, status_colour = "Locked", theme.NEGATIVE
-        if y <= rect.bottom - 20:
-            draw_text(surface, fonts.small, "Status", (rect.left + 16, y), theme.TEXT_FAINT)
-            draw_text(surface, fonts.small, status_label, (rect.right - 16, y), status_colour,
-                      align="right")
-        y += 26
-
-        if unlock.implemented and not owned and y <= rect.bottom - 20:
-            cost = tree.cost_of(unlock.key)
-            draw_text(surface, fonts.small, "Cost", (rect.left + 16, y), theme.TEXT_FAINT)
-            draw_text(surface, fonts.mono_small, cost.format(decimals=0),
-                      (rect.right - 16, y), theme.TEXT, align="right")
-            y += 26
-
-        if y > rect.bottom - 20:
-            surface.set_clip(previous_clip)
-            return
-        missing = {requirement.key for requirement in tree.missing_prerequisites(unlock.key)}
-        draw_text(surface, fonts.small, "Requires", (rect.left + 16, y), theme.TEXT_FAINT)
-        y += 22
-        if unlock.requires:
-            for requirement_key in unlock.requires:
-                if y > rect.bottom - 22:
-                    break
-                requirement = tree.by_key.get(requirement_key)
-                if requirement is None:
-                    continue
-                met = requirement_key not in missing
-                draw_text(surface, fonts.small, requirement.name, (rect.left + 24, y),
-                          theme.TEXT if met else theme.NEGATIVE)
-                y += 20
-        else:
-            draw_text(surface, fonts.small, "Nothing — a starting point.",
-                      (rect.left + 24, y), theme.TEXT_MUTED)
-            y += 20
-
-        enables = [other for other in tree.all if unlock.key in other.requires]
-        if y <= rect.bottom - 44:
-            y += 8
-            draw_text(surface, fonts.small, "Leads to", (rect.left + 16, y), theme.TEXT_FAINT)
-            y += 22
-            if enables:
-                for other in enables:
-                    if y > rect.bottom - 8:
-                        break
-                    draw_text(surface, fonts.small, other.name, (rect.left + 24, y),
-                              theme.TEXT_MUTED)
-                    y += 20
-            else:
-                draw_text(surface, fonts.small, "Nothing further yet.",
-                          (rect.left + 24, y), theme.TEXT_MUTED)
-        surface.set_clip(previous_clip)

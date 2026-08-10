@@ -9,19 +9,16 @@ from .analytics import AnalyticsPage
 from .base import EmptyStatePage, Page
 from .company import CompanyPage, FinancePage
 from .dashboard import DashboardPage
-from .employees import EmployeeDetailPage, EmployeesPage
+from .employee_detail import EmployeeDetailPage
+from .employees import EmployeesPage
 from .funds import FundDetailPage, FundsPage
 from .market import CompanyDetailPage, MarketPage
 from .news import NewsPage
 from .portfolio import PortfolioPage
 from .simple import InvestmentsPage, SettingsPage
 from .statistics import StatisticsPage
-from .subsidiaries import (
-    SubsidiariesBuyPage,
-    SubsidiariesPage,
-    SubsidiaryDetailPage,
-    SubsidiaryPurchaseDetailPage,
-)
+from .subsidiaries import SubsidiariesPage, SubsidiaryDetailPage
+from .subsidiaries_buy import SubsidiariesBuyPage, SubsidiaryPurchaseDetailPage
 from .unlocks import UnlockTreePage
 
 __all__ = [

@@ -2446,9 +2446,9 @@ def test_the_branches_fan_above_and_below_the_spine(app):
     """The other half of the reference's shape: branches balanced either side
     of the spine, with the two that come straight off Basic Investing rather
     than off a company (Analytics, News) sitting outermost."""
-    from apex_horizon.engine.unlocks import BASIC_INVESTING
-    from apex_horizon.ui.pages.unlocks import (
+    from apex_horizon.engine.unlocks import (
         ANALYTICS_BRANCH,
+        BASIC_INVESTING,
         EMPLOYEE_BRANCH,
         FINANCE_BRANCH,
         NEWS_BRANCH,
