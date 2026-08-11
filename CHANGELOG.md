@@ -167,6 +167,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   directories with their fixtures in a local `conftest.py`, so each family
   keeps its own calendar setup instead of leaking it to every other test.
 
+- **The employee branch runs straight from Create Company.** The structural
+  "Employees" unlock, which did nothing but open the quality levels beneath
+  it, is gone (project manager, 2026-08-11); Better Employees 1 now comes
+  straight off Create Company, and Automated Recruitment closes that branch
+  after Better Employees 3 rather than sitting at the end of Recruitment.
+  Finance, Employee Training and Better Recruitment also start at Create
+  Company rather than Company Level 2, so four branches fan out from one
+  point. The Company Levels themselves still follow each other along the
+  spine. A save written while "Employees" existed drops it on load rather
+  than counting it towards the tree's progress.
+- **The Unlock Tree is a compact, sideways-scrolling map.** It no longer
+  grows the page as the tree grows: the viewport is exactly as tall as the
+  branches need, every one of them is on screen at once, and the tree is
+  drawn at whatever scale makes that fit. Because nothing is ever off the top
+  or bottom, there is no vertical scrolling — the one direction that needs
+  navigating, sideways towards the later unlocks, has a scrollbar of its own
+  beneath the map, alongside dragging, the wheel and the arrow keys. How far
+  it scrolls is measured from where the nodes actually end, so an unlock
+  added further right extends the range on its own. The zoom presets are gone
+  with the vertical panning they existed to serve.
 - **A save game now belongs to one slot for its whole life.** Autosaving used to
   write a separate rolling `autosave` file, which appeared in the Load menu as a
   sixth game the player had never started. Autosaving is now simply saving the

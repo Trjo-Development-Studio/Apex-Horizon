@@ -175,7 +175,13 @@ class UnlockTree:
         return {"unlocked": sorted(self.unlocked)}
 
     def restore(self, data: dict) -> None:
-        self.unlocked = set(data.get("unlocked", []))
+        # Keys the catalogue no longer has are dropped rather than carried
+        # forward (V16.15): an unlock removed from the tree — the structural
+        # "Employees" root, removed 2026-08-11 — must not go on counting
+        # towards "N of M unlocked" in a save written before it went.
+        self.unlocked = {
+            key for key in data.get("unlocked", []) if key in self.by_key
+        }
         # An unlock every player starts with is never absent, even from a save
         # written before it existed (V16.15).
         self.unlocked.update(

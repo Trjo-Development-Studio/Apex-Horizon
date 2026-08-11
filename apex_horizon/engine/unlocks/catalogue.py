@@ -40,7 +40,10 @@ BETTER_FINANCE_2 = "better_finance_2"
 BETTER_FINANCE_3 = "better_finance_3"
 
 # -- Employee branch (V6.7.2, V5) -----------------------------------------
-EMPLOYEES = "employees"
+#: The branch used to open with a structural "Employees" unlock that did
+#: nothing but gate the quality levels beneath it. Removed by the project
+#: manager (2026-08-11): the levels now hang off Create Company directly, and
+#: Automated Recruitment closes the branch instead of the Recruitment one.
 BETTER_EMPLOYEES_1 = "better_employees_1"
 BETTER_EMPLOYEES_2 = "better_employees_2"
 BETTER_EMPLOYEES_3 = "better_employees_3"
@@ -146,7 +149,7 @@ UNLOCKS: tuple[Unlock, ...] = (
     Unlock(
         key=FINANCE, name="Finance", branch=FINANCE_BRANCH, position=0,
         description="Borrow from the banks to invest beyond your own capital.",
-        requires=(COMPANY_LEVEL_2,), cost_tier=2,
+        requires=(CREATE_COMPANY,), cost_tier=2,
     ),
     Unlock(
         key=BETTER_FINANCE_1, name="Better Finance 1", branch=FINANCE_BRANCH, position=1,
@@ -166,24 +169,26 @@ UNLOCKS: tuple[Unlock, ...] = (
 
     # -- Employee branch (V6.7.2) -----------------------------------------
     Unlock(
-        key=EMPLOYEES, name="Employees", branch=EMPLOYEE_BRANCH, position=0,
-        description="Opens the employee quality levels below.",
-        requires=(COMPANY_LEVEL_2,), cost_tier=2,
-    ),
-    Unlock(
-        key=BETTER_EMPLOYEES_1, name="Better Employees 1", branch=EMPLOYEE_BRANCH, position=1,
+        key=BETTER_EMPLOYEES_1, name="Better Employees 1", branch=EMPLOYEE_BRANCH, position=0,
         description="Applicants arrive with skills up to 20.",
-        requires=(EMPLOYEES,), cost_tier=3,
+        requires=(CREATE_COMPANY,), cost_tier=3,
     ),
     Unlock(
-        key=BETTER_EMPLOYEES_2, name="Better Employees 2", branch=EMPLOYEE_BRANCH, position=2,
+        key=BETTER_EMPLOYEES_2, name="Better Employees 2", branch=EMPLOYEE_BRANCH, position=1,
         description="Applicants arrive with skills up to 30.",
         requires=(BETTER_EMPLOYEES_1,), cost_tier=4,
     ),
     Unlock(
-        key=BETTER_EMPLOYEES_3, name="Better Employees 3", branch=EMPLOYEE_BRANCH, position=3,
+        key=BETTER_EMPLOYEES_3, name="Better Employees 3", branch=EMPLOYEE_BRANCH, position=2,
         description="Applicants arrive with skills up to 40.",
         requires=(BETTER_EMPLOYEES_2,), cost_tier=5,
+    ),
+    Unlock(
+        key=AUTOMATED_RECRUITMENT, name="Automated Recruitment", branch=EMPLOYEE_BRANCH,
+        position=3,
+        description="Let the company screen and hire candidates on its own, "
+                    "to criteria you set. Manual hiring still works exactly as before.",
+        requires=(BETTER_EMPLOYEES_3,), cost_tier=6,
     ),
 
     # -- Company branch (V6.7.3) ------------------------------------------
@@ -212,7 +217,7 @@ UNLOCKS: tuple[Unlock, ...] = (
     Unlock(
         key=EMPLOYEE_TRAINING, name="Employee Training", branch=TRAINING_BRANCH, position=0,
         description="Send employees on training to raise their skills.",
-        requires=(COMPANY_LEVEL_2,), cost_tier=2,
+        requires=(CREATE_COMPANY,), cost_tier=2,
     ),
     Unlock(
         key=BETTER_TRAINING_1, name="Better Training 1", branch=TRAINING_BRANCH, position=1,
@@ -234,7 +239,7 @@ UNLOCKS: tuple[Unlock, ...] = (
     Unlock(
         key=BETTER_RECRUITMENT, name="Better Recruitment", branch=RECRUITMENT_BRANCH, position=0,
         description="Your reputation counts for more when candidates apply.",
-        requires=(COMPANY_LEVEL_2,), cost_tier=2,
+        requires=(CREATE_COMPANY,), cost_tier=2,
     ),
     Unlock(
         key=MORE_APPLICANTS, name="More Applicants", branch=RECRUITMENT_BRANCH, position=1,
@@ -251,13 +256,6 @@ UNLOCKS: tuple[Unlock, ...] = (
         position=3,
         description="Performance statistics for everyone you employ.",
         requires=(EMPLOYEE_STRENGTHS,), cost_tier=5,
-    ),
-    Unlock(
-        key=AUTOMATED_RECRUITMENT, name="Automated Recruitment", branch=RECRUITMENT_BRANCH,
-        position=4,
-        description="Let the company screen and hire candidates on its own, "
-                    "to criteria you set. Manual hiring still works exactly as before.",
-        requires=(EMPLOYEE_PERFORMANCE,), cost_tier=6,
     ),
 
     # -- the final unlock (V6.8) ------------------------------------------

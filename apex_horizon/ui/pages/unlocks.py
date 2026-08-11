@@ -5,12 +5,13 @@ horizontal connections, no crossing lines, and a layout where the player always
 understands how every branch connects back to Basic Investing. That shapes the
 whole design here.
 
-The tree is laid out on a grid rather than drawn ad hoc, following the roadmap
-reference kept with the legacy prototype for its *layout* (colours and styling
-remain Design Bible 2.0's): one horizontal spine straight through the middle
+The tree is laid out on a grid: one horizontal spine through the middle
 carrying Basic Investing, Create Company, the Company Levels and Investment
 Funds (V6.5, V6.8), with the branches fanning symmetrically above and below it
-(V6.6, V6.7) — see ``LAYOUT`` for which row each one takes and why.
+(V6.6, V6.7) — see :mod:`.unlocks_layout` for which row each one takes. The
+layout follows the prerequisite graph, not the legacy roadmap picture: where
+the two disagree the graph wins, so a drawn connection always means a real
+dependency (project manager, 2026-08-11).
 
 Connections are drawn as elbows: down or up a shared vertical, then straight
 across. Where several branches converge on one node — Investment Funds, which
@@ -18,18 +19,15 @@ every branch feeds — they share a single vertical rail just left of it instead
 of each drawing its own midpoint elbow, so seven incoming lines read as one
 junction rather than a fan. Because each branch owns its own row, no two
 connections ever cross: a guarantee that is topological (fixed row and column
-per branch), not pixel-based, which is what makes zooming safe (QoL pass,
-2026-08-10) — scaling every dimension by the same factor cannot change which
-row or column anything sits in, so it cannot introduce a crossing that did not
-already exist.
+per branch) rather than pixel-based.
 
-Thirty-two-plus nodes do not fit on one screen at a readable size, so the view
-pans — by dragging, the arrow keys, or scrolling — and zooms between three
-preset levels rather than continuously: pygame's fonts are bitmap, not vector,
-so a level between presets would blur text rather than shrink it cleanly,
-which is exactly what V6.10's readability requirement rules out. A right-hand
-panel shows whatever node is selected, built from the tree's own data rather
-than a second copy of the same description written out again.
+The viewport is compact and fixed (project manager, 2026-08-11). Every branch
+is always visible: the tree is drawn at whatever scale makes all its rows fit
+the height available, so there is no vertical scrolling to do and none is
+offered. The tree is far wider than it is tall, so the one direction that does
+need navigating — sideways, towards the later unlocks — gets a scrollbar of
+its own beneath the map. The scrollable width comes from where the nodes
+actually end, so adding an unlock further right extends the scroll by itself.
 """
 
 from __future__ import annotations
@@ -43,17 +41,25 @@ from .unlocks_layout import (
     BRANCH_LABELS,
     CLICK_TOLERANCE,
     COLUMN_STEP,
-    DEFAULT_ZOOM_INDEX,
     GUTTER_WIDTH,
     INFO_PANEL_WIDTH,
-    LAYOUT,
+    MAP_PADDING_X,
+    MAP_PADDING_Y,
+    MAX_SCALE,
+    MIN_SCALE,
     NODE_HEIGHT,
     NODE_WIDTH,
     PAN_STEP,
     ROW_STEP,
-    ZOOM_LEVELS,
+    SCROLLBAR_GAP,
+    SCROLLBAR_HEIGHT,
+    grid_bounds,
+    position_of,
 )
 from .unlocks_panel import InfoPanelMixin
+
+#: Height of the strip above the map holding the hint text.
+HEADER_HEIGHT = 26
 
 
 class UnlockTreePage(InfoPanelMixin, Page):
@@ -67,20 +73,22 @@ class UnlockTreePage(InfoPanelMixin, Page):
         super().__init__(context)
         self._buttons: dict[str, Button] = {}
         self.unlock_request: str | None = None
-        #: How far the view has been panned, in pixels, at the current zoom.
-        self.offset = [0, 0]
+        #: How far the map is scrolled sideways, in pixels. There is no
+        #: vertical equivalent by design: every branch is always on screen.
+        self.scroll_x = 0
         self._dragging = False
         self._drag_origin = (0, 0)
         self._drag_distance = 0.0
+        self._dragging_thumb = False
         self._node_rects: dict[str, pygame.Rect] = {}
-        #: Session-only UI state (V18 QoL pass, 2026-08-10) — deliberately not
-        #: written to the save; reopening the tree starts at the default view.
-        self.zoom_index = DEFAULT_ZOOM_INDEX
+        #: Session-only UI state — deliberately not written to the save.
         self.selected_key: str | None = None
-        self._pending_fit = False
-        self.zoom_out_button = Button("-")
-        self.zoom_in_button = Button("+")
-        self.fit_button = Button("Fit", tooltip="Zoom to fit the whole tree on screen.")
+        #: Worked out afresh on every draw from the space available.
+        self._scale = MAX_SCALE
+        self._scroll_limit = 0
+        self._map_view = pygame.Rect(0, 0, 0, 0)
+        self._track_rect = pygame.Rect(0, 0, 0, 0)
+        self._thumb_rect = pygame.Rect(0, 0, 0, 0)
 
     def take_unlock_request(self) -> str | None:
         request, self.unlock_request = self.unlock_request, None
@@ -91,46 +99,51 @@ class UnlockTreePage(InfoPanelMixin, Page):
             self._buttons[key] = Button("Unlock", primary=True)
         return self._buttons[key]
 
-    # -- zoom ----------------------------------------------------------------
-    @property
-    def zoom(self) -> float:
-        return ZOOM_LEVELS[self.zoom_index]
-
+    # -- geometry ------------------------------------------------------------
     def _scaled(self, value: float) -> int:
-        return round(value * self.zoom)
+        return round(value * self._scale)
 
-    def zoom_in(self) -> None:
-        self.zoom_index = min(len(ZOOM_LEVELS) - 1, self.zoom_index + 1)
+    def _unlocks(self) -> list:
+        tree = self.context.unlocks
+        return list(tree.all) if tree is not None else []
 
-    def zoom_out(self) -> None:
-        self.zoom_index = max(0, self.zoom_index - 1)
+    def scale_for(self, height: int) -> float:
+        """The scale at which every row fits into ``height``.
 
-    def _tree_size(self, zoom: float) -> tuple[int, int]:
-        rows = [row for row, _ in LAYOUT.values()]
-        width = (max(column for _, column in LAYOUT.values()) + 1) * round(COLUMN_STEP * zoom)
-        height = (max(rows) - min(rows) + 1) * round(ROW_STEP * zoom)
-        return width, height
-
-    def fit_to_screen(self, map_view: pygame.Rect) -> None:
-        """The largest zoom preset whose full tree fits the map area, panned
-        back to the top-left corner of it. Not a true center — supporting
-        that would mean allowing a negative pan offset everywhere else this
-        page clamps to zero — but every node is at least on screen and
-        readable, which is what "fit" is actually for.
+        Never above 1.0 — a tree with room to spare should sit comfortably in
+        its viewport rather than inflate to fill it — and never below
+        MIN_SCALE, past which the text stops being readable (V6.10).
         """
-        best = 0
-        for index in range(len(ZOOM_LEVELS)):
-            width, height = self._tree_size(ZOOM_LEVELS[index])
-            if width <= map_view.width and height <= map_view.height:
-                best = index
-        self.zoom_index = best
-        self.offset = [0, 0]
+        first, last, _ = grid_bounds(self._unlocks())
+        rows = (last - first) + 1
+        needed = rows * ROW_STEP + MAP_PADDING_Y * 2
+        if needed <= 0:
+            return MAX_SCALE
+        return max(MIN_SCALE, min(MAX_SCALE, height / needed))
 
-    # -- layout ------------------------------------------------------------
+    def viewport_height(self, available: int) -> int:
+        """How tall the map itself is drawn: the whole tree, and no more.
+
+        Compact by construction — it is the tree's own height at the scale
+        that fits, so it never grows with how *wide* the tree becomes, and
+        never claims space it has nothing to put in.
+        """
+        scale = self.scale_for(available)
+        first, last, _ = grid_bounds(self._unlocks())
+        rows = (last - first) + 1
+        return min(available, round(rows * ROW_STEP * scale) + MAP_PADDING_Y * 2)
+
+    def _content_width(self) -> int:
+        """How wide the tree is in pixels, out to the far edge of the last node."""
+        _, _, last_column = grid_bounds(self._unlocks())
+        return (last_column * self._scaled(COLUMN_STEP) + self._scaled(NODE_WIDTH)
+                + MAP_PADDING_X * 2)
+
+    def _clamp_scroll(self) -> None:
+        self.scroll_x = max(0, min(self.scroll_x, self._scroll_limit))
+
     def _position(self, tree, unlock) -> tuple[int, int]:
-        """Grid position (row, column) for one unlock."""
-        row, first_column = LAYOUT.get(unlock.branch, (0, 0))
-        return row, first_column + unlock.position
+        return position_of(unlock)
 
     def cards(self) -> list[Card]:
         tree = self.context.unlocks
@@ -158,16 +171,6 @@ class UnlockTreePage(InfoPanelMixin, Page):
         if tree is None:
             return False
 
-        if self.zoom_out_button.handle_event(event) and self.zoom_out_button.take_click():
-            self.zoom_out()
-            return True
-        if self.zoom_in_button.handle_event(event) and self.zoom_in_button.take_click():
-            self.zoom_in()
-            return True
-        if self.fit_button.handle_event(event) and self.fit_button.take_click():
-            self._pending_fit = True
-            return True
-
         for unlock in tree.all:
             button = self._button(unlock.key)
             if not button.enabled:
@@ -177,37 +180,41 @@ class UnlockTreePage(InfoPanelMixin, Page):
                 return True
 
         if event.type == pygame.KEYDOWN:
-            moves = {
-                pygame.K_LEFT: (-1, 0), pygame.K_RIGHT: (1, 0),
-                pygame.K_UP: (0, -1), pygame.K_DOWN: (0, 1),
-            }
-            if event.key in moves:
-                dx, dy = moves[event.key]
-                step = self._scaled(PAN_STEP)
-                self.offset[0] += dx * step
-                self.offset[1] += dy * step
+            # Sideways only: there is nothing above or below to scroll to.
+            if event.key == pygame.K_LEFT:
+                self.scroll_x -= PAN_STEP
+                self._clamp_scroll()
+                return True
+            if event.key == pygame.K_RIGHT:
+                self.scroll_x += PAN_STEP
+                self._clamp_scroll()
                 return True
         elif event.type == pygame.MOUSEWHEEL:
-            # Not used anywhere else in the interface yet, so this is the
-            # first place a wheel event can be read — the primary zoom
-            # input, with the +/- buttons as a discoverable, always-visible
-            # fallback for anyone whose input device has no wheel.
-            if event.y > 0:
-                self.zoom_in()
-            elif event.y < 0:
-                self.zoom_out()
+            # The wheel scrolls the one axis this page has. Either axis of a
+            # trackpad gesture is accepted, so a sideways swipe works too.
+            step = event.x if event.x else -event.y
+            self.scroll_x += step * PAN_STEP
+            self._clamp_scroll()
             return True
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            self._dragging = True
-            self._drag_origin = event.pos
-            self._drag_distance = 0.0
+            if self._thumb_rect.height and self._track_rect.collidepoint(event.pos):
+                self._dragging_thumb = True
+                if not self._thumb_rect.collidepoint(event.pos):
+                    self._scroll_to_thumb_centre(event.pos[0])
+                self._drag_origin = event.pos
+                return True
+            if self._map_view.collidepoint(event.pos):
+                self._dragging = True
+                self._drag_origin = event.pos
+                self._drag_distance = 0.0
         elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            was_thumb, self._dragging_thumb = self._dragging_thumb, False
             self._dragging = False
+            if was_thumb:
+                return True
             # A click barely moved; a drag almost never holds this still.
-            # Distinguishing the two is what lets a node be both draggable
-            # (the map) and selectable (the node itself) with the same
-            # mouse-down/mouse-up pair (bug avoided, not fixed: there was no
-            # node selection before this to conflict with).
+            # Telling them apart is what lets a node be both draggable (the
+            # map) and selectable (the node) with one mouse-down/up pair.
             if self._drag_distance <= CLICK_TOLERANCE:
                 clicked = next(
                     (key for key, rect in self._node_rects.items()
@@ -217,15 +224,29 @@ class UnlockTreePage(InfoPanelMixin, Page):
                 if clicked is not None:
                     self.selected_key = clicked
                     return True
-        elif event.type == pygame.MOUSEMOTION and self._dragging:
-            x, y = event.pos
-            dx, dy = x - self._drag_origin[0], y - self._drag_origin[1]
-            self.offset[0] -= dx
-            self.offset[1] -= dy
-            self._drag_origin = (x, y)
-            self._drag_distance += abs(dx) + abs(dy)
-            return True
+        elif event.type == pygame.MOUSEMOTION:
+            if self._dragging_thumb:
+                self._scroll_to_thumb_centre(event.pos[0])
+                return True
+            if self._dragging:
+                dx = event.pos[0] - self._drag_origin[0]
+                dy = event.pos[1] - self._drag_origin[1]
+                self.scroll_x -= dx
+                self._clamp_scroll()
+                self._drag_origin = event.pos
+                self._drag_distance += abs(dx) + abs(dy)
+                return True
         return False
+
+    def _scroll_to_thumb_centre(self, x: int) -> None:
+        """Put the middle of the thumb under ``x`` and scroll to match."""
+        travel = self._track_rect.width - self._thumb_rect.width
+        if travel <= 0:
+            self.scroll_x = 0
+            return
+        offset = x - self._track_rect.left - self._thumb_rect.width / 2
+        self.scroll_x = round(self._scroll_limit * max(0.0, min(1.0, offset / travel)))
+        self._clamp_scroll()
 
     # -- drawing -----------------------------------------------------------
     def draw_content(self, surface, rect, fonts, mouse) -> None:
@@ -237,90 +258,96 @@ class UnlockTreePage(InfoPanelMixin, Page):
                       (rect.left + 24, rect.top + 56), theme.TEXT_MUTED)
             return
 
-        header = pygame.Rect(rect.left, rect.top, rect.width, 30)
         draw_text(surface, fonts.small,
-                  "Drag or use the arrow keys to move around the tree. "
-                  "Scroll or use +/- to zoom.",
-                  (header.left, header.top), theme.TEXT_MUTED)
-        self._draw_zoom_controls(surface, header, fonts, mouse)
+                  "Drag the map, scroll, or use the left and right arrow keys.",
+                  (rect.left, rect.top), theme.TEXT_MUTED)
 
-        view = pygame.Rect(rect.left, rect.top + 34, rect.width, max(0, rect.height - 34))
+        # The map takes only the height the tree needs; the scrollbar sits
+        # directly beneath it, and whatever is left over stays empty rather
+        # than being absorbed into an oversized viewport.
+        room = max(0, rect.height - HEADER_HEIGHT - SCROLLBAR_HEIGHT - SCROLLBAR_GAP)
+        if room <= 0:
+            return
+        self._scale = self.scale_for(room)
+        view = pygame.Rect(rect.left, rect.top + HEADER_HEIGHT,
+                           rect.width, self.viewport_height(room))
         panel(surface, view)
         if view.width <= 0 or view.height <= 0:
             return
 
         info_width = min(INFO_PANEL_WIDTH, max(0, view.width // 3))
         info_panel_rect = pygame.Rect(view.right - info_width, view.top, info_width, view.height)
-        map_view = pygame.Rect(view.left, view.top, view.width - info_width, view.height)
+        self._map_view = pygame.Rect(view.left, view.top, view.width - info_width, view.height)
 
-        if self._pending_fit:
-            self.fit_to_screen(pygame.Rect(0, 0, max(1, map_view.width - GUTTER_WIDTH - 20),
-                                           max(1, map_view.height - 40)))
-            self._pending_fit = False
-        self._clamp(map_view)
+        visible = max(0, self._map_view.width - GUTTER_WIDTH)
+        self._scroll_limit = max(0, self._content_width() - visible)
+        self._clamp_scroll()
 
-        # Everything inside the map is clipped to it, so a node panned past the
-        # edge does not spill over the rest of the interface.
+        # Everything inside the map is clipped to it, so a node scrolled past
+        # the edge does not spill over the rest of the interface.
         previous_clip = surface.get_clip()
-        surface.set_clip(map_view)
+        surface.set_clip(self._map_view)
 
         self._node_rects = {
-            unlock.key: self._rect_for(tree, unlock, map_view) for unlock in tree.all
+            unlock.key: self._rect_for(tree, unlock, self._map_view) for unlock in tree.all
         }
         self._draw_connections(surface, tree)
         for unlock in tree.all:
             node = self._node_rects[unlock.key]
-            if node.colliderect(map_view):
+            if node.colliderect(self._map_view):
                 self._draw_node(surface, node, fonts, mouse, unlock, tree, player)
             else:
                 self._button(unlock.key).enabled = False
 
         # Branch names sit in a fixed gutter drawn over the map. Scrolling them
-        # with the nodes would let them collide with whatever panned underneath;
+        # with the nodes would let them collide with whatever passed underneath;
         # keeping them still means the player can always tell which row is which.
-        self._draw_branch_labels(surface, fonts, tree, map_view)
+        self._draw_branch_labels(surface, fonts, tree)
         surface.set_clip(previous_clip)
 
+        self._draw_scrollbar(surface, view)
         self._draw_info_panel(surface, info_panel_rect, fonts, tree)
 
-    def _draw_zoom_controls(self, surface, header: pygame.Rect, fonts, mouse) -> None:
-        y = header.top - 3
-        plus_rect = pygame.Rect(header.right - 28, y, 28, 26)
-        minus_rect = pygame.Rect(plus_rect.left - 8 - 28, y, 28, 26)
-        fit_rect = pygame.Rect(minus_rect.left - 8 - 56, y, 56, 26)
-        self.zoom_out_button.enabled = self.zoom_index > 0
-        self.zoom_in_button.enabled = self.zoom_index < len(ZOOM_LEVELS) - 1
-        self.fit_button.draw(surface, fit_rect, fonts, mouse)
-        self.zoom_out_button.draw(surface, minus_rect, fonts, mouse)
-        self.zoom_in_button.draw(surface, plus_rect, fonts, mouse)
-
-    def _clamp(self, map_view: pygame.Rect) -> None:
-        """Keep the map from being panned entirely out of sight."""
-        width, height = self._tree_size(self.zoom)
-        self.offset[0] = max(0, min(self.offset[0], max(0, width - map_view.width + 80)))
-        self.offset[1] = max(0, min(self.offset[1], max(0, height - map_view.height + 80)))
+    def _draw_scrollbar(self, surface, view: pygame.Rect) -> None:
+        """A horizontal scrollbar under the map, and only a horizontal one."""
+        self._track_rect = pygame.Rect(
+            self._map_view.left, view.bottom + SCROLLBAR_GAP,
+            self._map_view.width, SCROLLBAR_HEIGHT)
+        if self._scroll_limit <= 0:
+            # The whole tree already fits: no thumb, and nothing to drag.
+            self._thumb_rect = pygame.Rect(0, 0, 0, 0)
+            return
+        panel(surface, self._track_rect, fill=theme.SURFACE, border=theme.BORDER)
+        total = self._content_width()
+        fraction = max(0.12, self._track_rect.width / total) if total else 1.0
+        width = max(40, round(self._track_rect.width * fraction))
+        travel = self._track_rect.width - width
+        position = self.scroll_x / self._scroll_limit if self._scroll_limit else 0.0
+        self._thumb_rect = pygame.Rect(
+            self._track_rect.left + round(travel * position), self._track_rect.top,
+            width, SCROLLBAR_HEIGHT)
+        panel(surface, self._thumb_rect, fill=theme.BORDER_STRONG, border=None)
 
     def _rect_for(self, tree, unlock, map_view: pygame.Rect) -> pygame.Rect:
         row, column = self._position(tree, unlock)
-        rows = [r for r, _ in LAYOUT.values()]
-        x = (map_view.left + GUTTER_WIDTH + self._scaled(20) + column * self._scaled(COLUMN_STEP)
-             - self.offset[0])
-        y = (map_view.top + self._scaled(40) + (row - min(rows)) * self._scaled(ROW_STEP)
-             - self.offset[1])
+        first_row, _, _ = grid_bounds(self._unlocks())
+        x = (map_view.left + GUTTER_WIDTH + MAP_PADDING_X
+             + column * self._scaled(COLUMN_STEP) - self.scroll_x)
+        y = (map_view.top + MAP_PADDING_Y
+             + (row - first_row) * self._scaled(ROW_STEP))
         return pygame.Rect(x, y, self._scaled(NODE_WIDTH), self._scaled(NODE_HEIGHT))
 
     def _draw_connections(self, surface, tree) -> None:
         """Elbow connections: along a shared vertical, then straight across."""
-        radius = max(2, self._scaled(4))
+        radius = max(2, self._scaled(3))
         for unlock in tree.all:
             target = self._node_rects[unlock.key]
             sources = [(key, self._node_rects[key]) for key in unlock.requires
                        if key in self._node_rects]
             # Several branches converging on one node share a single vertical
             # rail just left of it, rather than each running its own elbow
-            # from its own midpoint — which is what the roadmap reference
-            # does, and what stops Investment Funds' seven incoming lines
-            # reading as a fan of near-parallel diagonals (2026-08-10).
+            # from its own midpoint — which stops Investment Funds' incoming
+            # lines reading as a fan of near-parallel diagonals.
             rail = None
             if len(sources) > 1:
                 rail = target.left - self._scaled((COLUMN_STEP - NODE_WIDTH) // 2)
@@ -338,14 +365,15 @@ class UnlockTreePage(InfoPanelMixin, Page):
                     pygame.draw.line(surface, colour, start, (midway, start[1]), 2)
                     pygame.draw.line(surface, colour, (midway, start[1]), (midway, end[1]), 2)
                     pygame.draw.line(surface, colour, (midway, end[1]), end, 2)
-                # A dot at each end, as the reference has: it marks where a
-                # branch leaves its parent and where it arrives, which is the
-                # thing V6.10 wants legible at a glance.
+                # A dot at each end: it marks where a branch leaves its parent
+                # and where it arrives, which V6.10 wants legible at a glance.
                 pygame.draw.circle(surface, colour, start, radius)
                 pygame.draw.circle(surface, colour, end, radius)
 
-    def _draw_branch_labels(self, surface, fonts, tree, map_view: pygame.Rect) -> None:
-        gutter = pygame.Rect(map_view.left + 1, map_view.top + 1, GUTTER_WIDTH, map_view.height - 2)
+    def _draw_branch_labels(self, surface, fonts, tree) -> None:
+        map_view = self._map_view
+        gutter = pygame.Rect(map_view.left + 1, map_view.top + 1,
+                             GUTTER_WIDTH, map_view.height - 2)
         pygame.draw.rect(surface, theme.SURFACE, gutter)
         pygame.draw.line(surface, theme.BORDER,
                          (gutter.right, gutter.top), (gutter.right, gutter.bottom))
@@ -356,12 +384,12 @@ class UnlockTreePage(InfoPanelMixin, Page):
             first = self._node_rects[nodes[0].key]
             if not (map_view.top < first.centery < map_view.bottom):
                 continue
-            draw_text(surface, fonts.small, truncate(fonts.small, label.upper(),
-                                                     GUTTER_WIDTH - 16),
-                      (gutter.left + 10, first.centery - 8), theme.TEXT_FAINT)
+            draw_text(surface, fonts.tiny,
+                      truncate(fonts.tiny, label.upper(), GUTTER_WIDTH - 14),
+                      (gutter.left + 8, first.centery - 6), theme.TEXT_FAINT)
 
     def _draw_node(self, surface, rect, fonts, mouse, unlock, tree, player) -> None:
-        label_font = fonts.tiny if self.zoom < 1.0 else fonts.small
+        label_font = fonts.small if self._scale >= 0.95 else fonts.tiny
         owned = tree.has(unlock.key)
         ready = not owned and tree.prerequisites_met(unlock.key) and unlock.implemented
         panel(surface, rect)
@@ -372,9 +400,11 @@ class UnlockTreePage(InfoPanelMixin, Page):
         elif ready:
             pygame.draw.rect(surface, theme.ACCENT_MUTED, rect, 1, border_radius=8)
 
-        pad = self._scaled(12)
-        name_y = rect.top + self._scaled(10)
-        status_y = rect.top + self._scaled(34)
+        # Two rows: the name, then the state and its action side by side. The
+        # node is only tall enough for two, so nothing is drawn below them.
+        pad = self._scaled(10)
+        name_y = rect.top + self._scaled(7)
+        status_y = rect.top + self._scaled(30)
         draw_text(surface, label_font,
                   truncate(label_font, unlock.name, rect.width - pad * 2),
                   (rect.left + pad, name_y),
@@ -383,27 +413,29 @@ class UnlockTreePage(InfoPanelMixin, Page):
         button = self._button(unlock.key)
         if owned:
             button.enabled = False
-            draw_text(surface, label_font, "Unlocked", (rect.left + pad, status_y), theme.POSITIVE)
+            draw_text(surface, fonts.tiny, "Unlocked", (rect.left + pad, status_y),
+                      theme.POSITIVE)
             return
         if not unlock.implemented:
             button.enabled = False
-            draw_text(surface, label_font, "Coming later", (rect.left + pad, status_y),
+            draw_text(surface, fonts.tiny, "Coming later", (rect.left + pad, status_y),
                       theme.TEXT_FAINT)
             return
 
         cost = tree.cost_of(unlock.key)
         if not ready:
             button.enabled = False
-            draw_text(surface, label_font, "Locked", (rect.left + pad, status_y), theme.TEXT_FAINT)
-            draw_text(surface, label_font, cost.format(decimals=0),
+            draw_text(surface, fonts.tiny, "Locked", (rect.left + pad, status_y),
+                      theme.TEXT_FAINT)
+            draw_text(surface, fonts.tiny, cost.format(decimals=0),
                       (rect.right - pad, status_y), theme.TEXT_FAINT, align="right")
             return
 
         affordable = player is not None and player.cash >= cost
         button.enabled = affordable
-        draw_text(surface, label_font, cost.format(decimals=0),
+        draw_text(surface, fonts.tiny, cost.format(decimals=0),
                   (rect.left + pad, status_y),
                   theme.TEXT if affordable else theme.NEGATIVE)
         button.draw(surface, pygame.Rect(
-            rect.right - self._scaled(80), rect.bottom - self._scaled(32),
-            self._scaled(68), self._scaled(24)), fonts, mouse)
+            rect.right - self._scaled(60), rect.top + self._scaled(27),
+            self._scaled(52), self._scaled(20)), fonts, mouse)

@@ -402,6 +402,55 @@ The per-panel height clamps added on 2026-08-10 are kept. They no longer have
 notifications to defend against, but they are still what keeps those panels
 correct on a genuinely short window.
 
+## The employee branch, and where the company branches start (PM, 2026-08-11)
+
+"Employees" was a structural unlock: it cost money, changed nothing, and
+existed only to gate the three quality levels under it. The project manager
+removed it. Better Employees 1 now requires Create Company directly, and
+Automated Recruitment — previously the tail of the Recruitment branch — moves
+to close the Employee branch after Better Employees 3, which is where the
+progression it automates actually ends.
+
+At the same time Finance, Employee Training and Better Recruitment were moved
+from Company Level 2 to Create Company, so founding a company opens four
+branches at once instead of making the player buy a company level first. The
+Company Level chain itself is untouched: Level 3 still follows Level 2 along
+the spine.
+
+The catalogue therefore holds 33 unlocks rather than 34. Nothing hardcodes
+that number — the interface counts the catalogue, and the test that pins it
+derives it from `UNLOCKS` — so the next unlock added moves it without a code
+change. `UnlockTree.restore` now drops keys the catalogue no longer has, so a
+save written before the removal does not go on counting "Employees" towards
+its progress.
+
+## The Unlock Tree is a compact horizontal map (PM, 2026-08-11)
+
+The page used to give the tree whatever height it wanted and let the player
+pan in both directions between three zoom presets. That made the Unlocks page
+enormous, and the earlier "no crossing lines" reasoning about discrete zoom
+(above) was solving a problem the page should not have had.
+
+The viewport is now fixed and compact: it is exactly as tall as the branches
+need, and the tree is drawn at whatever scale fits every row into it. Since
+nothing can be above or below the view, vertical scrolling is neither offered
+nor needed, and the page stops growing with the tree. Sideways is the only
+direction with anything to reach, so it gets a scrollbar under the map, with
+dragging, the wheel and the arrow keys alongside it. The scrollable width is
+measured from where the nodes actually end rather than from any named unlock,
+so adding one further right extends it by itself.
+
+This retires the discrete zoom presets. They existed to make a too-large tree
+navigable vertically; with every branch always visible there is nothing left
+for them to do, and keeping them would have meant allowing a zoom level whose
+tree does not fit — which is exactly the vertical scrolling being removed.
+
+The layout still follows the legacy roadmap picture for its *arrangement*
+only. Where the picture and the prerequisite graph disagree, the graph wins:
+the branches are drawn one column past Create Company because that is what
+they now require, so no drawn connection implies a dependency that is not
+real.
+
 ## Content and assets
 
 | Decision | Detail |

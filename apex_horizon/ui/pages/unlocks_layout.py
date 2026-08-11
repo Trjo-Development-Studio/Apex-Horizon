@@ -3,8 +3,13 @@
 Split out of the page (2026-08-10) to keep each file within the size the
 project works to. These numbers belong together in one module because the
 "no crossing lines" guarantee is a property of them as a set: every branch's
-row and column come from LAYOUT, and every dimension scales by one zoom
-factor, so nothing outside this file can move a node onto another's row.
+row and column come from LAYOUT, and every dimension scales by one factor, so
+nothing outside this file can move a node onto another's row.
+
+The nodes are deliberately compact (2026-08-11). The page shows every branch
+at once inside a fixed viewport and scrolls only sideways, so the whole tree
+has to fit the window's height with no vertical scrolling at all — which puts
+a hard ceiling on ``ROW_STEP`` times the number of rows.
 """
 
 from __future__ import annotations
@@ -22,20 +27,33 @@ from ...engine.unlocks import (
 )
 from ..widgets import draw_text
 
-NODE_WIDTH = 168
-NODE_HEIGHT = 78
-COLUMN_STEP = 208
-ROW_STEP = 96
-PAN_STEP = 60
-#: A fixed strip on the left holding branch names, which never scrolls or
-#: scales with zoom — it is chrome, not part of the map.
-GUTTER_WIDTH = 104
-#: A fixed strip on the right showing whatever node is selected.
-INFO_PANEL_WIDTH = 260
+#: One node, and the grid it sits on, in design units at scale 1.0.
+NODE_WIDTH = 150
+NODE_HEIGHT = 54
+COLUMN_STEP = 176
+ROW_STEP = 68
+#: Room left around the tree inside the viewport.
+MAP_PADDING_X = 16
+MAP_PADDING_Y = 12
+#: How far one press of an arrow key scrolls.
+PAN_STEP = 80
 
-#: Discrete zoom presets, applied uniformly to every dimension of the map.
-ZOOM_LEVELS: tuple[float, ...] = (0.75, 1.0, 1.4)
-DEFAULT_ZOOM_INDEX = 1
+#: A fixed strip on the left holding branch names, which never scrolls — it
+#: is chrome, not part of the map.
+GUTTER_WIDTH = 96
+#: A fixed strip on the right showing whatever node is selected.
+INFO_PANEL_WIDTH = 240
+#: The horizontal scrollbar under the map.
+SCROLLBAR_HEIGHT = 12
+SCROLLBAR_GAP = 6
+
+#: The tree is drawn at whatever scale fits every branch into the height
+#: available, never larger than 1.0 (bigger reads as bloated rather than
+#: clearer) and never smaller than this (below it the text stops being
+#: legible, which V6.10 rules out).
+MIN_SCALE = 0.62
+MAX_SCALE = 1.0
+
 #: Movement, in pixels, below which a mouse-down/up is a click rather than a
 #: drag — a real drag rarely holds perfectly still, and a real click rarely
 #: drifts this far.
@@ -43,27 +61,25 @@ CLICK_TOLERANCE = 6
 
 #: Row for each branch, and the column its first node sits in.
 #:
-#: Laid out to match the roadmap reference kept with the legacy prototype
-#: (`docs/Unlock tree layout example.png` there — layout only; colours and
-#: styling stay governed by Design Bible 2.0). Its organising idea is a single
-#: horizontal spine straight through the middle — Basic Investing, Create
-#: Company, the Company Levels, and Investment Funds where everything
-#: converges (V6.5, V6.8) — with branches fanning symmetrically above and
-#: below it, rather than the spine sitting near the top with every branch
-#: hanging beneath. Analytics and News sit outermost because they are the two
-#: that come straight off Basic Investing rather than off a company; the four
-#: Company Level 2 branches sit nearest the spine they depend on.
+#: One horizontal spine runs through the middle — Basic Investing, Create
+#: Company, the Company Levels and Investment Funds (V6.5, V6.8) — with the
+#: branches fanning symmetrically above and below it (V6.6, V6.7). Analytics
+#: and News sit outermost because they come straight off Basic Investing; the
+#: four branches that come off Create Company sit nearest the spine.
+#:
+#: Every branch that starts at Create Company starts in column 2, one past it,
+#: so the layout says exactly what the prerequisite graph says. It is derived
+#: from the graph rather than from the legacy roadmap picture: where the two
+#: disagree, the graph wins (project manager, 2026-08-11).
 LAYOUT: dict[str, tuple[int, int]] = {
     ANALYTICS_BRANCH: (-3, 1),
-    FINANCE_BRANCH: (-2, 3),
-    EMPLOYEE_BRANCH: (-1, 3),
-    #: The spine: three branches sharing one row, in adjoining column ranges
-    #: (0-1, 2-6, 8) so they read as one continuous line left to right.
+    FINANCE_BRANCH: (-2, 2),
+    EMPLOYEE_BRANCH: (-1, 2),
     PRIMARY: (0, 0),
     COMPANY_BRANCH: (0, 2),
-    FINAL: (0, 8),
-    TRAINING_BRANCH: (1, 3),
-    RECRUITMENT_BRANCH: (2, 3),
+    FINAL: (0, 7),
+    TRAINING_BRANCH: (1, 2),
+    RECRUITMENT_BRANCH: (2, 2),
     NEWS_BRANCH: (3, 1),
 }
 
@@ -76,6 +92,26 @@ BRANCH_LABELS = {
     TRAINING_BRANCH: "Training",
     RECRUITMENT_BRANCH: "Recruitment",
 }
+
+
+def position_of(unlock) -> tuple[int, int]:
+    """Grid position (row, column) for one unlock, from its branch."""
+    row, first_column = LAYOUT.get(unlock.branch, (0, 0))
+    return row, first_column + unlock.position
+
+
+def grid_bounds(unlocks) -> tuple[int, int, int]:
+    """(first row, last row, last column) actually occupied by these unlocks.
+
+    Measured from the unlocks themselves rather than from LAYOUT, so adding a
+    node to the end of a branch extends the tree — and with it the scrollable
+    width — without anything here needing to be told about it.
+    """
+    positions = [position_of(unlock) for unlock in unlocks]
+    if not positions:
+        return 0, 0, 0
+    rows = [row for row, _ in positions]
+    return min(rows), max(rows), max(column for _, column in positions)
 
 
 def _wrap(surface, font, text, rect, colour) -> None:

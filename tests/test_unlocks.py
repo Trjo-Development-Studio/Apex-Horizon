@@ -442,14 +442,14 @@ def test_every_purchasable_unlock_changes_something():
     Each unlock is applied on top of its prerequisites and the resulting
     configuration compared against the same tree without it.
 
-    Two are exempt, for stated reasons rather than by oversight: Create Company
+    One is exempt, for a stated reason rather than by oversight: Create Company
     acts on the founding gate in ``Player`` rather than on any system this layer
-    configures, and the Employees root was ruled purely structural by the
-    project manager, opening the quality levels beneath it.
+    configures. (The structural Employees root was the other exemption until it
+    was removed from the catalogue entirely, 2026-08-11.)
     """
-    from apex_horizon.engine.unlocks import EMPLOYEES, UnlockEffects
+    from apex_horizon.engine.unlocks import UnlockEffects
 
-    structural = {CREATE_COMPANY, EMPLOYEES}
+    structural = {CREATE_COMPANY}
     reference = UnlockTree()
     for unlock in reference.all:
         if unlock.owned_at_start or not unlock.implemented or unlock.key in structural:
@@ -467,3 +467,66 @@ def test_every_purchasable_unlock_changes_something():
         assert first.snapshot() != second.snapshot(), (
             f"{unlock.name} changes nothing when unlocked"
         )
+
+
+# -- the 2026-08-11 employee/company rewiring -----------------------------
+
+
+def test_the_structural_employees_unlock_is_gone():
+    """Project manager, 2026-08-11: it did nothing but gate the levels under
+    it, so the levels hang off Create Company directly instead."""
+    tree = UnlockTree()
+    assert "employees" not in tree.by_key
+    assert not any(u.name == "Employees" for u in tree.all)
+    # and nothing is left requiring it
+    for unlock in tree.all:
+        assert "employees" not in unlock.requires, unlock.name
+
+
+def test_the_employee_branch_runs_from_create_company_to_automated_recruitment():
+    from apex_horizon.engine.unlocks import (
+        AUTOMATED_RECRUITMENT,
+        BETTER_EMPLOYEES_1,
+        BETTER_EMPLOYEES_2,
+        BETTER_EMPLOYEES_3,
+    )
+
+    tree = UnlockTree()
+    assert tree.by_key[BETTER_EMPLOYEES_1].requires == (CREATE_COMPANY,)
+    assert tree.by_key[BETTER_EMPLOYEES_2].requires == (BETTER_EMPLOYEES_1,)
+    assert tree.by_key[BETTER_EMPLOYEES_3].requires == (BETTER_EMPLOYEES_2,)
+    assert tree.by_key[AUTOMATED_RECRUITMENT].requires == (BETTER_EMPLOYEES_3,)
+    assert [u.key for u in tree.branch("employees")] == [
+        BETTER_EMPLOYEES_1, BETTER_EMPLOYEES_2, BETTER_EMPLOYEES_3, AUTOMATED_RECRUITMENT,
+    ]
+
+
+def test_the_company_branches_start_at_create_company():
+    """Finance, Training and Recruitment come off Create Company, not
+    Company Level 2 (project manager, 2026-08-11)."""
+    from apex_horizon.engine.unlocks import BETTER_RECRUITMENT, EMPLOYEE_TRAINING, FINANCE
+
+    tree = UnlockTree()
+    for key in (FINANCE, EMPLOYEE_TRAINING, BETTER_RECRUITMENT):
+        assert tree.by_key[key].requires == (CREATE_COMPANY,), key
+    # The spine itself is unchanged: the Company Levels still follow each other.
+    assert tree.by_key["company_level_3"].requires == ("company_level_2",)
+
+
+def test_the_catalogue_size_is_whatever_the_catalogue_says():
+    """The count is data-driven: this asserts today's number so a change is
+    noticed, and derives it from the catalogue so nothing hardcodes a cap."""
+    from apex_horizon.engine.unlocks.catalogue import UNLOCKS
+
+    tree = UnlockTree()
+    assert len(tree.all) == len(UNLOCKS) == 33
+    assert len({u.key for u in tree.all}) == len(tree.all), "keys must be unique"
+
+
+def test_an_unlock_removed_from_the_catalogue_is_dropped_from_an_old_save():
+    """A save written when "Employees" existed must not go on counting it
+    towards "N of M unlocked" (V16.15)."""
+    tree = UnlockTree()
+    tree.restore({"unlocked": ["basic_investing", "create_company", "employees"]})
+    assert "employees" not in tree.unlocked
+    assert tree.unlocked <= set(tree.by_key)

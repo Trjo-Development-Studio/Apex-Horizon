@@ -32,7 +32,6 @@ from .catalogue import (
     EMPLOYEE_PERFORMANCE,
     EMPLOYEE_STRENGTHS,
     EMPLOYEE_TRAINING,
-    EMPLOYEES,
     FINANCE,
     INVESTMENT_FUNDS,
     MARKET_NEWS,
@@ -45,6 +44,7 @@ from .tree import Unlock, UnlockTree
 #: Branch identifiers, for laying the tree out (V6.10).
 from .catalogue import (  # isort: skip
     ANALYTICS_BRANCH,
+    AUTOMATED_RECRUITMENT,
     COMPANY_BRANCH,
     EMPLOYEE_BRANCH,
     FINAL,
@@ -52,11 +52,13 @@ from .catalogue import (  # isort: skip
     NEWS_BRANCH,
     PRIMARY,
     RECRUITMENT_BRANCH,
+    SUBSIDIARIES,
     TRAINING_BRANCH,
 )
 
 __all__ = [
     "ANALYTICS_BRANCH",
+    "AUTOMATED_RECRUITMENT",
     "BASIC_ANALYTICS",
     "BASIC_INVESTING",
     "BASIC_NEWS",
@@ -82,7 +84,6 @@ __all__ = [
     "COMPANY_LEVEL_5",
     "CREATE_COMPANY",
     "ECONOMIC_NEWS",
-    "EMPLOYEES",
     "EMPLOYEE_BRANCH",
     "EMPLOYEE_PERFORMANCE",
     "EMPLOYEE_STRENGTHS",
@@ -96,6 +97,7 @@ __all__ = [
     "NEWS_BRANCH",
     "PRIMARY",
     "RECRUITMENT_BRANCH",
+    "SUBSIDIARIES",
     "TRAINING_BRANCH",
     "UNLOCKS",
     "Unlock",

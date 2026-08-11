@@ -1,4 +1,4 @@
-"""The Unlock Tree's layout, zoom, panning and details panel."""
+"""The Unlock Tree's layout, compact viewport, scrolling and details panel."""
 
 from __future__ import annotations
 
@@ -9,36 +9,160 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 import pygame
 
-# -- Unlock Tree: zoom, pan, click-select, info panel (2026-08-10) ---------
+# -- Unlock Tree: viewport, horizontal scrolling, selection, info panel ----
 from ui_support import _found_company_for_acquisitions
 
 from apex_horizon.engine.unlocks import CREATE_COMPANY
 
 
-def test_zoom_in_and_out_stay_within_bounds(app):
-    from apex_horizon.ui.pages.unlocks import ZOOM_LEVELS
-
+def test_the_viewport_shows_every_branch_without_scrolling_vertically(app):
+    """The compact viewport (PM, 2026-08-11): every branch is on screen at
+    once, which is what makes vertical scrolling unnecessary — and there is
+    none to be had, so it had better be true."""
+    app.navigate("unlocks")
+    app.draw(0)
     page = app.pages["unlocks"]
-    for _ in range(len(ZOOM_LEVELS) + 2):
-        page.zoom_in()
-    assert page.zoom_index == len(ZOOM_LEVELS) - 1
-    for _ in range(len(ZOOM_LEVELS) + 2):
-        page.zoom_out()
-    assert page.zoom_index == 0
+
+    assert not hasattr(page, "offset"), "no two-axis pan offset any more"
+    assert not hasattr(page, "zoom_index"), "no zoom levels to fight the fit"
+    for key, rect in page._node_rects.items():
+        assert rect.top >= page._map_view.top, key
+        assert rect.bottom <= page._map_view.bottom, key
 
 
-def test_fit_to_screen_chooses_the_largest_level_that_fits(app):
-    from apex_horizon.ui.pages.unlocks import ZOOM_LEVELS
-
+def test_the_viewport_stays_compact_and_does_not_grow_with_the_tree(app):
+    """It is the tree's own height, not the room going spare: a tree that is
+    mostly wide must not be given a viewport that is mostly tall."""
+    app.navigate("unlocks")
+    app.draw(0)
     page = app.pages["unlocks"]
-    page.zoom_index = 2
-    page.fit_to_screen(pygame.Rect(0, 0, 100, 100))  # far too small for anything
-    assert page.zoom_index == 0
-    assert page.offset == [0, 0]
 
-    page.zoom_index = 0
-    page.fit_to_screen(pygame.Rect(0, 0, 100_000, 100_000))  # comfortably large
-    assert page.zoom_index == len(ZOOM_LEVELS) - 1
+    generous = page.viewport_height(4000)
+    assert generous < 4000, "the viewport must not swell to fill the space"
+    # It is the height of the rows themselves, give or take the padding.
+    assert generous == page.viewport_height(4000), "and must be stable"
+    assert page._map_view.height <= page.viewport_height(10_000)
+
+
+def test_scrolling_reaches_the_furthest_unlock(app):
+    """Every unlock has to be reachable, including the last one along."""
+    app.navigate("unlocks")
+    app.draw(0)
+    page = app.pages["unlocks"]
+    tree = app.context.unlocks
+    furthest = max(tree.all, key=lambda u: page._node_rects[u.key].right)
+
+    page.scroll_x = page._scroll_limit
+    app.draw(0)
+
+    node = page._node_rects[furthest.key]
+    assert node.right <= page._map_view.right, "scrolled to the end, nothing hangs off it"
+    assert node.left >= page._map_view.left
+
+
+def test_every_unlock_can_be_brought_into_view(app):
+    app.navigate("unlocks")
+    app.draw(0)
+    page = app.pages["unlocks"]
+    tree = app.context.unlocks
+
+    seen = set()
+    for scroll in range(0, page._scroll_limit + 60, 60):
+        page.scroll_x = scroll
+        app.draw(0)
+        seen.update(key for key, rect in page._node_rects.items()
+                    if page._map_view.contains(rect))
+    assert seen == {unlock.key for unlock in tree.all}
+
+
+def test_the_scroll_range_follows_where_the_nodes_actually_end(app):
+    """Not hardcoded to Subsidiaries: a node further right extends the range
+    by itself, so a future unlock needs no change here."""
+    app.navigate("unlocks")
+    app.draw(0)
+    page = app.pages["unlocks"]
+    before = page._scroll_limit
+
+    real = page._unlocks
+
+    class Farther:
+        branch = "final"
+        position = 40  # far beyond anything in the catalogue
+
+    page._unlocks = lambda: [*real(), Farther()]
+    app.draw(0)
+    assert page._scroll_limit > before
+
+    page._unlocks = real
+    app.draw(0)
+    assert page._scroll_limit == before
+
+
+def test_there_is_a_horizontal_scrollbar_and_no_vertical_one(app):
+    app.navigate("unlocks")
+    app.draw(0)
+    page = app.pages["unlocks"]
+
+    assert page._scroll_limit > 0, "the tree is wider than the viewport"
+    assert page._track_rect.width > page._track_rect.height, "a horizontal bar"
+    assert page._track_rect.top >= page._map_view.bottom, "sitting beneath the map"
+    assert page._thumb_rect.width > 0
+
+
+def test_dragging_the_scrollbar_thumb_scrolls_the_map(app):
+    app.navigate("unlocks")
+    app.draw(0)
+    page = app.pages["unlocks"]
+    assert page.scroll_x == 0
+
+    page.handle_event(pygame.event.Event(
+        pygame.MOUSEBUTTONDOWN, button=1, pos=page._thumb_rect.center))
+    page.handle_event(pygame.event.Event(
+        pygame.MOUSEMOTION, pos=(page._track_rect.right, page._thumb_rect.centery)))
+    assert page.scroll_x == page._scroll_limit
+
+    page.handle_event(pygame.event.Event(
+        pygame.MOUSEBUTTONUP, button=1, pos=(page._track_rect.right, page._thumb_rect.centery)))
+    assert not page._dragging_thumb
+
+
+def test_the_wheel_scrolls_sideways_rather_than_zooming(app):
+    app.navigate("unlocks")
+    app.draw(0)
+    page = app.pages["unlocks"]
+
+    page.handle_event(pygame.event.Event(pygame.MOUSEWHEEL, x=0, y=-1))
+    assert page.scroll_x > 0
+    page.handle_event(pygame.event.Event(pygame.MOUSEWHEEL, x=0, y=1))
+    assert page.scroll_x == 0
+
+
+def test_arrow_keys_scroll_sideways_only(app):
+    app.navigate("unlocks")
+    app.draw(0)
+    page = app.pages["unlocks"]
+
+    page.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RIGHT))
+    assert page.scroll_x > 0
+    moved = page.scroll_x
+    # Up and down are not this page's to take: there is nowhere to go.
+    assert not page.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_DOWN))
+    assert not page.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_UP))
+    assert page.scroll_x == moved
+
+
+def test_a_branch_never_splits_across_rows(app):
+    """The invariant "no crossing lines" rests on: every node of a branch
+    shares one horizontal line, whatever scale the viewport picked."""
+    app.navigate("unlocks")
+    app.draw(0)
+    page = app.pages["unlocks"]
+    tree = app.context.unlocks
+
+    for branch in {unlock.branch for unlock in tree.all}:
+        rows = {page._node_rects[u.key].centery
+                for u in tree.all if u.branch == branch}
+        assert len(rows) == 1, f"{branch} split across rows"
 
 
 def test_a_short_click_selects_a_node_but_a_drag_does_not(app):
@@ -60,37 +184,6 @@ def test_a_short_click_selects_a_node_but_a_drag_does_not(app):
     page.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=start))
     page.handle_event(pygame.event.Event(pygame.MOUSEBUTTONUP, button=1, pos=start))
     assert page.selected_key is not None
-
-
-def test_mouse_wheel_zooms(app):
-    page = app.pages["unlocks"]
-    before = page.zoom_index
-    page.handle_event(pygame.event.Event(pygame.MOUSEWHEEL, x=0, y=1))
-    assert page.zoom_index >= before
-    page.handle_event(pygame.event.Event(pygame.MOUSEWHEEL, x=0, y=-1))
-    page.handle_event(pygame.event.Event(pygame.MOUSEWHEEL, x=0, y=-1))
-    assert page.zoom_index <= before
-
-
-def test_zoom_and_pan_never_introduce_a_crossing_the_layout_did_not_have(app):
-    """The invariant the whole feature leans on: connections are computed
-    from node rects that are always a uniform scale of the same
-    (row, column) grid, at every zoom level."""
-    from apex_horizon.ui.pages.unlocks import ZOOM_LEVELS
-
-    page = app.pages["unlocks"]
-    tree = app.context.unlocks
-    for index in range(len(ZOOM_LEVELS)):
-        page.zoom_index = index
-        app.navigate("dashboard")  # force a fresh draw next
-        app.navigate("unlocks")
-        app.draw(0)
-        for unlock in tree.all:
-            # Every node on the same branch stays on the same horizontal line
-            # regardless of zoom — this is what "no crossing lines" rests on.
-            same_branch = [u for u in tree.all if u.branch == unlock.branch]
-            centers_y = {page._node_rects[u.key].centery for u in same_branch}
-            assert len(centers_y) == 1, f"{unlock.branch} split across rows at zoom {index}"
 
 
 def test_the_info_panel_shows_a_prompt_with_nothing_selected(app):
