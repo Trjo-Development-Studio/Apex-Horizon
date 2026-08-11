@@ -14,3 +14,6 @@ Builds/
 logs/
 # The Design Bible is kept in docs/ locally but is deliberately not committed.
 docs/*.pdf
+
+# PyInstaller writes a spec file beside the project when a build is run.
+*.spec

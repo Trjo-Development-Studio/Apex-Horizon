@@ -59,17 +59,18 @@ when the owner asks. Always `git push` after committing so nothing is left
 local-only — the batching is about *when* to commit, not whether to push.
 
 Guidelines:
-- Before committing, run the **same checks GitHub CI runs**
-  (`.github/workflows/ci.yml`) and make sure they pass — a push must never fail
-  the workflow:
+- Before committing, always run these locally and make sure they pass. GitHub
+  no longer runs them — `.github/workflows/build.yml` builds the Windows and
+  Linux executables and nothing else (project manager, 2026-08-11) — so this
+  is the only gate there is:
   - `uv run ruff check .` (lint)
   - `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run pytest -q` (tests)
   - confirm the game still launches (`uv run python main.py`). If any check
     fails, fix it and re-run before committing.
 - Update `CHANGELOG.md` in the same commit as the work it describes (V19.21).
-- After pushing, confirm the GitHub Actions run for the commit succeeds (the repo
-  is public, so its status is queryable via the Actions API even without `gh`).
-  If the workflow fails, fix the cause and push again until it is green.
+- After pushing, confirm the GitHub Actions build for the commit succeeds (the
+  repo is public, so its status is queryable via the Actions API even without
+  `gh`). If the build fails, fix the cause and push again until it is green.
 - Stage with `git add` and commit with a clear, present-tense message describing
   what changed (e.g. "Add portfolio allocation chart").
 - Keep commits focused: one logical change per commit when practical.

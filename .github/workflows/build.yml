@@ -1,0 +1,61 @@
+name: Build Apex Horizon
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            name: Apex-Horizon-Windows
+            executable: Apex-Horizon.exe
+            # PyInstaller separates an --add-data source from its destination
+            # with ';' on Windows and ':' everywhere else.
+            sep: ";"
+
+          - os: ubuntu-latest
+            name: Apex-Horizon-Linux
+            executable: Apex-Horizon
+            sep: ":"
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        # Not `pip install -e .`: the project is deliberately not a package
+        # (`[tool.uv] package = false`), and setuptools cannot auto-discover a
+        # flat layout holding apex_horizon/, tests/, config/ and assets/ side
+        # by side. pygame-ce is the game's only runtime dependency, as
+        # pyproject.toml declares.
+        run: |
+          python -m pip install --upgrade pip
+          pip install pygame-ce pyinstaller
+
+      - name: Build executable
+        # config/ and assets/ are read at runtime through
+        # `apex_horizon.engine.paths.bundle_root`, which looks in PyInstaller's
+        # extraction directory when frozen. Without them the build starts and
+        # exits with "Could not load gameplay configuration".
+        run: >
+          pyinstaller --name "Apex-Horizon" --onedir --windowed --noconfirm
+          --add-data "config${{ matrix.sep }}config"
+          --add-data "assets${{ matrix.sep }}assets"
+          main.py
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: dist/Apex-Horizon/
