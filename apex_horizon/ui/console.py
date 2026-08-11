@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import pygame
 
+from ..debug.completion import CommandGrammar
 from . import theme
 from .widgets import draw_text, panel
 
@@ -44,6 +45,10 @@ LINE_HEIGHT = 18
 PADDING = 18
 HEADER_HEIGHT = 44
 INPUT_HEIGHT = 38
+#: The suggestion list above the input: one row each, and a cap so a long
+#: list (every unlock, say) cannot grow past the window.
+SUGGESTION_HEIGHT = 20
+SUGGESTION_LIMIT = 8
 
 WELCOME = (
     "Apex Horizon developer console. Type 'help' for the commands, "
@@ -65,8 +70,16 @@ class ConsoleOverlay:
 
     def __init__(self, commands):
         self.commands = commands
+        #: Suggestions come from the command table's own declared syntax, so
+        #: this console holds no second copy of the grammar (V15.18).
+        self.grammar = CommandGrammar(commands)
         self.open = False
         self.text = ""
+        #: Where the next character goes — an index into ``text``, not
+        #: necessarily its end.
+        self.cursor = 0
+        self.suggestions: list = []
+        self.suggestion_index = 0
         #: ``(text, kind)`` in the order they happened, oldest first.
         self.lines: list[tuple[str, str]] = [(WELCOME, SYSTEM)]
         self.history: list[str] = []
@@ -75,7 +88,72 @@ class ConsoleOverlay:
         self._draft = ""
         self._rect = pygame.Rect(0, 0, 0, 0)
         self._close_rect = pygame.Rect(0, 0, 0, 0)
+        self._suggestion_rects: list[tuple[pygame.Rect, int]] = []
         commands.on_output.append(self._on_late_output)
+
+    # -- the input line ----------------------------------------------------
+    def set_text(self, text: str, cursor: int | None = None) -> None:
+        """Replace the line, put the cursor somewhere in it, and re-suggest."""
+        self.text = text[:MAX_INPUT]
+        self.cursor = len(self.text) if cursor is None else max(0, min(cursor, len(self.text)))
+        self.refresh_suggestions()
+
+    def refresh_suggestions(self) -> None:
+        self.suggestions = self.grammar.suggest(self.text, self.cursor)
+        self.suggestion_index = 0
+
+    @property
+    def suggestions_active(self) -> bool:
+        """Whether the arrow keys belong to the suggestion list right now.
+
+        Only once something has been typed, and never while the player is
+        walking back through the history: on an empty line the list would be
+        every command there is, and a recalled line is text the player did not
+        type, so taking the arrows in either case would strand the history
+        (V15.18's terminal keeps one). Typing anything hands them back.
+        """
+        if self._history_index is not None:
+            return False
+        return bool(self.text.strip()) and bool(self.suggestions)
+
+    @property
+    def selected_suggestion(self):
+        if not self.suggestions:
+            return None
+        return self.suggestions[self.suggestion_index % len(self.suggestions)]
+
+    def move_selection(self, direction: int) -> None:
+        if self.suggestions:
+            self.suggestion_index = (
+                (self.suggestion_index + direction) % len(self.suggestions))
+
+    def accept_suggestion(self, index: int | None = None) -> bool:
+        """Put the selected suggestion into the line. Never runs anything.
+
+        The word under the cursor is replaced rather than the line appended
+        to, so completing works with the cursor anywhere in the command.
+        """
+        if index is not None and 0 <= index < len(self.suggestions):
+            self.suggestion_index = index
+        suggestion = self.selected_suggestion
+        if suggestion is None or not suggestion.acceptable:
+            return False
+        start, end = self.grammar.token_span(self.text, self.cursor)
+        completed = suggestion.text
+        after = self.text[end:]
+        # The cursor ends up past the word *and* the space after it, ready for
+        # the next one, whether that space was already there or is added here.
+        if after.startswith(" "):
+            cursor = start + len(completed) + 1
+        else:
+            completed += " "
+            cursor = start + len(completed)
+        self.set_text(self.text[:start] + completed + after, cursor)
+        return True
+
+    def cursor_visible(self, now_ms: int) -> bool:
+        """A caret that blinks rather than sits solid, so it reads as a caret."""
+        return now_ms % 1100 < 600
 
     # -- opening and closing -----------------------------------------------
     def toggle(self) -> None:
@@ -123,6 +201,13 @@ class ConsoleOverlay:
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self._close_rect.collidepoint(event.pos):
                 self.hide()
+                return True
+            # Clicking a suggestion accepts it, exactly as Tab would, and
+            # exactly as much: it fills the line in and runs nothing.
+            for rect, index in self._suggestion_rects:
+                if rect.collidepoint(event.pos):
+                    self.accept_suggestion(index)
+                    return True
             return True
         if event.type != pygame.KEYDOWN:
             return event.type == pygame.MOUSEBUTTONUP
@@ -131,19 +216,49 @@ class ConsoleOverlay:
             self.hide()
             return True
         if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
-            line, self.text = self.text.strip(), ""
+            line = self.text.strip()
+            self.set_text("")
             self._history_index = None
             if line:
                 self.run(line)
             return True
         if event.key == pygame.K_BACKSPACE:
-            self.text = self.text[:-1]
+            self._history_index = None
+            if self.cursor:
+                self.set_text(self.text[:self.cursor - 1] + self.text[self.cursor:],
+                              self.cursor - 1)
+            return True
+        if event.key == pygame.K_DELETE:
+            self._history_index = None
+            self.set_text(self.text[:self.cursor] + self.text[self.cursor + 1:], self.cursor)
             return True
         if event.key == pygame.K_TAB:
-            self._complete()
+            # Completion only ever edits the line. Enter is the one thing that
+            # runs a command.
+            self.accept_suggestion()
+            return True
+        if event.key == pygame.K_LEFT:
+            self.cursor = max(0, self.cursor - 1)
+            self.refresh_suggestions()
+            return True
+        if event.key == pygame.K_RIGHT:
+            self.cursor = min(len(self.text), self.cursor + 1)
+            self.refresh_suggestions()
+            return True
+        if event.key == pygame.K_HOME:
+            self.cursor = 0
+            self.refresh_suggestions()
+            return True
+        if event.key == pygame.K_END:
+            self.cursor = len(self.text)
+            self.refresh_suggestions()
             return True
         if event.key in (pygame.K_UP, pygame.K_DOWN):
-            self._recall(-1 if event.key == pygame.K_UP else 1)
+            direction = -1 if event.key == pygame.K_UP else 1
+            if self.suggestions_active:
+                self.move_selection(direction)
+            else:
+                self._recall(direction)
             return True
         if event.key in (pygame.K_PAGEUP, pygame.K_PAGEDOWN):
             step = 8 if event.key == pygame.K_PAGEUP else -8
@@ -153,21 +268,12 @@ class ConsoleOverlay:
         if event.mod & (pygame.KMOD_CTRL | pygame.KMOD_ALT):
             return True
         if event.unicode and event.unicode.isprintable() and len(self.text) < MAX_INPUT:
-            self.text += event.unicode
+            # Typing is the player writing their own line again, so the arrows
+            # go back to the suggestions.
+            self._history_index = None
+            self.set_text(self.text[:self.cursor] + event.unicode + self.text[self.cursor:],
+                          self.cursor + 1)
         return True
-
-    def _complete(self) -> None:
-        """Finish a command name, which is the only word the console knows."""
-        if " " in self.text.strip() or not self.text.strip():
-            return
-        typed = self.text.strip().lower()
-        matches = sorted(name for name in self.commands.commands if name.startswith(typed))
-        if not matches:
-            return
-        if len(matches) == 1:
-            self.text = matches[0] + " "
-            return
-        self.write("  ".join(matches), SYSTEM)
 
     def _recall(self, direction: int) -> None:
         """Walk back through what has been typed, as any console does."""
@@ -181,10 +287,10 @@ class ConsoleOverlay:
         index = self._history_index + direction
         if index >= len(self.history):
             self._history_index = None
-            self.text = self._draft
+            self.set_text(self._draft)
             return
         self._history_index = max(0, index)
-        self.text = self.history[self._history_index]
+        self.set_text(self.history[self._history_index])
 
     # -- drawing -----------------------------------------------------------
     def draw(self, surface, fonts, now_ms: int) -> None:
@@ -279,10 +385,45 @@ class ConsoleOverlay:
         left = field.left + 28
         draw_text(surface, fonts.mono_small, self.text, (left, field.centery),
                   theme.TEXT, baseline="middle")
-        if now_ms % 1100 < 600:  # a caret that blinks rather than a solid block
-            caret = left + fonts.mono_small.size(self.text)[0] + 1
+        if self.cursor_visible(now_ms):
+            # Measured from the text *before* the cursor, so the caret sits
+            # where the next character will actually go rather than always at
+            # the end of the line.
+            caret = left + fonts.mono_small.size(self.text[:self.cursor])[0] + 1
             pygame.draw.rect(surface, theme.ACCENT,
-                             pygame.Rect(caret, field.centery - 8, 7, 16))
+                             pygame.Rect(caret, field.centery - 8, 2, 16))
+        self._draw_suggestions(surface, fonts, field)
+
+    def _draw_suggestions(self, surface, fonts, field: pygame.Rect) -> None:
+        """What could come next, above the line being typed."""
+        self._suggestion_rects = []
+        if not self.text.strip() or not self.suggestions:
+            return
+        font = fonts.mono_small
+        shown = self.suggestions[:SUGGESTION_LIMIT]
+        selected = self.suggestion_index % len(self.suggestions)
+        width = min(field.width, max(
+            220, max(font.size(f"{item.text}   {item.hint}")[0] for item in shown) + 28))
+        box = pygame.Rect(field.left, field.top - 6 - len(shown) * SUGGESTION_HEIGHT,
+                          width, len(shown) * SUGGESTION_HEIGHT)
+        panel(surface, box, fill=theme.SURFACE_RAISED, border=theme.BORDER_STRONG)
+
+        y = box.top
+        for index, item in enumerate(shown):
+            row = pygame.Rect(box.left, y, box.width, SUGGESTION_HEIGHT)
+            if index == selected:
+                pygame.draw.rect(surface, theme.ACCENT_MUTED, row)
+            colour = theme.TEXT_FAINT if item.placeholder else theme.TEXT
+            draw_text(surface, font, item.text, (row.left + 10, row.centery),
+                      colour, baseline="middle")
+            if item.hint:
+                draw_text(surface, fonts.tiny,
+                          item.hint, (row.right - 10, row.centery),
+                          theme.TEXT_FAINT, align="right", baseline="middle")
+            # A placeholder says what is expected; there is nothing to click.
+            if not item.placeholder:
+                self._suggestion_rects.append((row, index))
+            y += SUGGESTION_HEIGHT
 
 
 def _wrap(font, text: str, width: int) -> list[str]:

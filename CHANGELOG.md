@@ -167,6 +167,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   directories with their fixtures in a local `conftest.py`, so each family
   keeps its own calendar setup instead of leaking it to every other test.
 
+- **The developer console suggests what can come next.** Typing `m` offers
+  `money`; `money` offers `player` and `company`; `money player` offers `set`,
+  `add` and `remove`; `money player add` says it wants an `{amount}` and
+  offers nothing else. The suggestions come from the command table's own
+  declared syntax, so there is one grammar in the game rather than a second
+  copy for the console — a command added or changed shows up here by itself,
+  and `unlock add` completes from the live unlock catalogue, so an unlock that
+  leaves the tree leaves the suggestions with it. Up and down move through the
+  list, Tab or a click accepts the selection, and neither ever runs anything:
+  Enter is still the only thing that executes a command. The arrows go back to
+  the command history whenever the list is not in use.
+- **The console has a real text cursor**, a blinking `|` at the point where
+  typing will actually go rather than always at the end of the line. Left,
+  right, Home, End, Delete and Backspace all work from it, and completing a
+  word replaces the word under the cursor instead of appending to the line.
 - **The employee branch runs straight from Create Company.** The structural
   "Employees" unlock, which did nothing but open the quality levels beneath
   it, is gone (project manager, 2026-08-11); Better Employees 1 now comes
