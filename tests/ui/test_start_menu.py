@@ -184,22 +184,25 @@ def test_loading_a_damaged_save_reports_rather_than_opening_it(menu_app, monkeyp
 # -- the expandable sidebar -----------------------------------------------
 
 
-def test_the_sidebar_starts_collapsed_to_icons(app):
-    assert not app.sidebar.expanded
-    assert app.sidebar.width(0) == theme.SIDEBAR_WIDTH
+def test_the_sidebar_starts_open_with_the_names_showing(app):
+    """Project manager, 2026-08-11: a first-time player should not have to
+    work out what the icons mean. It opens at its full width rather than
+    animating open on the first frame."""
+    assert app.sidebar.expanded
+    assert app.sidebar.width(0) == theme.SIDEBAR_EXPANDED
 
 
-def test_clicking_the_logo_expands_and_collapses(app):
+def test_clicking_the_logo_collapses_and_expands(app):
     app.draw(0)  # lay the logo out so it has a hit area
     logo = app.sidebar._logo_rect
 
     app.sidebar.handle_event(click(logo.center))
-    assert app.sidebar.expanded
-    # The width eases open over a couple of frames rather than jumping.
+    assert not app.sidebar.expanded
+    # The width eases closed over a couple of frames rather than jumping.
     app.sidebar.width(10_000)
-    assert app.sidebar.width(11_000) == theme.SIDEBAR_EXPANDED
+    assert app.sidebar.width(11_000) == theme.SIDEBAR_WIDTH
 
     app.sidebar.handle_event(click(logo.center))
-    assert not app.sidebar.expanded
+    assert app.sidebar.expanded
     app.sidebar.width(12_000)
-    assert app.sidebar.width(13_000) == theme.SIDEBAR_WIDTH
+    assert app.sidebar.width(13_000) == theme.SIDEBAR_EXPANDED

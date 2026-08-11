@@ -104,13 +104,17 @@ def test_the_window_icon_is_set_from_the_real_logo(monkeypatch):
 
 
 def test_the_expanded_state_is_remembered_across_screens(app):
+    """Whichever way the player set it, navigating must not reset it — so
+    this asserts the state it was toggled *to*, rather than assuming which
+    way the toggle went from the default."""
     app.draw(0)
     app.sidebar.handle_event(click(app.sidebar._logo_rect.center))
+    chosen = app.sidebar.expanded
 
     for item in NAV_ITEMS:
         app.navigate(item.key)
         app.draw(0)
-        assert app.sidebar.expanded, item.label
+        assert app.sidebar.expanded is chosen, item.label
 
 
 def test_expanding_moves_the_page_rather_than_covering_it(app):

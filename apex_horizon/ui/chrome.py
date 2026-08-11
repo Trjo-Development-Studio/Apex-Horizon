@@ -78,8 +78,13 @@ class Sidebar:
         self.exit_requested = False
         #: Whether the names are showing beside the icons. Remembered for the
         #: session, so the player sets it once rather than on every screen.
-        self.expanded = False
-        self._width = Animated(theme.SIDEBAR_WIDTH, duration_ms=160)
+        #: Open by default (project manager, 2026-08-11): a first-time player
+        #: should not have to discover what the icons mean, and anyone who
+        #: prefers the room collapses it once.
+        self.expanded = True
+        #: Started at the width it is already showing, so opening the game
+        #: does not play the expand animation at nobody.
+        self._width = Animated(theme.SIDEBAR_EXPANDED, duration_ms=160)
         self._logo_rect = pygame.Rect(0, 0, 0, 0)
 
     def handle_event(self, event) -> bool:

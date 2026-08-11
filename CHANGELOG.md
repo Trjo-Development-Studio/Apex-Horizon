@@ -138,10 +138,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Main Menu. A failed save returns them to the running game with the error, so
   progress is never lost and another attempt can be made. Leaving a session is
   no longer leaving the program.
-- **The sidebar expands.** Clicking the Apex Horizon wordmark shows the names
-  beside the icons and clicking it again hides them; the choice is remembered
-  for the session and the page moves aside rather than being covered. Tooltips
-  stop once the names are showing, since they would only repeat them.
+- **The sidebar expands, and starts that way.** It opens with the names
+  showing beside the icons (project manager, 2026-08-11) so nothing has to be
+  recognised from an icon alone on a first playthrough; clicking the Apex
+  Horizon wordmark collapses it to icons and clicking again brings the names
+  back. The choice is remembered for the session, and the page moves aside
+  rather than being covered. Tooltips stop once the names are showing, since
+  they would only repeat them.
 - **Save slot descriptions now show money, net worth, in-game date, and
   playtime together**, not net worth alone — every figure was already
   computed on `SaveSummary`/`SaveMetadata`, this only formats what was
