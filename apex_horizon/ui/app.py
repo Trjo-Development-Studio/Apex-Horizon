@@ -747,19 +747,19 @@ class GameApp(AppPrompts):
         sidebar_width = self.sidebar.width(now_ms)
         self._draw_topbar(mouse, sidebar_width)
 
-        # The notification stack's corner is reserved out of every page's own
-        # content area (bug fix, 2026-08-09), rather than each page having to
-        # remember to leave room for it: a Hire button, a table's last row, a
-        # dashboard figure must never end up underneath it. Sized to the stack
-        # actually on screen rather than the worst case at all times, so a
-        # short window is not permanently missing content for notifications
-        # that are not there (see NotificationCentre.safe_height).
+        # Notifications are a floating overlay, never a region reserved out of
+        # the page (project manager ruling, 2026-08-11, reversing the
+        # 2026-08-09 reservation). The page is given the whole content area at
+        # all times and laid out without reference to the stack, so a message
+        # arriving or expiring cannot move anything underneath it: whatever a
+        # notification floats over stays exactly where it was and is unchanged
+        # when the message goes. The stack is drawn further down this method,
+        # after the page, which is what puts it on top.
         content = pygame.Rect(
             sidebar_width + theme.PAGE_PADDING,
             theme.TOPBAR_HEIGHT + theme.PAGE_PADDING - 8,
             self.surface.get_width() - sidebar_width - theme.PAGE_PADDING * 2,
-            (self.surface.get_height() - theme.TOPBAR_HEIGHT - theme.PAGE_PADDING
-             - self.notifications.safe_height()),
+            self.surface.get_height() - theme.TOPBAR_HEIGHT - theme.PAGE_PADDING,
         )
         self.page.draw(self.surface, content, self.fonts, mouse, self.breadcrumb)
 

@@ -201,6 +201,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Notifications are a floating overlay again, and no longer move the
+  interface.** A message arriving used to shrink the page it appeared over —
+  the lower-right corner was reserved out of every page's content area, so
+  panels, tables and buttons all shifted up as a message arrived and dropped
+  back as it expired, leaving an empty band across the bottom of the window
+  meanwhile. Nothing is reserved now: the page is laid out at the full height
+  of the window whatever is showing, and the stack is simply drawn on top of
+  it afterwards. Messages still arrive, stack upward from the bottom right,
+  slide, expire and read exactly as before — they just no longer disturb
+  anything underneath them (project manager ruling, reversing the 2026-08-09
+  reservation).
 - **Save slots are named after the game saved in them**, in both Load Game and
   the New Game slot chooser, rather than every row reading "Slot 1" … "Slot 5"
   and leaving the player to tell five identical labels apart by the figures

@@ -335,6 +335,12 @@ class Notification:
 class NotificationCentre:
     """Messages that slide in at the lower right and slide away (V14.16, V27.7).
 
+    A floating overlay, drawn after the page and taking no part in its layout
+    (project manager ruling, 2026-08-11): the stack never reserves, resizes or
+    occupies any part of the interface beneath it, so nothing moves when a
+    message arrives or expires. Messages float over whatever is there and
+    leave it exactly as it was.
+
     The stack is capped so that older, still-relevant messages are never pushed
     out of view before the player has had a chance to read them.
     """
@@ -402,23 +408,3 @@ class NotificationCentre:
                       truncate(fonts.small, item.text, rect.width - 32),
                       (rect.left + 16, rect.centery), theme.TEXT, baseline="middle")
 
-    def safe_height(self) -> int:
-        """How much of the page beneath the stack it actually needs right now.
-
-        Reserved out of every page's content area (GameApp.draw) so nothing a
-        page lays out — a Hire button, a table's last row, a dashboard figure
-        — can end up underneath the notifications (bug fix, 2026-08-09).
-        Sized to the stack that is actually showing, capped at MAX_VISIBLE,
-        rather than to the worst case at all times: a fixed maximum
-        reservation costs a short window real content it cannot spare (the
-        Employee Management staff table has no room left at all at the
-        minimum window size under a permanent full-stack reservation, even
-        when nothing is showing), and every page's layout is already
-        rect-driven and adaptive, so it tolerates the content area changing
-        size as a notification appears or expires the same way it already
-        tolerates a resize.
-        """
-        count = min(len(self.items), self.MAX_VISIBLE)
-        if count == 0:
-            return 0
-        return self.MARGIN + count * (theme.NOTIFICATION_HEIGHT + theme.NOTIFICATION_GAP)

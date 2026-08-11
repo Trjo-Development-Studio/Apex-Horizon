@@ -374,6 +374,34 @@ without a bypass would have silently stopped every AI company in the game
 from ever acquiring again (V12.14: AI organisations expand by acquisition
 too).
 
+## Notifications overlay the interface rather than reserve space (PM, 2026-08-11)
+
+On 2026-08-09 a QA pass found the notification stack covering Hire buttons and
+other controls in the lower right. That was fixed by reserving the stack's
+corner out of every page's content rect, sized to the messages actually on
+screen, so nothing could ever be drawn underneath a notification.
+
+The project manager has reversed that. The cure was worse than the complaint:
+because the reservation tracked the live stack, every page physically resized
+as messages arrived and expired — panels, tables, headers and buttons all
+moved, and the reserved strip read as an empty band across the bottom of the
+window. A message is a transient thing and must not relayout the interface it
+appears over.
+
+Notifications are now a true overlay: `GameApp.draw` lays the page out at the
+full height of the window regardless of what is showing, and the stack is
+drawn afterwards, on top. `NotificationCentre.safe_height` is gone rather than
+merely unused, so there is no way for the stack to re-enter layout by
+accident. The accepted trade-off is the original complaint: a message may
+briefly float over a control in the lower right. That is what a toast does,
+and it is preferred to the whole interface jumping. The controls underneath
+never move, so anything covered is exactly where the player left it once the
+message clears.
+
+The per-panel height clamps added on 2026-08-10 are kept. They no longer have
+notifications to defend against, but they are still what keeps those panels
+correct on a genuinely short window.
+
 ## Content and assets
 
 | Decision | Detail |

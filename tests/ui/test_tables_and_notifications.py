@@ -243,37 +243,63 @@ def test_engine_errors_reach_the_player(app):
     assert any("Saving failed" in item.text for item in app.notifications.items)
 
 
-# -- the notification-safe content area (bug fix, 2026-08-09) -------------
+# -- notifications are a floating overlay (PM ruling, 2026-08-11) ---------
 #
-# Notifications used to anchor over the same lower-right area as the Hire
-# buttons, market rows and dashboard figures. The fix reserves that corner out
-# of every page's content rect — but the first version reserved the worst
-# case (a full stack of MAX_VISIBLE) at all times, which permanently starved
-# short windows of content (the Employee Management staff table had no room
-# left at all at the minimum window size even with nothing showing). The
-# reservation is sized to what is actually on screen instead.
+# They are drawn after the page and take no part in its layout. An earlier
+# build reserved the lower-right corner out of every page's content rect so
+# that a message could never cover a control; the project manager reversed
+# that, because reserving space made the interface jump every time a message
+# arrived or expired. Messages now float over whatever is there and leave it
+# exactly as it was.
 
 
-def test_notification_safe_height_is_zero_with_nothing_showing():
-    centre = NotificationCentre()
-    assert centre.safe_height() == 0
+def test_notifications_reserve_no_space_at_all(app):
+    """The heart of the ruling: the rect a page is laid out in must be the
+    same whether or not anything is showing, and must reach the full height
+    of the window either way."""
+    seen = []
+    page = app.pages["dashboard"]
+    original = page.draw
+
+    def record(surface, rect, fonts, mouse, breadcrumb):
+        seen.append(pygame.Rect(rect))
+        return original(surface, rect, fonts, mouse, breadcrumb)
+
+    app.surface = pygame.Surface((1280, 800))
+    app.navigate("dashboard")
+    page.draw = record
+    app.draw(2000)
+    for index in range(6):
+        app.notifications.push(f"Message {index}", 0)
+    app.draw(2000)
+
+    assert len(seen) == 2
+    assert seen[0] == seen[1], "the page must be laid out identically either way"
+    assert seen[0].bottom >= 800 - theme.PAGE_PADDING, "and reach the window's own bottom"
 
 
-def test_notification_safe_height_scales_with_the_stack(app):
-    centre = NotificationCentre()
-    one_slot = theme.NOTIFICATION_HEIGHT + theme.NOTIFICATION_GAP
-    centre.push("First", 0)
-    assert centre.safe_height() == centre.MARGIN + one_slot
-    for index in range(1, 8):
-        centre.push(f"Message {index}", 0)
-    # Capped at MAX_VISIBLE slots, however many messages are actually queued.
-    assert centre.safe_height() == centre.MARGIN + centre.MAX_VISIBLE * one_slot
+def test_nothing_underneath_a_notification_moves(app):
+    """The same thing proved in pixels, across everything left of the stack:
+    drawing with a full stack must leave every pixel the stack does not
+    itself cover exactly as it was without one."""
+    app.surface = pygame.Surface((1280, 800))
+    app.navigate("company:employees")
+    app.draw(2000)
+    untouched = pygame.Rect(
+        0, 0, 1280 - theme.NOTIFICATION_WIDTH - NotificationCentre.MARGIN, 800)
+    before = pygame.image.tobytes(app.surface.subsurface(untouched), "RGB")
+
+    for index in range(6):
+        app.notifications.push(f"Message {index}", 0)
+    app.draw(2000)
+    after = pygame.image.tobytes(app.surface.subsurface(untouched), "RGB")
+
+    assert after == before, "a notification moved something underneath it"
 
 
-def test_a_short_window_keeps_the_staff_table_when_nothing_is_showing(app):
-    """The regression this fix exists for: at the minimum window size with no
-    notifications queued, the roster must still be visible rather than
-    permanently sacrificed to a worst-case reservation."""
+def test_a_short_window_still_shows_the_staff_table(app):
+    """At the minimum window size the roster must be visible — it is no
+    longer competing with a reservation for the room."""
     app.context.player.cash = Money(500_000)
     app.context.player.unlocks.unlock(CREATE_COMPANY)
     company, message = app.context.player.found_company("Test Capital", 1)
@@ -286,16 +312,16 @@ def test_a_short_window_keeps_the_staff_table_when_nothing_is_showing(app):
     roster.hire(roster.applicants[0], app.context.engine.date.day)
 
     app.surface = pygame.Surface((1100, 680))
-    assert not app.notifications.items
     app.navigate("company:employees")
     app.draw(0)
     table = app.pages["company:employees"].table
     assert table._row_rects, "the staff table should have room to show a row"
 
 
-def test_a_full_notification_stack_still_leaves_the_hire_buttons_reachable(app):
-    """The other half of the same trade-off: however little room a full stack
-    leaves, it must never leave the Hire buttons themselves unreachable."""
+def test_a_full_stack_leaves_the_hire_buttons_exactly_where_they_were(app):
+    """Hire buttons were what the old reservation existed to protect. Under
+    an overlay they simply never move: a message may float over one, but the
+    button stays where the player last saw it."""
     app.context.player.cash = Money(500_000)
     app.context.player.unlocks.unlock(CREATE_COMPANY)
     company, message = app.context.player.found_company("Test Capital", 1)
@@ -306,23 +332,26 @@ def test_a_full_notification_stack_still_leaves_the_hire_buttons_reachable(app):
                                          app.context.allocator, app.context.engine.date.day)
 
     app.surface = pygame.Surface((1100, 680))
-    for index in range(6):
-        app.notifications.push(f"Message {index}", 0)
     app.navigate("company:employees")
     app.draw(2000)
     page = app.pages["company:employees"]
-    assert page.hire_buttons, "a Hire button must still be reachable under a full stack"
-    for button in page.hire_buttons.values():
-        assert app.surface.get_rect().contains(button.rect)
+    assert page.hire_buttons
+    before = {key: pygame.Rect(button.rect) for key, button in page.hire_buttons.items()}
+
+    for index in range(6):
+        app.notifications.push(f"Message {index}", 0)
+    app.draw(2000)
+
+    after = {key: pygame.Rect(button.rect) for key, button in page.hire_buttons.items()}
+    assert after == before
 
 
-def test_a_hidden_staff_table_says_so_rather_than_leaving_an_unexplained_gap(app):
+def test_a_staff_table_with_no_room_says_so_rather_than_leaving_a_gap(app):
     """Bug fix, 2026-08-09: table_height could land at exactly 0 — not
-    negative, so table_height > 0 never fired either — leaving a bare gap
-    above the Candidates panel where the staff table used to be, with
-    nothing drawn to say why. A small amount is now reclaimed from
-    Candidates so the message always has room, unless Candidates is already
-    down at its own compact floor."""
+    negative, so `table_height > 0` never fired either — leaving a bare gap
+    above the Candidates panel with nothing drawn to say why. Notifications
+    no longer create this regime, so the page is measured directly at a
+    height too short for both panels, which is the case the guard is for."""
     app.context.player.cash = Money(500_000)
     app.context.player.unlocks.unlock(CREATE_COMPANY)
     company, message = app.context.player.found_company("Test Capital", 1)
@@ -334,15 +363,11 @@ def test_a_hidden_staff_table_says_so_rather_than_leaving_an_unexplained_gap(app
                               app.context.allocator, app.context.engine.date.day)
     roster.hire(roster.applicants[0], app.context.engine.date.day)
 
-    # The exact size this regressed at: room enough for Candidates but not
-    # both Candidates and the staff table once a full stack is reserved.
-    app.surface = pygame.Surface((1280, 800))
-    for index in range(6):
-        app.notifications.push(f"Message {index}", 0)
     app.navigate("company:employees")
-    app.draw(2000)
-
     page = app.pages["company:employees"]
+    surface = pygame.Surface((900, 400))
+    page.draw_content(surface, pygame.Rect(0, 0, 900, 200), app.fonts, (0, 0))
+
     assert not page.table._row_rects, "this is the regime where the table has no room"
     assert page.hire_buttons, "Candidates must still have kept its own priority"
 

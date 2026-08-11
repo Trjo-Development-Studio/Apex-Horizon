@@ -81,15 +81,13 @@ def test_the_news_page_lists_stories_and_shows_one_in_full(app):
 
 
 def test_the_news_lead_story_never_overlaps_itself_under_a_full_notification_stack(app):
-    """Bug fix, 2026-08-09: a fixed 150px lead story panel left the archive
-    with room for a single row once the notification safe area came out of
-    the page, and at the minimum window size with a full stack the lead
-    panel itself shrank far enough that its byline was drawn on top of its
-    own body text. A second pass at this exact scenario also found the
-    archive's own "Archive" heading and "Select a story..." hint drawn
-    unconditionally, spilling past the bottom of its own (by then 22px tall)
-    panel and into the notification stack below it. Both must degrade
-    without ever overlapping."""
+    """Bug fix, 2026-08-09: a fixed 150px lead story panel could shrink far
+    enough that its byline was drawn on top of its own body text, and the
+    archive's "Archive" heading and "Select a story..." hint were drawn
+    unconditionally, spilling past the bottom of their own panel. Both must
+    degrade without ever overlapping. (Notifications no longer shrink the
+    page — they are an overlay, PM ruling 2026-08-11 — but the degradation
+    this guards still has to hold at small window sizes.)"""
     from apex_horizon.engine.news import NewsTier
 
     unlock_news(app, BASIC_NEWS)
